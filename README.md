@@ -1,10 +1,10 @@
 # addon-kit
 
-The Lua shared by Hearthtale, Lorekeeper's Codex and Explorer's Field Journal:
-the books' look (one family, a theme each), the pieces their windows are made
-of (a select among them), each character's settings (copied from another
-character or by a code) and the welcome page that offers them. See `Kit.lua`'s
-header for what it holds.
+The Lua shared by Hearthtale, Lorekeeper's Codex, Explorer's Field Journal and
+Second Wind: the books' look (one family, a theme each), the pieces their
+windows are made of (a select among them), each character's settings (copied
+from another character or by a code) and the welcome page that offers them. See
+`Kit.lua`'s header for what it holds.
 
 Each addon keeps a committed copy (`addon/<Addon>/Kit.lua`, listed in its TOC
 before the files that use it), loaded into the addon's own namespace as
