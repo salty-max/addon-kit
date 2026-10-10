@@ -398,7 +398,7 @@ local function chosenText(s)
   end
   return s.placeholder or ""
 end
-local function known(s, v)
+local function offered(s, v)
   for _, o in ipairs(s.options) do
     if o.value == v then return true end
   end
@@ -426,13 +426,13 @@ local function menuSelect(parent, width, placeholder)
   end
   function s:SetOptions(options)
     self.options = options or {}
-    if not known(self, self.value) then self.value = nil end
+    if not offered(self, self.value) then self.value = nil end
     box:SetDefaultText(self.placeholder or "")
     setup()
     box:SetEnabled(#self.options > 0)
   end
   function s:SetValue(v)
-    self.value = known(self, v) and v or nil
+    self.value = offered(self, v) and v or nil
     box:SetDefaultText(self.placeholder or "")
     box:GenerateMenu()
   end
@@ -467,7 +467,7 @@ local function dropDownSelect(parent, width, placeholder)
   end)
   function s:SetOptions(options)
     self.options = options or {}
-    if not known(self, self.value) then self.value = nil end
+    if not offered(self, self.value) then self.value = nil end
     UIDropDownMenu_SetText(box, chosenText(self))
     if #self.options > 0 then
       UIDropDownMenu_EnableDropDown(box)
@@ -476,7 +476,7 @@ local function dropDownSelect(parent, width, placeholder)
     end
   end
   function s:SetValue(v)
-    self.value = known(self, v) and v or nil
+    self.value = offered(self, v) and v or nil
     UIDropDownMenu_SetText(box, chosenText(self))
   end
   function s:GetValue() return self.value end
