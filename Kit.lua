@@ -12,7 +12,7 @@
 -- (K.theme, before building anything): its accent, a tint over the panels'
 -- art, the shade behind the text, the ring of its round pictures, its
 -- progress bars and its highlight.
-local _, ns = ...
+local addonName, ns = ...
 local K = {}
 ns.kit = K
 
@@ -240,11 +240,9 @@ function K.highlight(row)
 end
 
 -- ── choosing ─────────────────────────────────────────────────────────────────
--- A select: a box showing the choice and an arrow; a click opens the list of
--- options under it (a row each, the highlight, a scroll past eight of them),
--- closed by a choice or a click anywhere else (Escape closes its window).
--- The kit's own, not the game's dropdowns: Classic's and Forever's differ,
--- and either may lack the other's.
+-- A select: the game's own dropdown (the menu system's, where the client has
+-- it: Forever; else the older UIDropDownMenu: Classic), in a box the caller
+-- places; the kit's own where the client has neither (the test games).
 --   s = K.select(parent, width, placeholder)   (s.placeholder: shown without a choice)
 --   s:SetOptions({ { value = v, text = "..." }, ... }), s:SetValue(v), s:GetValue()
 --   s.onChange = function(value) end   (a choice made by the player)
@@ -275,7 +273,7 @@ local function selectLabel(parent, color)
   fs:SetWordWrap(false)
   return fs
 end
-function K.select(parent, width, placeholder)
+local function kitSelect(parent, width, placeholder)
   local s = CreateFrame("Button", nil, parent)
   s:SetSize(width, 24)
   s.placeholder = placeholder
@@ -391,6 +389,107 @@ function K.select(parent, width, placeholder)
     self:SetValue(self.value)
   end
   return s
+end
+
+-- The text of a select's value among its options, else its placeholder.
+local function chosenText(s)
+  for _, o in ipairs(s.options) do
+    if o.value == s.value then return o.text end
+  end
+  return s.placeholder or ""
+end
+local function known(s, v)
+  for _, o in ipairs(s.options) do
+    if o.value == v then return true end
+  end
+  return false
+end
+
+-- The menu system's dropdown (Forever): radios, the chosen one's text shown.
+local function menuSelect(parent, width, placeholder)
+  local s = CreateFrame("Frame", nil, parent)
+  s:SetSize(width, 24)
+  s.placeholder, s.options = placeholder, {}
+  local box = CreateFrame("DropdownButton", nil, s, "WowStyle1DropdownTemplate")
+  box:SetPoint("LEFT")
+  box:SetWidth(width)
+  s.box = box
+  local function setup()
+    box:SetupMenu(function(_, root)
+      for _, o in ipairs(s.options) do
+        root:CreateRadio(o.text, function(v) return s.value == v end, function(v)
+          s.value = v
+          if s.onChange then s.onChange(v) end
+        end, o.value)
+      end
+    end)
+  end
+  function s:SetOptions(options)
+    self.options = options or {}
+    if not known(self, self.value) then self.value = nil end
+    box:SetDefaultText(self.placeholder or "")
+    setup()
+    box:SetEnabled(#self.options > 0)
+  end
+  function s:SetValue(v)
+    self.value = known(self, v) and v or nil
+    box:SetDefaultText(self.placeholder or "")
+    box:GenerateMenu()
+  end
+  function s:GetValue() return self.value end
+  return s
+end
+
+-- The older UIDropDownMenu (Classic): its buttons, the chosen one checked.
+local dropdowns = 0
+local function dropDownSelect(parent, width, placeholder)
+  local s = CreateFrame("Frame", nil, parent)
+  s:SetSize(width, 24)
+  s.placeholder, s.options = placeholder, {}
+  dropdowns = dropdowns + 1
+  -- (a name of its own: the template finds its parts by it)
+  local box = CreateFrame("Frame", ("%sKitSelect%d"):format(addonName or "Kit", dropdowns), s, "UIDropDownMenuTemplate")
+  box:SetPoint("LEFT", -16, -2)
+  UIDropDownMenu_SetWidth(box, width - 26)
+  s.box = box
+  UIDropDownMenu_Initialize(box, function(_, level)
+    for _, o in ipairs(s.options) do
+      local info = UIDropDownMenu_CreateInfo()
+      info.text, info.value = o.text, o.value
+      info.checked = s.value == o.value
+      info.func = function(button)
+        s.value = button.value
+        UIDropDownMenu_SetText(box, chosenText(s))
+        if s.onChange then s.onChange(button.value) end
+      end
+      UIDropDownMenu_AddButton(info, level)
+    end
+  end)
+  function s:SetOptions(options)
+    self.options = options or {}
+    if not known(self, self.value) then self.value = nil end
+    UIDropDownMenu_SetText(box, chosenText(self))
+    if #self.options > 0 then
+      UIDropDownMenu_EnableDropDown(box)
+    else
+      UIDropDownMenu_DisableDropDown(box)
+    end
+  end
+  function s:SetValue(v)
+    self.value = known(self, v) and v or nil
+    UIDropDownMenu_SetText(box, chosenText(self))
+  end
+  function s:GetValue() return self.value end
+  return s
+end
+
+function K.select(parent, width, placeholder)
+  local templates = C_XMLUtil and C_XMLUtil.GetTemplateInfo
+  if MenuUtil and templates and templates("WowStyle1DropdownTemplate") then
+    return menuSelect(parent, width, placeholder)
+  end
+  if UIDropDownMenu_Initialize then return dropDownSelect(parent, width, placeholder) end
+  return kitSelect(parent, width, placeholder)
 end
 
 -- ── each character's settings ────────────────────────────────────────────────
