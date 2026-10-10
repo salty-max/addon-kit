@@ -243,7 +243,7 @@ end
 -- closed by a choice or a click anywhere else (Escape closes its window).
 -- The kit's own, not the game's dropdowns: Classic's and Forever's differ,
 -- and either may lack the other's.
---   s = K.select(parent, width, placeholder)
+--   s = K.select(parent, width, placeholder)   (s.placeholder: shown without a choice)
 --   s:SetOptions({ { value = v, text = "..." }, ... }), s:SetValue(v), s:GetValue()
 --   s.onChange = function(value) end   (a choice made by the player)
 local SELECT_ROWS, SELECT_ROW = 8, 22
@@ -266,6 +266,7 @@ end
 function K.select(parent, width, placeholder)
   local s = CreateFrame("Button", nil, parent)
   s:SetSize(width, 24)
+  s.placeholder = placeholder
   local back = s:CreateTexture(nil, "BACKGROUND")
   back:SetAllPoints()
   back:SetColorTexture(0, 0, 0, 0.45)
@@ -353,7 +354,7 @@ function K.select(parent, width, placeholder)
       if o.value == v then text = o.text end
     end
     self.value = text and v or nil
-    self.text:SetText(text or placeholder or "")
+    self.text:SetText(text or self.placeholder or "")
     self.text:SetTextColor(unpack(text and T.text or T.soft))
     for _, r in ipairs(self.rows) do
       r.mark:SetShown(r:IsShown() and r.value == self.value)
