@@ -237,6 +237,149 @@ function K.highlight(row)
   return mark
 end
 
+-- ── choosing ─────────────────────────────────────────────────────────────────
+-- A select: a box showing the choice and an arrow; a click opens the list of
+-- options under it (a row each, the highlight, a scroll past eight of them),
+-- closed by a choice or a click anywhere else (Escape closes its window).
+-- The kit's own, not the game's dropdowns: Classic's and Forever's differ,
+-- and either may lack the other's.
+--   s = K.select(parent, width, placeholder)
+--   s:SetOptions({ { value = v, text = "..." }, ... }), s:SetValue(v), s:GetValue()
+--   s.onChange = function(value) end   (a choice made by the player)
+local SELECT_ROWS, SELECT_ROW = 8, 22
+local catcher -- shared by every select: a click outside the open list closes it
+local function border(f, color)
+  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+    local t = f:CreateTexture(nil, "BORDER")
+    t:SetColorTexture(unpack(color))
+    if side == "TOP" or side == "BOTTOM" then
+      t:SetHeight(1)
+      t:SetPoint(side .. "LEFT")
+      t:SetPoint(side .. "RIGHT")
+    else
+      t:SetWidth(1)
+      t:SetPoint("TOP" .. side)
+      t:SetPoint("BOTTOM" .. side)
+    end
+  end
+end
+function K.select(parent, width, placeholder)
+  local s = CreateFrame("Button", nil, parent)
+  s:SetSize(width, 24)
+  local back = s:CreateTexture(nil, "BACKGROUND")
+  back:SetAllPoints()
+  back:SetColorTexture(0, 0, 0, 0.45)
+  border(s, { T.ring[1], T.ring[2], T.ring[3], 0.7 })
+  s.text = K.label(s, K.BODY_FONT, 12, T.text)
+  s.text:SetPoint("LEFT", 8, 0)
+  s.text:SetPoint("RIGHT", -24, 0)
+  s.text:SetWordWrap(false)
+  local arrow = s:CreateTexture(nil, "ARTWORK")
+  arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
+  arrow:SetSize(14, 14)
+  arrow:SetPoint("RIGHT", -6, -3)
+  arrow:SetVertexColor(unpack(T.accent))
+  s:SetHighlightTexture(K.HIGHLIGHT, "ADD")
+  local hover = s:GetHighlightTexture()
+  if hover and hover.SetVertexColor then
+    hover:SetVertexColor(unpack(T.highlight))
+    hover:SetAlpha(0.5)
+  end
+
+  local list = CreateFrame("Frame", nil, s)
+  list:SetPoint("TOPLEFT", s, "BOTTOMLEFT", 0, -2)
+  list:SetWidth(width)
+  list:SetFrameStrata("FULLSCREEN_DIALOG")
+  list:EnableMouse(true)
+  local shade = list:CreateTexture(nil, "BACKGROUND")
+  shade:SetAllPoints()
+  shade:SetColorTexture(0.05, 0.04, 0.03, 0.97)
+  border(list, { T.ring[1], T.ring[2], T.ring[3], 0.9 })
+  local area = K.scrollArea(list, width - 14)
+  area:SetPoint("TOPLEFT", 4, -4)
+  area:SetPoint("BOTTOMRIGHT", -10, 4)
+  list:Hide()
+  list:SetScript("OnHide", function()
+    if catcher then catcher:Hide() end
+  end)
+  s.list, s.rows, s.options = list, {}, {}
+
+  local function close() list:Hide() end
+  local function open()
+    if not catcher then
+      catcher = CreateFrame("Button", nil, UIParent)
+      catcher:SetAllPoints(UIParent)
+      catcher:SetFrameStrata("FULLSCREEN")
+      catcher:SetScript("OnClick", function(self)
+        self:Hide()
+        if self.list then self.list:Hide() end
+      end)
+    end
+    catcher.list = list
+    catcher:Show()
+    list:Show()
+  end
+  s.Close = close
+  s:SetScript("OnClick", function()
+    if list:IsShown() then
+      close()
+    else
+      open()
+    end
+  end)
+
+  local function row(i)
+    local r = s.rows[i]
+    if r then return r end
+    r = CreateFrame("Button", nil, area.child)
+    r:SetSize(width - 14, SELECT_ROW)
+    r:SetPoint("TOPLEFT", 0, -(i - 1) * SELECT_ROW)
+    r.text = K.label(r, K.BODY_FONT, 12, T.text)
+    r.text:SetPoint("LEFT", 6, 0)
+    r.text:SetPoint("RIGHT", -6, 0)
+    r.text:SetWordWrap(false)
+    r.mark = K.highlight(r)
+    r:SetScript("OnClick", function(self)
+      s:SetValue(self.value)
+      close()
+      if s.onChange then s.onChange(self.value) end
+    end)
+    s.rows[i] = r
+    return r
+  end
+  function s:SetValue(v)
+    local text
+    for _, o in ipairs(self.options) do
+      if o.value == v then text = o.text end
+    end
+    self.value = text and v or nil
+    self.text:SetText(text or placeholder or "")
+    self.text:SetTextColor(unpack(text and T.text or T.soft))
+    for _, r in ipairs(self.rows) do
+      r.mark:SetShown(r:IsShown() and r.value == self.value)
+    end
+  end
+  function s:GetValue() return self.value end
+  function s:SetOptions(options)
+    self.options = options or {}
+    for i, o in ipairs(self.options) do
+      local r = row(i)
+      r.value = o.value
+      r.text:SetText(o.text)
+      r:Show()
+    end
+    for i = #self.options + 1, #self.rows do
+      self.rows[i]:Hide()
+    end
+    area.child:SetHeight(#self.options * SELECT_ROW)
+    list:SetHeight(math.min(#self.options, SELECT_ROWS) * SELECT_ROW + 8)
+    self:SetEnabled(#self.options > 0)
+    if #self.options == 0 then close() end
+    self:SetValue(self.value)
+  end
+  return s
+end
+
 -- ── the window ───────────────────────────────────────────────────────────────
 -- The standard game window (portrait, title bar), its inset removed; art: the
 -- portrait's picture, if the addon has one (else the addon sets its own).
