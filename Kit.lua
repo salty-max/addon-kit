@@ -297,6 +297,7 @@ local function kitSelect(parent, width, placeholder)
     hover:SetAlpha(0.5)
   end
 
+  local value -- (the choice: kept here, not on the frame)
   local list = CreateFrame("Frame", nil, s)
   list:SetPoint("TOPLEFT", s, "BOTTOMLEFT", 0, -2)
   list:SetWidth(width)
@@ -363,14 +364,14 @@ local function kitSelect(parent, width, placeholder)
     for _, o in ipairs(self.options) do
       if o.value == v then text = o.text end
     end
-    self.value = text and v or nil
+    value = text and v or nil
     self.text:SetText(text or self.placeholder or "")
     self.text:SetTextColor(unpack(text and T.text or T.soft))
     for _, r in ipairs(self.rows) do
-      r.mark:SetShown(r:IsShown() and r.value == self.value)
+      r.mark:SetShown(r:IsShown() and r.value == value)
     end
   end
-  function s:GetValue() return self.value end
+  function s:GetValue() return value end
   function s:SetOptions(options)
     self.options = options or {}
     for i, o in ipairs(self.options) do
@@ -386,15 +387,15 @@ local function kitSelect(parent, width, placeholder)
     list:SetHeight(math.min(#self.options, SELECT_ROWS) * SELECT_ROW + 8)
     self:SetEnabled(#self.options > 0)
     if #self.options == 0 then close() end
-    self:SetValue(self.value)
+    self:SetValue(value)
   end
   return s
 end
 
--- The text of a select's value among its options, else its placeholder.
-local function chosenText(s)
+-- The text of a value among a select's options, else its placeholder.
+local function chosenText(s, value)
   for _, o in ipairs(s.options) do
-    if o.value == s.value then return o.text end
+    if o.value == value then return o.text end
   end
   return s.placeholder or ""
 end
@@ -414,11 +415,12 @@ local function menuSelect(parent, width, placeholder)
   box:SetPoint("LEFT")
   box:SetWidth(width)
   s.box = box
+  local value -- (the choice: kept here, not on the frame)
   local function setup()
     box:SetupMenu(function(_, root)
       for _, o in ipairs(s.options) do
-        root:CreateRadio(o.text, function(v) return s.value == v end, function(v)
-          s.value = v
+        root:CreateRadio(o.text, function(v) return value == v end, function(v)
+          value = v
           if s.onChange then s.onChange(v) end
         end, o.value)
       end
@@ -426,17 +428,17 @@ local function menuSelect(parent, width, placeholder)
   end
   function s:SetOptions(options)
     self.options = options or {}
-    if not offered(self, self.value) then self.value = nil end
+    if not offered(self, value) then value = nil end
     box:SetDefaultText(self.placeholder or "")
     setup()
     box:SetEnabled(#self.options > 0)
   end
   function s:SetValue(v)
-    self.value = offered(self, v) and v or nil
+    value = offered(self, v) and v or nil
     box:SetDefaultText(self.placeholder or "")
     box:GenerateMenu()
   end
-  function s:GetValue() return self.value end
+  function s:GetValue() return value end
   return s
 end
 
@@ -452,14 +454,15 @@ local function dropDownSelect(parent, width, placeholder)
   box:SetPoint("LEFT", -16, -2)
   UIDropDownMenu_SetWidth(box, width - 26)
   s.box = box
+  local value -- (the choice: kept here, not on the frame)
   UIDropDownMenu_Initialize(box, function(_, level)
     for _, o in ipairs(s.options) do
       local info = UIDropDownMenu_CreateInfo()
       info.text, info.value = o.text, o.value
-      info.checked = s.value == o.value
+      info.checked = value == o.value
       info.func = function(button)
-        s.value = button.value
-        UIDropDownMenu_SetText(box, chosenText(s))
+        value = button.value
+        UIDropDownMenu_SetText(box, chosenText(s, value))
         if s.onChange then s.onChange(button.value) end
       end
       UIDropDownMenu_AddButton(info, level)
@@ -467,8 +470,8 @@ local function dropDownSelect(parent, width, placeholder)
   end)
   function s:SetOptions(options)
     self.options = options or {}
-    if not offered(self, self.value) then self.value = nil end
-    UIDropDownMenu_SetText(box, chosenText(self))
+    if not offered(self, value) then value = nil end
+    UIDropDownMenu_SetText(box, chosenText(self, value))
     if #self.options > 0 then
       UIDropDownMenu_EnableDropDown(box)
     else
@@ -476,10 +479,10 @@ local function dropDownSelect(parent, width, placeholder)
     end
   end
   function s:SetValue(v)
-    self.value = offered(self, v) and v or nil
-    UIDropDownMenu_SetText(box, chosenText(self))
+    value = offered(self, v) and v or nil
+    UIDropDownMenu_SetText(box, chosenText(self, value))
   end
-  function s:GetValue() return self.value end
+  function s:GetValue() return value end
   return s
 end
 
