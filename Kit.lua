@@ -1,8 +1,10 @@
 -- The kit shared by Hearthtale, Lorekeeper's Codex and Explorer's Field
--- Journal: the books' look and the pieces their windows are made of. Its
--- source is ~/code/addon-kit (Kit.lua); each addon keeps a copy, loaded into
--- its own namespace (ns.kit: no global, no clash between the three), made by
--- its kit:sync. Edit the kit, then sync: never the copy.
+-- Journal: the books' look and the pieces their windows are made of, each
+-- character's settings (taken from another, or by a code) and the welcome
+-- page that offers them. Its source is ~/code/addon-kit (Kit.lua); each
+-- addon keeps a copy, loaded into its own namespace (ns.kit: no global, no
+-- clash between the three), made by its kit:sync. Edit the kit, then sync:
+-- never the copy.
 --
 -- The look is one family: light text and gold titles on dark panels (on
 -- Forever, its Professions cards; on Classic, the game's insets and the quest
@@ -381,6 +383,116 @@ function K.select(parent, width, placeholder)
   return s
 end
 
+-- ── each character's settings ────────────────────────────────────────────────
+-- An addon's settings as each character's own (its profile, "Name - Realm"),
+-- all in the addon's account-wide saved table, so that one character can take
+-- another's: picked among this game's characters (each game keeps its saved
+-- files), or from a code made anywhere (another game, another account).
+--   P = K.profiles({
+--     saved = function() return MyAddonSettings end, -- (made by the addon)
+--     defaults = { key = value },
+--     shared = { "chat", ... },      -- what a copy or a code carries, in order
+--     letters = { chat = "c", ... }, -- a letter for each, in a code
+--     tag = "HT1",                   -- a code's first part
+--     changed = function(key) end,   -- after a change (the addon applies it)
+--   })
+--   P:load(seed)   at login; seed(profile, saved) fills a character's new one
+--   P:get(k), P:set(k, v), P:key(), P:others(), P:copy(other) and
+--   P:import(code) (false: no such character, not such a code), P:export()
+--   P.onTake: after a copy or an import (the welcome page refreshes)
+-- A code: "HT1:c1:t1:h0:a200", booleans as 1 and 0; a part of an unknown
+-- letter is left out (a later version's), a code without a known one refused.
+function K.profiles(o)
+  local P = {}
+  local key, profile
+  local function saved()
+    local t = o.saved()
+    t.profiles = t.profiles or {}
+    return t
+  end
+  function P:load(seed)
+    key = ("%s - %s"):format(UnitName("player") or "?", GetRealmName() or "?")
+    local t = saved()
+    profile = t.profiles[key]
+    if profile then return end
+    profile = {}
+    if seed then seed(profile, t) end
+    t.profiles[key] = profile
+  end
+  function P:key() return key end
+  function P:get(k)
+    local v = profile and profile[k]
+    if v == nil then return o.defaults[k] end
+    return v
+  end
+  function P:set(k, v)
+    if not profile then return end
+    profile[k] = v
+    if o.changed then o.changed(k) end
+  end
+  function P:others()
+    local out = {}
+    for k in pairs(saved().profiles) do
+      if k ~= key then table.insert(out, k) end
+    end
+    table.sort(out)
+    return out
+  end
+  local function take(from)
+    for _, k in ipairs(o.shared) do
+      P:set(k, from[k])
+    end
+    if P.onTake then P.onTake() end
+  end
+  function P:copy(other)
+    local from = other ~= key and saved().profiles[other]
+    if not from then return false end
+    take(from)
+    return true
+  end
+  function P:export()
+    local parts = { o.tag }
+    for _, k in ipairs(o.shared) do
+      local v = P:get(k)
+      if type(v) == "boolean" then v = v and 1 or 0 end
+      if type(v) == "number" then table.insert(parts, o.letters[k] .. math.floor(v + 0.5)) end
+    end
+    return table.concat(parts, ":")
+  end
+  function P:import(code)
+    local parts = {}
+    for part in strtrim(code or ""):gmatch("[^:]+") do
+      table.insert(parts, part)
+    end
+    if parts[1] ~= o.tag then return false end
+    local byLetter = {}
+    for k, letter in pairs(o.letters) do
+      byLetter[letter] = k
+    end
+    local from, known = {}, false
+    for i = 2, #parts do
+      local letter, value = parts[i]:match("^(%a)(%-?%d+)$")
+      local k = letter and byLetter[letter]
+      if k then
+        known = true
+        value = tonumber(value)
+        if type(o.defaults[k]) == "boolean" then
+          from[k] = value ~= 0
+        else
+          from[k] = value
+        end
+      end
+    end
+    if not known then return false end
+    for _, k in ipairs(o.shared) do
+      if from[k] == nil then from[k] = P:get(k) end
+    end
+    take(from)
+    return true
+  end
+  return P
+end
+
 -- ── the window ───────────────────────────────────────────────────────────────
 -- The standard game window (portrait, title bar), its inset removed; art: the
 -- portrait's picture, if the addon has one (else the addon sets its own).
@@ -474,4 +586,306 @@ function K.movable(window, width, height)
   window:SetScript("OnDragStart", window.StartMoving)
   window:SetScript("OnDragStop", window.StopMovingOrSizing)
   table.insert(UISpecialFrames, window.kitName)
+end
+
+-- ── the welcome ──────────────────────────────────────────────────────────────
+-- An addon's welcome page, once per character (K.welcomeOnce) or on demand,
+-- laid out as the books' windows: on the left its logo and what it is; on the
+-- right this character's choices, then another's to take, chosen among this
+-- game's characters or brought by a code.
+--   W = K.welcome({
+--     name = "HearthtaleWelcome", title = "Welcome to Hearthtale",
+--     art = an icon for the portrait, logo = a texture (Media/Logo),
+--     heading = "Hearthtale", tagline = "...", intro = "...",
+--     profiles = P (K.profiles),
+--     choices = function() return { choice, ... } end, -- when it is built:
+--       { text, hint, get, set } a box to tick;
+--       with options = { { value = v, text = "..." }, ... }: a select
+--     footnote = "...", open = { text = "Open the journal", click = fn },
+--     exportHint = "...", importHint = "...", refused = "...",
+--   })
+--   W:Show(mode) ("export": with this character's code ready to copy)
+local WELCOME_W, WELCOME_H, WELCOME_ROW = 780, 500, 44 -- (H with three choices; ROW: each more)
+local WELCOME_LEFT, WELCOME_TEXT = 300, 412
+local REFUSED = { 0.85, 0.32, 0.25 }
+
+local function welcomeButton(parent, text, width)
+  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+  b:SetSize(width, 22)
+  b:SetText(text)
+  return b
+end
+
+function K.welcome(o)
+  local W = {}
+  local frame, picker, code
+  local rows = {}
+  local P = o.profiles
+
+  local function say(text, colour)
+    code.note:SetText(text or "")
+    code.note:SetTextColor(unpack(colour or T.soft))
+  end
+
+  local function heading(parent, text, anchor, gap)
+    local h = K.label(parent, K.TITLE_FONT, 15, T.accent)
+    if anchor then
+      h:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -(gap or 16))
+    else
+      h:SetPoint("TOPLEFT", 24, -18)
+    end
+    h:SetText(text)
+    local r = K.rule(parent)
+    r:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -5)
+    r:SetWidth(WELCOME_TEXT)
+    return r
+  end
+
+  -- A choice: a box to tick (its words tick it too), or a select; its name
+  -- and a line on what it does.
+  local function choice(parent, anchor, c)
+    local row = CreateFrame("Button", nil, parent)
+    row:SetSize(WELCOME_TEXT, WELCOME_ROW - 6)
+    row:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -6)
+    local name = K.label(row, K.BODY_FONT, 13, T.text)
+    local note = K.label(row, K.BODY_FONT, 11, T.soft)
+    note:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
+    name:SetText(c.text)
+    note:SetText(c.hint)
+    row.get = c.get
+    if c.options then
+      name:SetPoint("TOPLEFT", 0, -3)
+      note:SetWidth(WELCOME_TEXT - 190)
+      row.select = K.select(row, 170, "")
+      row.select:SetPoint("TOPRIGHT", 0, 0)
+      row.select:SetOptions(c.options)
+      row.select.onChange = c.set
+    else
+      name:SetPoint("TOPLEFT", 28, -3)
+      note:SetWidth(WELCOME_TEXT - 30)
+      row.box = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
+      row.box:SetSize(26, 26)
+      row.box:SetPoint("TOPLEFT", -4, 2)
+      row.box:SetScript("OnClick", function(self) c.set(self:GetChecked() and true or false) end)
+      row:SetScript("OnClick", function()
+        row.box:SetChecked(not row.box:GetChecked())
+        c.set(row.box:GetChecked() and true or false)
+      end)
+    end
+    table.insert(rows, row)
+    return row
+  end
+
+  -- The choices as they are now (after a copy, an import).
+  local function refresh()
+    for _, row in ipairs(rows) do
+      if row.box then
+        row.box:SetChecked(row.get() and true or false)
+      else
+        row.select:SetValue(row.get())
+      end
+    end
+    local options = {}
+    for _, other in ipairs(P:others()) do
+      table.insert(options, { value = other, text = other })
+    end
+    picker.select.placeholder = options[1] and "Choose a character" or "No other character yet"
+    picker.select:SetOptions(options)
+    picker.copy:SetEnabled(picker.select:GetValue() ~= nil)
+  end
+  P.onTake = function()
+    if frame and frame:IsShown() then refresh() end
+  end
+
+  -- Another character of this game, chosen in a select; Copy.
+  local function buildPicker(parent, anchor)
+    picker = CreateFrame("Frame", nil, parent)
+    picker:SetSize(WELCOME_TEXT, 26)
+    picker:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
+    picker.copy = welcomeButton(picker, "Copy their choices", 150)
+    picker.copy:SetPoint("RIGHT", 0, 0)
+    picker.select = K.select(picker, WELCOME_TEXT - 160, "Choose a character")
+    picker.select:SetPoint("LEFT", 0, 0)
+    picker.select.onChange = function() picker.copy:SetEnabled(true) end
+    picker.copy:SetScript("OnClick", function()
+      local other = picker.select:GetValue()
+      if other and P:copy(other) then
+        refresh()
+        say(("%s's choices are this character's now."):format(other), T.accent)
+      end
+    end)
+    return picker
+  end
+
+  -- A code: this character's to copy, or one to paste.
+  local function buildCode(parent, anchor)
+    code = CreateFrame("Frame", nil, parent)
+    code:SetSize(WELCOME_TEXT, 54)
+    code:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
+    code.export = welcomeButton(code, "Give a code", 120)
+    code.export:SetPoint("TOPLEFT", 0, 0)
+    code.import = welcomeButton(code, "Use a code", 120)
+    code.import:SetPoint("LEFT", code.export, "RIGHT", 8, 0)
+    code.box = CreateFrame("EditBox", nil, code, "InputBoxTemplate")
+    code.box:SetSize(WELCOME_TEXT - 268, 22)
+    code.box:SetPoint("LEFT", code.import, "RIGHT", 14, 0)
+    code.box:SetAutoFocus(false)
+    code.box:SetMaxLetters(80)
+    code.note = K.label(code, K.BODY_FONT, 11, T.soft)
+    code.note:SetPoint("TOPLEFT", code.export, "BOTTOMLEFT", 0, -8)
+    code.note:SetWidth(WELCOME_TEXT)
+    code.export:SetScript("OnClick", function() W:ShowCode() end)
+    code.import:SetScript("OnClick", function()
+      code.mode = "import"
+      code.box:SetText("")
+      code.box:SetFocus()
+      say(o.importHint)
+    end)
+    code.box:SetScript("OnEnterPressed", function(self)
+      if code.mode ~= "import" then return self:ClearFocus() end
+      if P:import(self:GetText()) then
+        self:ClearFocus()
+        refresh()
+        say("The code's choices are this character's now.", T.accent)
+      else
+        say(o.refused, REFUSED)
+      end
+    end)
+    code.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    return code
+  end
+
+  local function build()
+    local choices = o.choices()
+    frame = K.gameWindow(o.name, o.title, o.art) or K.dialog(o.name, o.title)
+    K.movable(frame, WELCOME_W, WELCOME_H + math.max(0, #choices - 3) * WELCOME_ROW)
+    frame:SetFrameStrata("DIALOG")
+
+    -- Left: the logo and what the addon is.
+    local left = K.panel(frame, true)
+    left:SetPoint("TOPLEFT", 8, -58)
+    left:SetPoint("BOTTOMLEFT", 8, 8)
+    left:SetWidth(WELCOME_LEFT)
+    local logo = left:CreateTexture(nil, "ARTWORK")
+    logo:SetTexture(o.logo)
+    logo:SetSize(112, 112)
+    logo:SetPoint("TOP", 0, -16)
+    local title = K.label(left, K.TITLE_FONT, 28, T.accent)
+    title:SetPoint("TOP", logo, "BOTTOM", 0, -8)
+    title:SetJustifyH("CENTER")
+    title:SetText(o.heading)
+    local tagline = K.label(left, K.BODY_FONT, 12, T.soft)
+    tagline:SetPoint("TOP", title, "BOTTOM", 0, -4)
+    tagline:SetWidth(WELCOME_LEFT - 40)
+    tagline:SetJustifyH("CENTER")
+    tagline:SetText(o.tagline)
+    local line = K.rule(left)
+    line:SetPoint("TOP", tagline, "BOTTOM", 0, -12)
+    line:SetWidth(WELCOME_LEFT - 40)
+    local intro = K.label(left, K.BODY_FONT, 12, T.text)
+    intro:SetPoint("TOPLEFT", line, "BOTTOMLEFT", 0, -12)
+    intro:SetWidth(WELCOME_LEFT - 40)
+    intro:SetSpacing(3)
+    intro:SetText(o.intro)
+
+    -- Right: this character's choices, and another's.
+    local right = K.panel(frame)
+    right:SetPoint("TOPLEFT", left, "TOPRIGHT", 4, 32)
+    right:SetPoint("BOTTOMRIGHT", -8, 8)
+    local who = P:key()
+    local last = heading(right, who and ("Choices for %s"):format(who:match("^(.-) %- ") or who) or "Your choices")
+    for _, c in ipairs(choices) do
+      last = choice(right, last, c)
+    end
+    last = heading(right, "From another character", last, 14)
+    last = buildPicker(right, last)
+    last = buildCode(right, last)
+    local footnote = K.label(right, K.BODY_FONT, 11, T.soft)
+    footnote:SetPoint("TOPLEFT", last, "BOTTOMLEFT", 0, -4)
+    footnote:SetWidth(WELCOME_TEXT)
+    footnote:SetText(o.footnote)
+
+    local begin = welcomeButton(right, "Begin", 110)
+    begin:SetHeight(24)
+    begin:SetPoint("BOTTOMRIGHT", -22, 16)
+    begin:SetScript("OnClick", function() frame:Hide() end)
+    if o.open then
+      local open = welcomeButton(right, o.open.text, 150)
+      open:SetHeight(24)
+      open:SetPoint("RIGHT", begin, "LEFT", -8, 0)
+      open:SetScript("OnClick", function()
+        frame:Hide()
+        o.open.click()
+      end)
+    end
+
+    frame:SetScript("OnShow", function()
+      say("")
+      code.mode = nil
+      code.box:SetText("")
+      refresh()
+    end)
+    frame:SetScript("OnHide", function() P:set("welcomed", true) end)
+    W.frame, W.rows, W.picker, W.code = frame, rows, picker, code -- (for the tests)
+  end
+
+  function W:Show(mode)
+    if not frame then build() end
+    frame:Show()
+    if mode == "export" then W:ShowCode() end
+  end
+  function W:ShowCode()
+    if not frame then return W:Show("export") end
+    code.mode = "export"
+    code.box:SetText(P:export())
+    code.box:SetFocus()
+    code.box:HighlightText()
+    say(o.exportHint)
+  end
+  return W
+end
+
+-- The welcome once per character, a few seconds after its first login, out
+-- of combat (ready(): the addon has loaded the character, its profile).
+function K.welcomeOnce(W, P, ready)
+  local events = CreateFrame("Frame")
+  local function show()
+    if P:get("welcomed") or (ready and not ready()) then return end
+    if InCombatLockdown() then return events:RegisterEvent("PLAYER_REGEN_ENABLED") end
+    W:Show()
+  end
+  events:SetScript("OnEvent", function(self, event, initial)
+    if event == "PLAYER_REGEN_ENABLED" then
+      self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+      show()
+    elseif initial then
+      C_Timer.After(4, show)
+    end
+  end)
+  events:RegisterEvent("PLAYER_ENTERING_WORLD")
+end
+
+-- The Options page's "Copy settings from": another character of this game
+-- (the game's own dropdown, where the page is the game's). said(other): after.
+function K.copySetting(category, variable, P, tooltip, said)
+  if not (Settings.CreateDropdown and Settings.CreateControlTextContainer and Settings.VarType.String) then return end
+  local copy = Settings.RegisterProxySetting(
+    category,
+    variable,
+    Settings.VarType.String,
+    "Copy settings from",
+    "",
+    function() return "" end,
+    function(other)
+      if other ~= "" and P:copy(other) and said then said(other) end
+    end
+  )
+  Settings.CreateDropdown(category, copy, function()
+    local options = Settings.CreateControlTextContainer()
+    options:Add("", "Choose a character")
+    for _, other in ipairs(P:others()) do
+      options:Add(other, other)
+    end
+    return options:GetData()
+  end, tooltip)
 end
