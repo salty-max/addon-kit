@@ -265,6 +265,16 @@ local function border(f, color)
     end
   end
 end
+-- (a select's words: on the game's own font object first, so they always have
+-- a font, then in the kit's)
+local function selectLabel(parent, color)
+  local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  fs:SetFont(K.BODY_FONT, 12, "")
+  fs:SetTextColor(unpack(color))
+  fs:SetJustifyH("LEFT")
+  fs:SetWordWrap(false)
+  return fs
+end
 function K.select(parent, width, placeholder)
   local s = CreateFrame("Button", nil, parent)
   s:SetSize(width, 24)
@@ -273,10 +283,10 @@ function K.select(parent, width, placeholder)
   back:SetAllPoints()
   back:SetColorTexture(0, 0, 0, 0.45)
   border(s, { T.ring[1], T.ring[2], T.ring[3], 0.7 })
-  s.text = K.label(s, K.BODY_FONT, 12, T.text)
+  s.text = selectLabel(s, T.soft)
   s.text:SetPoint("LEFT", 8, 0)
   s.text:SetPoint("RIGHT", -24, 0)
-  s.text:SetWordWrap(false)
+  s.text:SetText(placeholder or "")
   local arrow = s:CreateTexture(nil, "ARTWORK")
   arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
   arrow:SetSize(14, 14)
@@ -306,6 +316,7 @@ function K.select(parent, width, placeholder)
     if catcher then catcher:Hide() end
   end)
   s.list, s.rows, s.options = list, {}, {}
+  s:SetEnabled(false) -- (until it has options)
 
   local function close() list:Hide() end
   local function open()
@@ -337,10 +348,9 @@ function K.select(parent, width, placeholder)
     r = CreateFrame("Button", nil, area.child)
     r:SetSize(width - 14, SELECT_ROW)
     r:SetPoint("TOPLEFT", 0, -(i - 1) * SELECT_ROW)
-    r.text = K.label(r, K.BODY_FONT, 12, T.text)
+    r.text = selectLabel(r, T.text)
     r.text:SetPoint("LEFT", 6, 0)
     r.text:SetPoint("RIGHT", -6, 0)
-    r.text:SetWordWrap(false)
     r.mark = K.highlight(r)
     r:SetScript("OnClick", function(self)
       s:SetValue(self.value)
@@ -573,7 +583,8 @@ function K.tabs(window, titles, clicked)
 end
 
 -- A window that can be moved, kept on screen, above the game's panels, and
--- closed by Escape (by its name: a window of K.gameWindow or K.dialog).
+-- closed by Escape (by its name: a window of K.gameWindow or K.dialog); left
+-- hidden, as a new frame is shown: its first Show is then a showing (OnShow).
 function K.movable(window, width, height)
   window:SetSize(width, height)
   window:SetPoint("CENTER")
@@ -586,6 +597,7 @@ function K.movable(window, width, height)
   window:SetScript("OnDragStart", window.StartMoving)
   window:SetScript("OnDragStop", window.StopMovingOrSizing)
   table.insert(UISpecialFrames, window.kitName)
+  window:Hide()
 end
 
 -- ── the welcome ──────────────────────────────────────────────────────────────
@@ -819,18 +831,19 @@ function K.welcome(o)
       end)
     end
 
-    frame:SetScript("OnShow", function()
-      say("")
-      code.mode = nil
-      code.box:SetText("")
-      refresh()
-    end)
+    -- (built hidden: a new frame is shown, and its first Show would be no
+    -- showing at all; W:Show refreshes it itself)
+    frame:Hide()
     frame:SetScript("OnHide", function() P:set("welcomed", true) end)
     W.frame, W.rows, W.picker, W.code = frame, rows, picker, code -- (for the tests)
   end
 
   function W:Show(mode)
     if not frame then build() end
+    say("")
+    code.mode = nil
+    code.box:SetText("")
+    refresh()
     frame:Show()
     if mode == "export" then W:ShowCode() end
   end
