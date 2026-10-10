@@ -652,7 +652,7 @@ function K.welcome(o)
     note:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
     name:SetText(c.text)
     note:SetText(c.hint)
-    row.get = c.get
+    row.get, row.kind = c.get, c.options and "select" or "check"
     if c.options then
       name:SetPoint("TOPLEFT", 0, -3)
       note:SetWidth(WELCOME_TEXT - 190)
@@ -679,7 +679,7 @@ function K.welcome(o)
   -- The choices as they are now (after a copy, an import).
   local function refresh()
     for _, row in ipairs(rows) do
-      if row.box then
+      if row.kind == "check" then
         row.box:SetChecked(row.get() and true or false)
       else
         row.select:SetValue(row.get())
