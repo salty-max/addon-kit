@@ -244,6 +244,7 @@ end
 function K.gameWindow(name, title, art)
   local ok, frame = pcall(CreateFrame, "Frame", name, UIParent, "ButtonFrameTemplate")
   if not ok or not frame then return nil end
+  frame.kitName = name
   if ButtonFrameTemplate_HideButtonBar then ButtonFrameTemplate_HideButtonBar(frame) end
   if type(frame.Inset) == "table" then frame.Inset:Hide() end
   if art then
@@ -265,6 +266,7 @@ end
 -- close button.
 function K.dialog(name, title)
   local frame = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
+  frame.kitName = name
   frame:SetBackdrop({
     bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
     edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Gold-Border",
@@ -283,7 +285,8 @@ end
 
 -- The window's tabs under its bottom edge, in the style of the character
 -- sheet's (the shared panel tabs where that template doesn't exist: Forever),
--- named <window's name>Tab<n>; clicked(n) when one is chosen.
+-- named <window's name>Tab<n> (a window of K.gameWindow or K.dialog);
+-- clicked(n) when one is chosen.
 local function hasTemplate(name)
   if not (C_XMLUtil and C_XMLUtil.GetTemplateInfo) then return name == "CharacterFrameTabButtonTemplate" end
   return C_XMLUtil.GetTemplateInfo(name) ~= nil
@@ -291,7 +294,7 @@ end
 function K.tabs(window, titles, clicked)
   local template = hasTemplate("CharacterFrameTabButtonTemplate") and "CharacterFrameTabButtonTemplate"
     or "PanelTabButtonTemplate"
-  local prefix = window:GetName() .. "Tab"
+  local prefix = window.kitName .. "Tab"
   for n, text in ipairs(titles) do
     local tab = CreateFrame("Button", prefix .. n, window, template)
     tab:SetID(n)
@@ -314,7 +317,7 @@ function K.tabs(window, titles, clicked)
 end
 
 -- A window that can be moved, kept on screen, above the game's panels, and
--- closed by Escape (it needs a global name for that).
+-- closed by Escape (by its name: a window of K.gameWindow or K.dialog).
 function K.movable(window, width, height)
   window:SetSize(width, height)
   window:SetPoint("CENTER")
@@ -326,5 +329,5 @@ function K.movable(window, width, height)
   window:RegisterForDrag("LeftButton")
   window:SetScript("OnDragStart", window.StartMoving)
   window:SetScript("OnDragStop", window.StopMovingOrSizing)
-  table.insert(UISpecialFrames, window:GetName())
+  table.insert(UISpecialFrames, window.kitName)
 end
