@@ -352,6 +352,10 @@ local function setTile(t, strip, i, w, fig)
   t:ClearAllPoints()
   t:SetPoint("TOPLEFT", strip, "TOPLEFT", (i - 1) * (w + TILE_GAP), 0)
   t.value:SetText(fig[1])
+  -- (a label no wider than its tile, on one line: a long one ends in "...",
+  -- never past the tile's edge)
+  t.label:SetWidth(w - 8)
+  t.label:SetWordWrap(false)
   t.label:SetText(fig[2])
   t:Show()
 end
