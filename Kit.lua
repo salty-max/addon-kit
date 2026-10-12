@@ -201,17 +201,22 @@ function K.scrollArea(parent, width, name)
 end
 
 -- ── pictures and rows ────────────────────────────────────────────────────────
--- A round picture in a ring (p.tex: what it shows); back: a dark disc behind
--- it, for pictures that don't fill the circle.
+-- A round picture in a ring (p.tex: what it shows; p.ring, the theme's ring
+-- colour); back: a dark disc behind it, for pictures that don't fill the
+-- circle. The ring is the kit's own picture (Media/Ring, a smooth circle the
+-- sync copies beside the addon's), laid over the picture's edge a pixel in:
+-- the game's round mask alone leaves steps on it.
 local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+K.MEDIA = "Interface\\AddOns\\" .. (addonName or "") .. "\\Media\\"
+local RING, RING_IN = K.MEDIA .. "Ring", 0.875 -- (its inner edge, of its outer)
 function K.roundIcon(parent, size, back)
   local p = CreateFrame("Frame", nil, parent)
   p:SetSize(size, size)
-  p.ring = p:CreateTexture(nil, "BACKGROUND")
-  p.ring:SetTexture(MASK)
+  p.ring = p:CreateTexture(nil, "OVERLAY")
+  p.ring:SetTexture(RING)
   p.ring:SetVertexColor(unpack(T.ring))
   p.ring:SetPoint("CENTER")
-  p.ring:SetSize(size + 4, size + 4)
+  p.ring:SetSize((size - 2) / RING_IN, (size - 2) / RING_IN)
   if back then
     p.back = p:CreateTexture(nil, "BORDER")
     p.back:SetTexture(MASK)
@@ -707,17 +712,26 @@ function Page:row(name, value)
 end
 
 -- A card's row, as every book draws one: a round picture (c.portrait, its
--- medal c.badge), a name in the display face, a line under it (c.facts), a
--- rule below. A page's cards, and an addon's own rows (Second Wind's foes).
+-- medal c.badge: a face, a crest, a place) or, square, an item's or a spell's
+-- slot (c.slot, the kit's); a name in the display face, a line under it
+-- (c.facts), a rule below. A page's cards, and an addon's own rows (Second
+-- Wind's foes, blows and lifelines). c.picture: whichever it has.
 K.CARD_H = 52
-function K.cardRow(parent, width)
+function K.cardRow(parent, width, square)
   local c = CreateFrame("Button", nil, parent)
   c:SetSize(width, K.CARD_H)
-  c.portrait = K.roundIcon(c, 40, true)
-  c.portrait:SetPoint("LEFT", 4, 0)
-  c.badge = K.badge(c.portrait, 18)
+  if square then
+    c.slot = K.slot(c, 38)
+    c.slot:SetPoint("LEFT", 5, 0)
+    c.picture = c.slot
+  else
+    c.portrait = K.roundIcon(c, 40, true)
+    c.portrait:SetPoint("LEFT", 4, 0)
+    c.badge = K.badge(c.portrait, 18)
+    c.picture = c.portrait
+  end
   c.name = K.label(c, K.TITLE_FONT, 15, T.text)
-  c.name:SetPoint("TOPLEFT", c.portrait, "TOPRIGHT", 12, -2)
+  c.name:SetPoint("TOPLEFT", c.picture, "TOPRIGHT", 12, -2)
   c.name:SetPoint("RIGHT", -4, 0)
   c.name:SetWordWrap(false)
   c.facts = K.label(c, K.BODY_FONT, 11, T.soft)
@@ -739,6 +753,11 @@ function K.slot(parent, size)
   size = size or K.SLOT
   local s = CreateFrame("Button", nil, parent)
   s:SetSize(size, size)
+  -- (nothing in it: a bag's empty slot)
+  s.empty = s:CreateTexture(nil, "BACKGROUND")
+  s.empty:SetTexture("Interface\\PaperDoll\\UI-Backpack-EmptySlot")
+  s.empty:SetAllPoints()
+  s.empty:Hide()
   s.icon = s:CreateTexture(nil, "BORDER")
   s.icon:SetAllPoints()
   s.frame = s:CreateTexture(nil, "ARTWORK")
@@ -770,12 +789,15 @@ function K.slot(parent, size)
   return s
 end
 
--- What a slot holds: its icon (a path or a file id), how many (shown above
--- one), an item's quality (its border, uncommon and better), faded (one not
--- had: greyed and darkened).
+-- What a slot holds: its icon (a path or a file id; false: nothing, an empty
+-- slot), how many (shown above one), an item's quality (its border, uncommon
+-- and better), faded (one not had, or not ready: greyed and darkened). The
+-- icon cropped of the dark edge every icon file carries: it fills the slot.
 function K.setSlot(s, icon, count, quality, faded)
+  s.empty:SetShown(icon == false)
+  s.icon:SetShown(icon ~= false)
   s.icon:SetTexture(icon or K.QUESTION)
-  s.icon:SetTexCoord(0, 1, 0, 1)
+  s.icon:SetTexCoord(unpack(K.ICON_CROP))
   s.icon:SetDesaturated(faded and true or false)
   local v = faded and 0.4 or 1
   s.icon:SetVertexColor(v, v, v)

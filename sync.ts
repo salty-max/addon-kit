@@ -10,8 +10,10 @@
  *
  * Each addon's package.json runs it as kit:sync (and kit:check). The copy is
  * the kit, word for word, under one stamp line: edit the kit, never the copy.
+ * The kit's pictures (Media/: the ring a round picture wears) go beside the
+ * addon's own in its Media folder, checked the same way.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 
@@ -44,4 +46,19 @@ if (check) {
 } else {
   writeFileSync(target, `-- addon-kit ${commit}: a copy (kit:sync); edit the addon-kit repository's Kit.lua instead\n${source}`);
   console.log(`✓ ${target}: kit ${commit}`);
+}
+const media = join(KIT, "Media");
+for (const name of existsSync(media) ? readdirSync(media).filter((f) => !f.startsWith(".")) : []) {
+  const from = join(media, name);
+  const to = join(folder, "Media", name);
+  if (check) {
+    if (!existsSync(to) || !readFileSync(to).equals(readFileSync(from))) {
+      console.error(`${to}: not the kit's (run kit:sync)`);
+      process.exit(1);
+    }
+  } else {
+    mkdirSync(join(folder, "Media"), { recursive: true });
+    copyFileSync(from, to);
+    console.log(`✓ ${to}: the kit's`);
+  }
 }
