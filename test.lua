@@ -67,6 +67,10 @@ local function frame()
       if k == "SetHeight" then
         return function(self, v) self.height = v end
       end
+      -- (a text's height: a line at its size, or what a test says)
+      if k == "GetStringHeight" then
+        return function(self) return rawget(self, "stringHeight") or rawget(self, "fontSize") or 12 end
+      end
       if k == "GetHeight" then
         return function(self) return rawget(self, "height") or 100 end
       end
@@ -305,6 +309,13 @@ check(
 check(
   board.strip.tiles[1].value.text == "1/3" and board.strip.tiles[2].value.text == "1/2",
   "board: the figures, in all and by group"
+)
+local below = rows[3].point[3]
+rows[2].text.stringHeight = 26
+board:refresh("b")
+check(
+  rows[2].height > rows[1].height and rows[3].point[3] < below,
+  "board: a description on two lines makes its row taller, the rows below lower"
 )
 
 -- A figure's label: its own size when it fits, a little smaller when it
