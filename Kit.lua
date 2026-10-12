@@ -24,6 +24,7 @@ ns.kit = K
 -- place by K.theme: hold T, not its fields, before the theme is set).
 --   accent (alias gold): titles, the scroll thumb, a rule's colour
 --   text, soft: the body; a quieter line
+--   aside: the ink of a note in another hand (a page's aside)
 --   rule: accent at a quarter, the lines under headings
 --   ring: a round picture's ring, an edge
 --   bar: progress
@@ -36,6 +37,7 @@ local DEFAULT = {
   accent = { 0.85, 0.70, 0.42 },
   text = { 0.93, 0.88, 0.76 },
   soft = { 0.62, 0.57, 0.49 },
+  aside = { 0.70, 0.75, 0.80 },
   ring = { 0.72, 0.56, 0.24 },
   bar = { 0.85, 0.65, 0.13 },
   dim = { 0.55, 0.53, 0.50 },
@@ -510,6 +512,7 @@ function K.page(parent, name, o)
   local p = extend(K.scrollArea(parent, width, name), Page)
   p.width, p.labelWidth, p.pairs, p.headings = width, o.labelWidth or 110, o.pairs or {}, {}
   p.cards, p.paragraphs, p.tiles, p.itemPool, p.chipPool = {}, {}, {}, {}, {}
+  p.texts, p.asides = {}, {}
   p:SetPoint("TOPLEFT", parent, "TOPLEFT", 26, -22)
   p:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -22, 14)
   p.portrait = K.roundIcon(p.child, 64, true)
@@ -537,6 +540,8 @@ function Page:start(title, sub, setPicture, seal)
     self.tiles,
     self.itemPool,
     self.chipPool,
+    self.texts,
+    self.asides,
   }) do
     for _, x in ipairs(pool) do
       x:Hide()
@@ -563,6 +568,7 @@ function Page:start(title, sub, setPicture, seal)
   end
   K.setBadge(self.portrait.badge, pictured and seal or nil)
   self.y, self.hi, self.pi, self.ci, self.qi, self.ti, self.ii, self.chi = K.PAGE_HEADER_H + 2, 0, 0, 0, 0, 0, 0, 0
+  self.xi, self.ai = 0, 0
 end
 
 -- A block at the page's next place (a frame or a font string), so tall.
@@ -573,11 +579,77 @@ function Page:place(block, height)
   self.y = self.y + height
 end
 
--- The note at the head of a page (its paragraphs).
+-- The note at the head of a page: its paragraphs, each a string, or an aside,
+-- { text, aside = true, sign = "P. F." }: a note in another hand, set in from
+-- a rule in the display face and the theme's aside ink, its initials (sign)
+-- under it on the right. Paragraphs between asides run together.
+local ASIDE_IN = 18
+
+function Page:textBlock(i)
+  if i == 1 then return self.note end
+  local fs = self.texts[i - 1]
+  if not fs then
+    fs = K.label(self.child, K.BODY_FONT, 13, T.text)
+    fs:SetWidth(self.width)
+    fs:SetSpacing(4)
+    self.texts[i - 1] = fs
+  end
+  return fs
+end
+
+function Page:aside(p)
+  self.ai = self.ai + 1
+  local a = self.asides[self.ai]
+  if not a then
+    a = CreateFrame("Frame", nil, self.child)
+    a:SetWidth(self.width)
+    a.bar = a:CreateTexture(nil, "ARTWORK")
+    a.bar:SetWidth(2)
+    a.bar:SetPoint("TOPLEFT", 4, 0)
+    a.bar:SetPoint("BOTTOMLEFT", 4, 0)
+    a.text = K.label(a, K.TITLE_FONT, 15, T.aside)
+    a.text:SetPoint("TOPLEFT", ASIDE_IN, 0)
+    a.text:SetWidth(self.width - ASIDE_IN - 8)
+    a.text:SetSpacing(3)
+    a.sign = K.label(a, K.TITLE_FONT, 15, T.aside)
+    a.sign:SetJustifyH("RIGHT")
+    a.sign:SetWidth(self.width - ASIDE_IN - 8)
+    self.asides[self.ai] = a
+  end
+  a.bar:SetColorTexture(T.aside[1], T.aside[2], T.aside[3], 0.5)
+  a.text:SetText(p[1])
+  local height = a.text:GetStringHeight()
+  a.sign:SetShown(p.sign ~= nil)
+  if p.sign then
+    a.sign:ClearAllPoints()
+    a.sign:SetPoint("TOPLEFT", ASIDE_IN, -(height + 6))
+    a.sign:SetText(p.sign)
+    height = height + 6 + a.sign:GetStringHeight()
+  end
+  a:SetHeight(height)
+  self:place(a, height + 20)
+end
+
 function Page:text(paragraphs)
   if not paragraphs or #paragraphs == 0 then return end
-  self.note:SetText(table.concat(paragraphs, "\n\n"))
-  self:place(self.note, self.note:GetStringHeight() + 20)
+  local run = {}
+  local function flush()
+    if #run == 0 then return end
+    self.xi = self.xi + 1
+    local fs = self:textBlock(self.xi)
+    fs:SetText(table.concat(run, "\n\n"))
+    self:place(fs, fs:GetStringHeight() + 20)
+    run = {}
+  end
+  for _, p in ipairs(paragraphs) do
+    if type(p) == "table" and p.aside then
+      flush()
+      self:aside(p)
+    else
+      table.insert(run, type(p) == "table" and p[1] or p)
+    end
+  end
+  flush()
 end
 
 function Page:heading(i)
