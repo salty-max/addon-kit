@@ -706,29 +706,53 @@ function Page:row(name, value)
   self:place(p, height + 8)
 end
 
+-- A card's row, as every book draws one: a round picture (c.portrait, its
+-- medal c.badge), a name in the display face, a line under it (c.facts), a
+-- rule below. A page's cards, and an addon's own rows (Second Wind's foes).
+K.CARD_H = 52
+function K.cardRow(parent, width)
+  local c = CreateFrame("Button", nil, parent)
+  c:SetSize(width, K.CARD_H)
+  c.portrait = K.roundIcon(c, 40, true)
+  c.portrait:SetPoint("LEFT", 4, 0)
+  c.badge = K.badge(c.portrait, 18)
+  c.name = K.label(c, K.TITLE_FONT, 15, T.text)
+  c.name:SetPoint("TOPLEFT", c.portrait, "TOPRIGHT", 12, -2)
+  c.name:SetPoint("RIGHT", -4, 0)
+  c.name:SetWordWrap(false)
+  c.facts = K.label(c, K.BODY_FONT, 11, T.soft)
+  c.facts:SetPoint("TOPLEFT", c.name, "BOTTOMLEFT", 0, -5)
+  c.facts:SetPoint("RIGHT", -4, 0)
+  c.facts:SetWordWrap(false)
+  c.line = K.rule(c)
+  c.line:SetPoint("BOTTOMLEFT", 0, 0)
+  c.line:SetPoint("BOTTOMRIGHT", 0, 0)
+  return c
+end
+
+-- A square icon as the game draws an item's: the icon, its border (b.border:
+-- a quality's colour, or what it says), how many (b.count), the highlight.
+function K.iconButton(parent, size)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(size, size)
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetAllPoints()
+  b.border = b:CreateTexture(nil, "OVERLAY")
+  b.border:SetTexture("Interface\\Common\\WhiteIconFrame")
+  b.border:SetAllPoints()
+  b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+  b.count:SetPoint("BOTTOMRIGHT", -2, 2)
+  b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+  return b
+end
+
 -- A card: a round picture (setPicture, its medal: a seal or none), a name and
 -- a line under it, a rule below; a click calls click() (nil: none).
-local PAGE_CARD_H = 52
 function Page:card(name, facts, setPicture, click, seal)
   self.ci = self.ci + 1
   local c = self.cards[self.ci]
   if not c then
-    c = CreateFrame("Button", nil, self.child)
-    c:SetSize(self.width, PAGE_CARD_H)
-    c.portrait = K.roundIcon(c, 40, true)
-    c.portrait:SetPoint("LEFT", 4, 0)
-    c.badge = K.badge(c.portrait, 18)
-    c.name = K.label(c, K.TITLE_FONT, 15, T.text)
-    c.name:SetPoint("TOPLEFT", c.portrait, "TOPRIGHT", 12, -2)
-    c.name:SetPoint("RIGHT", -4, 0)
-    c.name:SetWordWrap(false)
-    c.facts = K.label(c, K.BODY_FONT, 11, T.soft)
-    c.facts:SetPoint("TOPLEFT", c.name, "BOTTOMLEFT", 0, -5)
-    c.facts:SetPoint("RIGHT", -4, 0)
-    c.facts:SetWordWrap(false)
-    c.line = K.rule(c)
-    c.line:SetPoint("BOTTOMLEFT", 0, 0)
-    c.line:SetPoint("BOTTOMRIGHT", 0, 0)
+    c = K.cardRow(self.child, self.width)
     c:SetHighlightTexture(K.HIGHLIGHT, "ADD")
     c:SetScript("OnClick", function(cc)
       if cc.click then cc.click() end
@@ -742,7 +766,7 @@ function Page:card(name, facts, setPicture, click, seal)
   c.portrait.tex:SetDesaturated(false)
   setPicture(c.portrait)
   K.setBadge(c.badge, seal)
-  self:place(c, PAGE_CARD_H + 4)
+  self:place(c, K.CARD_H + 4)
   return c
 end
 
@@ -841,16 +865,7 @@ function Page:items(list)
     self.ii = self.ii + 1
     local b = self.itemPool[self.ii]
     if not b then
-      b = CreateFrame("Button", nil, box)
-      b:SetSize(ITEM, ITEM)
-      b.icon = b:CreateTexture(nil, "ARTWORK")
-      b.icon:SetAllPoints()
-      b.border = b:CreateTexture(nil, "OVERLAY")
-      b.border:SetTexture("Interface\\Common\\WhiteIconFrame")
-      b.border:SetAllPoints()
-      b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-      b.count:SetPoint("BOTTOMRIGHT", -2, 2)
-      b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+      b = K.iconButton(box, ITEM)
       b:SetScript("OnEnter", function(bb)
         GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
         if bb.faded then
