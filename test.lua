@@ -322,5 +322,59 @@ do
   )
 end
 
+-- The game's achievement alert: set up as the book's (its picture, line and
+-- name, no points, a click that opens the book), queued among the game's
+-- alerts; the book's banner where the client has none, or where setting it
+-- up fails (said once).
+do
+  local shown, said, opened = {}, {}, false
+  local banners = { show = function(_, b) table.insert(shown, b) end }
+  local a = K.achievements({ banners = banners, art = "Logo", say = function(m) table.insert(said, m) end })
+  AlertFrame, C_XMLUtil = nil, nil
+  a:show({ kicker = "Field Journal milestone", title = "First Steps" })
+  check(#shown == 1 and shown[1].title == "First Steps", "achievements: no alert in the client, the book's banner")
+
+  local alert = frame()
+  alert.Icon = { Texture = alert }
+  alert.Unlocked, alert.Name, alert.Shield = frame(), frame(), frame()
+  local queued
+  AlertFrame = {
+    AddQueuedAlertFrameSubSystem = function(_, template, setUp, shownAtOnce, waiting)
+      queued = { template = template, shownAtOnce = shownAtOnce, waiting = waiting }
+      return { AddAlert = function(_, b) return setUp(alert, b) end }
+    end,
+  }
+  C_XMLUtil = { GetTemplateInfo = function() return {} end }
+  a = K.achievements({ banners = banners, art = "Logo", say = function(m) table.insert(said, m) end })
+  a:show({
+    picture = "Book",
+    kicker = "Field Journal milestone",
+    title = "First Steps",
+    click = function() opened = true end,
+  })
+  alert.scripts.OnClick(alert, "LeftButton")
+  check(
+    queued.template == "AchievementAlertFrameTemplate"
+      and queued.shownAtOnce == 2
+      and alert.texture == "Book"
+      and alert.Unlocked.text == "Field Journal milestone"
+      and alert.Name.text == "First Steps"
+      and alert.Shield.shown == false
+      and opened
+      and #shown == 1,
+    "achievements: the game's alert, the book's picture and words, no points, a click to the book"
+  )
+
+  alert.Icon = nil -- (a client whose alert is made otherwise)
+  a = K.achievements({ banners = banners, art = "Logo", say = function(m) table.insert(said, m) end })
+  a:show({ title = "Second" })
+  a:show({ title = "Third" })
+  check(
+    #shown == 3 and shown[2].title == "Second" and shown[3].title == "Third" and #said == 1,
+    "achievements: an alert that fails to set up, the book's banner (said once)"
+  )
+  AlertFrame, C_XMLUtil = nil, nil
+end
+
 print(failures == 0 and "all good" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)
