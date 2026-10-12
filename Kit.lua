@@ -730,20 +730,59 @@ function K.cardRow(parent, width)
   return c
 end
 
--- A square icon as the game draws an item's: the icon, its border (b.border:
--- a quality's colour, or what it says), how many (b.count), the highlight.
-function K.iconButton(parent, size)
-  local b = CreateFrame("Button", nil, parent)
-  b:SetSize(size, size)
-  b.icon = b:CreateTexture(nil, "ARTWORK")
-  b.icon:SetAllPoints()
-  b.border = b:CreateTexture(nil, "OVERLAY")
-  b.border:SetTexture("Interface\\Common\\WhiteIconFrame")
-  b.border:SetAllPoints()
-  b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
-  b.count:SetPoint("BOTTOMRIGHT", -2, 2)
-  b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-  return b
+-- An item's or a spell's slot, as the game draws its own (Classic: a bag's,
+-- the icon in the quick slot's frame; Forever: its action bar's frame and
+-- mask): s.icon, how many (s.count), the game's highlight; K.setSlot fills it.
+-- At the game's own size (37) unless told otherwise.
+K.SLOT = 37
+function K.slot(parent, size)
+  size = size or K.SLOT
+  local s = CreateFrame("Button", nil, parent)
+  s:SetSize(size, size)
+  s.icon = s:CreateTexture(nil, "BORDER")
+  s.icon:SetAllPoints()
+  s.frame = s:CreateTexture(nil, "ARTWORK")
+  local modern = ns.forever
+    and C_Texture
+    and C_Texture.GetAtlasInfo
+    and C_Texture.GetAtlasInfo("UI-HUD-ActionBar-IconFrame")
+  if modern then
+    local mask = s:CreateMaskTexture()
+    mask:SetAtlas("UI-HUD-ActionBar-IconFrame-Mask")
+    mask:SetAllPoints(s.icon)
+    s.icon:AddMaskTexture(mask)
+    s.frame:SetAtlas("UI-HUD-ActionBar-IconFrame")
+    s.frame:SetPoint("TOPLEFT")
+    s.frame:SetSize(size * 46 / 45, size)
+  else
+    s.frame:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+    s.frame:SetPoint("CENTER", 0, -size / K.SLOT)
+    s.frame:SetSize(size * 64 / K.SLOT, size * 64 / K.SLOT)
+  end
+  -- (an item's quality, as a bag shows it: uncommon and better)
+  s.quality = s:CreateTexture(nil, "OVERLAY")
+  s.quality:SetTexture("Interface\\Common\\WhiteIconFrame")
+  s.quality:SetAllPoints()
+  s.quality:Hide()
+  s.count = s:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+  s.count:SetPoint("BOTTOMRIGHT", -size * 4 / K.SLOT, size * 2 / K.SLOT)
+  s:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+  return s
+end
+
+-- What a slot holds: its icon (a path or a file id), how many (shown above
+-- one), an item's quality (its border, uncommon and better), faded (one not
+-- had: greyed and darkened).
+function K.setSlot(s, icon, count, quality, faded)
+  s.icon:SetTexture(icon or K.QUESTION)
+  s.icon:SetTexCoord(0, 1, 0, 1)
+  s.icon:SetDesaturated(faded and true or false)
+  local v = faded and 0.4 or 1
+  s.icon:SetVertexColor(v, v, v)
+  s.count:SetText(count and count > 1 and tostring(count) or "")
+  local c = quality and quality >= 2 and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
+  if c then s.quality:SetVertexColor(c.r, c.g, c.b) end
+  s.quality:SetShown(c and true or false)
 end
 
 -- A card: a round picture (setPicture, its medal: a seal or none), a name and
@@ -847,11 +886,12 @@ function Page:model(display, shape)
   self:place(m, MODEL_H + 14)
 end
 
--- A row of items' icons (wrapping): { { item id, name, faded, count, extra } },
--- each with the game's tooltip, its quality's border, how many (count > 1)
+-- A row of items' slots (the kit's, wrapping): { { item id, name, faded,
+-- count, extra } }, each with the game's tooltip, its quality's border
+-- (uncommon and better, as a bag's), how many (count > 1)
 -- and extra(tooltip) for lines of its own; faded: one still to find (its icon
 -- only, darkened).
-local ITEM = 34
+local ITEM = K.SLOT
 function Page:items(list)
   local per = math.floor((self.width + 6) / (ITEM + 6))
   local rows = math.ceil(#list / per)
@@ -865,7 +905,7 @@ function Page:items(list)
     self.ii = self.ii + 1
     local b = self.itemPool[self.ii]
     if not b then
-      b = K.iconButton(box, ITEM)
+      b = K.slot(box, ITEM)
       b:SetScript("OnEnter", function(bb)
         GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
         if bb.faded then
@@ -884,17 +924,7 @@ function Page:items(list)
     b:ClearAllPoints()
     b:SetPoint("TOPLEFT", box, "TOPLEFT", col * (ITEM + 6), -row * (ITEM + 6))
     b.itemId, b.name, b.faded, b.extra = it[1], it[2], it[3], it[5]
-    b.count:SetText((it[4] or 0) > 1 and it[4] or "")
-    local quality = not it[3] and K.itemQuality(it[1])
-    local color = quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
-    if color then
-      b.border:SetVertexColor(color.r, color.g, color.b)
-    else
-      b.border:SetVertexColor(0.6, 0.6, 0.6)
-    end
-    b.icon:SetTexture(K.itemIcon(it[1]) or K.QUESTION)
-    b.icon:SetDesaturated(it[3] and true or false)
-    b.icon:SetVertexColor(it[3] and 0.35 or 1, it[3] and 0.35 or 1, it[3] and 0.35 or 1)
+    K.setSlot(b, K.itemIcon(it[1]), it[4], not it[3] and K.itemQuality(it[1]) or nil, it[3])
     b:Show()
   end
   self:place(box, rows * (ITEM + 6) + 10)

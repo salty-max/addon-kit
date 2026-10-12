@@ -318,6 +318,17 @@ check(
   "board: a description on two lines makes its row taller, the rows below lower"
 )
 
+-- A slot: how many above one, an item's quality border from uncommon on, as
+-- a bag shows it; one not had, greyed.
+K = load()
+ITEM_QUALITY_COLORS = { [1] = { r = 1, g = 1, b = 1 }, [2] = { r = 0.1, g = 1, b = 0 } }
+local slot = K.slot(frame())
+K.setSlot(slot, "Icon", 3, 2)
+check(slot.count.text == "3" and slot.quality.shown, "slot: its count, an uncommon item's border")
+K.setSlot(slot, "Icon", 1, 1, true)
+check(slot.count.text == "" and not slot.quality.shown, "slot: one alone uncounted, a common item without a border")
+ITEM_QUALITY_COLORS = nil
+
 -- A figure's label: its own size when it fits, a little smaller when it
 -- wouldn't, never cut short.
 do
