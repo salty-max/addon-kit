@@ -328,7 +328,10 @@ check(slot.count.text == "3" and slot.quality.shown, "slot: its count, an uncomm
 K.setSlot(slot, "Icon", 1, 1, true)
 check(slot.count.text == "" and not slot.quality.shown, "slot: one alone uncounted, a common item without a border")
 K.setSlot(slot, false)
-check(slot.empty.shown and not slot.icon.shown, "slot: nothing in it, a bag's empty slot")
+check(
+  slot.empty.shown and not slot.icon.shown and not slot.frame.shown,
+  "slot: nothing in it, the action bar's empty slot alone"
+)
 K.setSlot(slot, "Icon")
 check(not slot.empty.shown and slot.icon.shown, "slot: an icon again, the empty slot gone")
 ITEM_QUALITY_COLORS = nil

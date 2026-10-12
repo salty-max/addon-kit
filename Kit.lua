@@ -201,22 +201,38 @@ function K.scrollArea(parent, width, name)
 end
 
 -- ── pictures and rows ────────────────────────────────────────────────────────
--- A round picture in a ring (p.tex: what it shows; p.ring, the theme's ring
--- colour); back: a dark disc behind it, for pictures that don't fill the
--- circle. The ring is the kit's own picture (Media/Ring, a smooth circle the
--- sync copies beside the addon's), laid over the picture's edge a pixel in:
--- the game's round mask alone leaves steps on it.
+-- A round picture in a ring (p.tex: what it shows; p.ring); back: a dark disc
+-- behind it, for pictures that don't fill the circle. The ring is the game's
+-- own round frame (Interface/COMMON/BlueMenuRing: a bevelled bronze ring, in
+-- every client), laid over the picture's edge a pixel in: the round mask
+-- alone leaves steps on it. Its file holds the ring off-centre: its centre,
+-- its inner edge's radius and the square it is cut from, in the file's
+-- pixels (measured on the texture). K.ringColour tints it.
 local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-K.MEDIA = "Interface\\AddOns\\" .. (addonName or "") .. "\\Media\\"
-local RING, RING_IN = K.MEDIA .. "Ring", 0.875 -- (its inner edge, of its outer)
+local RING = "Interface\\COMMON\\BlueMenuRing"
+local RING_X, RING_Y, RING_IN, RING_CUT, RING_FILE = 51.4, 53.6, 29.5, 46, 128
 function K.roundIcon(parent, size, back)
   local p = CreateFrame("Frame", nil, parent)
   p:SetSize(size, size)
   p.ring = p:CreateTexture(nil, "OVERLAY")
-  p.ring:SetTexture(RING)
-  p.ring:SetVertexColor(unpack(T.ring))
   p.ring:SetPoint("CENTER")
-  p.ring:SetSize((size - 2) / RING_IN, (size - 2) / RING_IN)
+  if p.ring:SetTexture(RING) == false then
+    -- (a client without it: the old ring, a disc a little larger behind)
+    p.ring:SetDrawLayer("BACKGROUND")
+    p.ring:SetTexture(MASK)
+    p.ring:SetSize(size + 4, size + 4)
+  else
+    p.ringArt = true
+    p.ring:SetTexCoord(
+      (RING_X - RING_CUT) / RING_FILE,
+      (RING_X + RING_CUT) / RING_FILE,
+      (RING_Y - RING_CUT) / RING_FILE,
+      (RING_Y + RING_CUT) / RING_FILE
+    )
+    local d = 2 * RING_CUT * (size / 2 - 1) / RING_IN
+    p.ring:SetSize(d, d)
+  end
+  K.ringColour(p)
   if back then
     p.back = p:CreateTexture(nil, "BORDER")
     p.back:SetTexture(MASK)
@@ -307,8 +323,17 @@ function K.setBadge(b, seal)
   end
   b.tex:SetTexture(seal[1])
   b.tex:SetTexCoord(unpack(K.ICON_CROP))
-  b.ring:SetVertexColor(unpack(seal[4]))
   b:Show()
+end
+
+-- A round picture's ring: nil, the game's own bronze; else { r, g, b } laid
+-- over it (a warmer gold: { 1, 0.85, 0.45 }), grey = true greying it first,
+-- a metal of that colour (silver: { 1, 1, 1, grey = true }). Where the
+-- client lacks the ring, the old disc in that colour or the theme's.
+function K.ringColour(p, c)
+  if not p.ringArt then return p.ring:SetVertexColor(unpack(c or T.ring)) end
+  p.ring:SetDesaturated(c and c.grey or false)
+  p.ring:SetVertexColor(c and c[1] or 1, c and c[2] or 1, c and c[3] or 1)
 end
 
 -- A day as the books write it: "12 Oct 2026".
@@ -744,40 +769,31 @@ function K.cardRow(parent, width, square)
   return c
 end
 
--- An item's or a spell's slot, as the game draws its own (Classic: a bag's,
--- the icon in the quick slot's frame; Forever: its action bar's frame and
--- mask): s.icon, how many (s.count), the game's highlight; K.setSlot fills it.
--- At the game's own size (37) unless told otherwise.
+-- An item's or a spell's slot, as the game's action bar draws one (its quick
+-- slot frame, Interface/Buttons, in every client): s.icon, how many
+-- (s.count), the game's highlight; K.setSlot fills it. The frame's opening
+-- (33 of its file's 64 pixels, centred at 31: measured on the texture) sits a
+-- pixel inside the icon's edge, the icon cropped of the dark edge every icon
+-- file carries: the icon fills it. Empty: the action bar's empty slot alone
+-- (UI-Quickslot: its own frame, a dark well). At the game's size, 37, unless
+-- told otherwise.
 K.SLOT = 37
 function K.slot(parent, size)
   size = size or K.SLOT
   local s = CreateFrame("Button", nil, parent)
   s:SetSize(size, size)
-  -- (nothing in it: a bag's empty slot)
-  s.empty = s:CreateTexture(nil, "BACKGROUND")
-  s.empty:SetTexture("Interface\\PaperDoll\\UI-Backpack-EmptySlot")
-  s.empty:SetAllPoints()
-  s.empty:Hide()
   s.icon = s:CreateTexture(nil, "BORDER")
   s.icon:SetAllPoints()
-  s.frame = s:CreateTexture(nil, "ARTWORK")
-  local modern = ns.forever
-    and C_Texture
-    and C_Texture.GetAtlasInfo
-    and C_Texture.GetAtlasInfo("UI-HUD-ActionBar-IconFrame")
-  if modern then
-    local mask = s:CreateMaskTexture()
-    mask:SetAtlas("UI-HUD-ActionBar-IconFrame-Mask")
-    mask:SetAllPoints(s.icon)
-    s.icon:AddMaskTexture(mask)
-    s.frame:SetAtlas("UI-HUD-ActionBar-IconFrame")
-    s.frame:SetPoint("TOPLEFT")
-    s.frame:SetSize(size * 46 / 45, size)
-  else
-    s.frame:SetTexture("Interface\\Buttons\\UI-Quickslot2")
-    s.frame:SetPoint("CENTER", 0, -size / K.SLOT)
-    s.frame:SetSize(size * 64 / K.SLOT, size * 64 / K.SLOT)
+  local k = (size - 2) / 33
+  for _, key in ipairs({ "frame", "empty" }) do
+    local t = s:CreateTexture(nil, "ARTWORK")
+    t:SetSize(64 * k, 64 * k)
+    t:SetPoint("CENTER", k, -k)
+    s[key] = t
   end
+  s.frame:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+  s.empty:SetTexture("Interface\\Buttons\\UI-Quickslot")
+  s.empty:Hide()
   -- (an item's quality, as a bag shows it: uncommon and better)
   s.quality = s:CreateTexture(nil, "OVERLAY")
   s.quality:SetTexture("Interface\\Common\\WhiteIconFrame")
@@ -795,6 +811,7 @@ end
 -- icon cropped of the dark edge every icon file carries: it fills the slot.
 function K.setSlot(s, icon, count, quality, faded)
   s.empty:SetShown(icon == false)
+  s.frame:SetShown(icon ~= false)
   s.icon:SetShown(icon ~= false)
   s.icon:SetTexture(icon or K.QUESTION)
   s.icon:SetTexCoord(unpack(K.ICON_CROP))
