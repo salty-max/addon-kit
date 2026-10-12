@@ -343,8 +343,16 @@ local function tile(parent)
   t.art:SetAllPoints()
   t.value = K.label(t.art, K.TITLE_FONT, 20, T.gold)
   t.value:SetPoint("TOP", 0, -7)
+  -- (the label held between the tile's sides, centred, on one line: a long
+  -- one ends in "...", never past the tile's edge; its height fixed, so the
+  -- text sits where a label of its own size would)
   t.label = K.label(t.art, K.BODY_FONT, 11, T.soft)
-  t.label:SetPoint("BOTTOM", 0, 8)
+  t.label:SetPoint("BOTTOMLEFT", 4, 8)
+  t.label:SetPoint("BOTTOMRIGHT", -4, 8)
+  t.label:SetHeight(13)
+  t.label:SetJustifyH("CENTER")
+  t.label:SetJustifyV("BOTTOM")
+  t.label:SetWordWrap(false)
   return t
 end
 local function setTile(t, strip, i, w, fig)
@@ -352,10 +360,6 @@ local function setTile(t, strip, i, w, fig)
   t:ClearAllPoints()
   t:SetPoint("TOPLEFT", strip, "TOPLEFT", (i - 1) * (w + TILE_GAP), 0)
   t.value:SetText(fig[1])
-  -- (a label no wider than its tile, on one line: a long one ends in "...",
-  -- never past the tile's edge)
-  t.label:SetWidth(w - 8)
-  t.label:SetWordWrap(false)
   t.label:SetText(fig[2])
   t:Show()
 end
