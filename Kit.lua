@@ -204,13 +204,15 @@ end
 -- A round picture in a ring (p.tex: what it shows; p.ring); back: a dark disc
 -- behind it, for pictures that don't fill the circle. The ring is the game's
 -- own round frame (Interface/COMMON/BlueMenuRing: a bevelled bronze ring, in
--- every client), laid over the picture's edge a pixel in: the round mask
--- alone leaves steps on it. Its file holds the ring off-centre: its centre,
--- its inner edge's radius and the square it is cut from, in the file's
--- pixels (measured on the texture). K.ringColour tints it.
+-- every client), laid over the picture's edge: the round mask alone leaves
+-- steps on it. Its outer edge 2 pixels past the picture's, never more (a
+-- scroll area clips what reaches past its side), cut there from its file,
+-- shadow left out. The file holds the ring off-centre: its centre, its outer
+-- edge's radius, the square it is cut from, in the file's pixels (measured on
+-- the texture). K.ringColour tints it.
 local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
 local RING = "Interface\\COMMON\\BlueMenuRing"
-local RING_X, RING_Y, RING_IN, RING_CUT, RING_FILE = 51.4, 53.6, 29.5, 46, 128
+local RING_X, RING_Y, RING_OUT, RING_CUT, RING_FILE = 51.4, 53.6, 39, 41, 128
 function K.roundIcon(parent, size, back)
   local p = CreateFrame("Frame", nil, parent)
   p:SetSize(size, size)
@@ -229,7 +231,7 @@ function K.roundIcon(parent, size, back)
       (RING_Y - RING_CUT) / RING_FILE,
       (RING_Y + RING_CUT) / RING_FILE
     )
-    local d = 2 * RING_CUT * (size / 2 - 1) / RING_IN
+    local d = 2 * RING_CUT * (size / 2 + 2) / RING_OUT
     p.ring:SetSize(d, d)
   end
   K.ringColour(p)
@@ -335,6 +337,16 @@ function K.ringColour(p, c, grey)
   p.ring:SetDesaturated(grey and true or false)
   p.ring:SetVertexColor(c and c[1] or 1, c and c[2] or 1, c and c[3] or 1)
 end
+
+-- The rings of a deed's tiers, { colour, grey } (K.ringColour's): gold,
+-- silver, copper, and iron for one not done yet (rendered on the ring, all
+-- four apart from the plain bronze every other picture wears).
+K.RINGS = {
+  gold = { { 1, 0.85, 0.45 } },
+  silver = { { 1, 1, 1 }, true },
+  copper = { { 1, 0.68, 0.5 } },
+  iron = { { 0.5, 0.5, 0.52 }, true },
+}
 
 -- A day as the books write it: "12 Oct 2026".
 function K.day(at) return date("%d %b %Y", at or 0) end
@@ -565,7 +577,9 @@ function K.page(parent, name, o)
   return p
 end
 
-function Page:start(title, sub, setPicture, seal)
+-- (seal: a medal on the picture, K.setBadge's; ring: its ring, K.RINGS's or
+-- { colour, grey }, else the plain bronze)
+function Page:start(title, sub, setPicture, seal, ring)
   for _, pool in ipairs({
     self.pairs,
     self.headings,
@@ -601,12 +615,15 @@ function Page:start(title, sub, setPicture, seal)
     setPicture(self.portrait)
   end
   K.setBadge(self.portrait.badge, pictured and seal or nil)
+  K.ringColour(self.portrait, ring and ring[1], ring and ring[2])
   self.y, self.hi, self.pi, self.ci, self.qi, self.ti, self.ii, self.chi = K.PAGE_HEADER_H + 2, 0, 0, 0, 0, 0, 0, 0
-  self.xi, self.ai = 0, 0
+  self.xi, self.ai, self.lastCard = 0, 0, nil
 end
 
--- A block at the page's next place (a frame or a font string), so tall.
+-- A block at the page's next place (a frame or a font string), so tall. (Any
+-- block ends a list of cards: Page:card.)
 function Page:place(block, height)
+  self.lastCard = nil
   block:ClearAllPoints()
   block:SetPoint("TOPLEFT", self.child, "TOPLEFT", 0, -self.y)
   block:Show()
@@ -769,14 +786,14 @@ function K.cardRow(parent, width, square)
   return c
 end
 
--- An item's or a spell's slot, as the game's action bar draws one (its quick
--- slot frame, Interface/Buttons, in every client): s.icon, how many
--- (s.count), the game's highlight; K.setSlot fills it. The frame's opening
--- (33 of its file's 64 pixels, centred at 31: measured on the texture) sits a
--- pixel inside the icon's edge, the icon cropped of the dark edge every icon
--- file carries: the icon fills it. Empty: the action bar's empty slot alone
--- (UI-Quickslot: its own frame, a dark well). At the game's size, 37, unless
--- told otherwise.
+-- An item's or a spell's slot, as the game draws a bag's button (Classic's
+-- ItemButtonTemplate, the frame in every client): the whole icon, as the
+-- action bar shows it, never cropped (s.icon); the quick slot's frame over
+-- its edge, 64 pixels to an icon of 37, a pixel down, covering the dark edge
+-- every icon file carries; how many (s.count); the game's highlight.
+-- K.setSlot fills it. Empty: the action bar's empty slot alone (UI-Quickslot:
+-- its own frame, a dark well), in the frame's place. At the game's size, 37,
+-- unless told otherwise.
 K.SLOT = 37
 function K.slot(parent, size)
   size = size or K.SLOT
@@ -784,11 +801,11 @@ function K.slot(parent, size)
   s:SetSize(size, size)
   s.icon = s:CreateTexture(nil, "BORDER")
   s.icon:SetAllPoints()
-  local k = (size - 2) / 33
+  local k = size / K.SLOT
   for _, key in ipairs({ "frame", "empty" }) do
     local t = s:CreateTexture(nil, "ARTWORK")
     t:SetSize(64 * k, 64 * k)
-    t:SetPoint("CENTER", k, -k)
+    t:SetPoint("CENTER", 0, -k)
     s[key] = t
   end
   s.frame:SetTexture("Interface\\Buttons\\UI-Quickslot2")
@@ -807,14 +824,13 @@ end
 
 -- What a slot holds: its icon (a path or a file id; false: nothing, an empty
 -- slot), how many (shown above one), an item's quality (its border, uncommon
--- and better), faded (one not had, or not ready: greyed and darkened). The
--- icon cropped of the dark edge every icon file carries: it fills the slot.
+-- and better), faded (one not had, or not ready: greyed and darkened).
 function K.setSlot(s, icon, count, quality, faded)
   s.empty:SetShown(icon == false)
   s.frame:SetShown(icon ~= false)
   s.icon:SetShown(icon ~= false)
   s.icon:SetTexture(icon or K.QUESTION)
-  s.icon:SetTexCoord(unpack(K.ICON_CROP))
+  s.icon:SetTexCoord(0, 1, 0, 1)
   s.icon:SetDesaturated(faded and true or false)
   local v = faded and 0.4 or 1
   s.icon:SetVertexColor(v, v, v)
@@ -824,9 +840,11 @@ function K.setSlot(s, icon, count, quality, faded)
   s.quality:SetShown(c and true or false)
 end
 
--- A card: a round picture (setPicture, its medal: a seal or none), a name and
--- a line under it, a rule below; a click calls click() (nil: none).
-function Page:card(name, facts, setPicture, click, seal)
+-- A card: a round picture (setPicture, its medal: a seal or none; its ring:
+-- K.RINGS's or { colour, grey }, else the plain bronze), a name and a line
+-- under it, a rule below but under a list's last; a click calls click() (nil:
+-- none).
+function Page:card(name, facts, setPicture, click, seal, ring)
   self.ci = self.ci + 1
   local c = self.cards[self.ci]
   if not c then
@@ -844,7 +862,14 @@ function Page:card(name, facts, setPicture, click, seal)
   c.portrait.tex:SetDesaturated(false)
   setPicture(c.portrait)
   K.setBadge(c.badge, seal)
+  K.ringColour(c.portrait, ring and ring[1], ring and ring[2])
+  -- (the card before it no longer the last: its rule back; none under this one
+  -- till another comes)
+  local before = rawget(self, "lastCard")
+  if before then before.line:Show() end
+  c.line:Hide()
   self:place(c, K.CARD_H + 4)
+  self.lastCard = c
   return c
 end
 

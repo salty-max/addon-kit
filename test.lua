@@ -342,6 +342,15 @@ check(
 )
 check(round.portrait and round.picture == round.portrait and round.badge, "card row: round, a portrait and its medal")
 
+-- A page's list of cards: a rule between them, none under the last.
+K = load()
+local pg = K.page(frame(), "TestPage")
+pg:start("A page", "its line")
+local first = pg:card("One", "", K.icon("Icon"))
+local second = pg:card("Two", "", K.icon("Icon"), nil, nil, K.RINGS.gold)
+pg:section("After them")
+check(first.line.shown and not second.line.shown, "page: a rule between two cards, none under the last")
+
 -- A figure's label: its own size when it fits, a little smaller when it
 -- wouldn't, never cut short.
 do
