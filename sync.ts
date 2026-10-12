@@ -2,8 +2,11 @@
  * Copies the kit into an addon (its committed copy, loaded into the addon's
  * own namespace), stamped with the kit's commit:
  *
- *   bun ~/code/addon-kit/sync.ts <addon folder>          write <folder>/Kit.lua
- *   bun ~/code/addon-kit/sync.ts --check <addon folder>  fail if the copy differs
+ *   bun ../addon-kit/sync.ts <addon folder>          write <folder>/Kit.lua
+ *   bun ../addon-kit/sync.ts --check <addon folder>  fail if the copy differs
+ *
+ * (run from an addon's repository: the kit's lies beside it, in
+ * ~/code/wow-addons)
  *
  * Each addon's package.json runs it as kit:sync (and kit:check). The copy is
  * the kit, word for word, under one stamp line: edit the kit, never the copy.
@@ -39,6 +42,6 @@ if (check) {
   }
   console.log(`✓ ${target}: the kit's`);
 } else {
-  writeFileSync(target, `-- addon-kit ${commit}: a copy (kit:sync); edit ~/code/addon-kit/Kit.lua instead\n${source}`);
+  writeFileSync(target, `-- addon-kit ${commit}: a copy (kit:sync); edit the addon-kit repository's Kit.lua instead\n${source}`);
   console.log(`✓ ${target}: kit ${commit}`);
 }
