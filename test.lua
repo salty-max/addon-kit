@@ -42,6 +42,13 @@ local function frame()
       if k == "SetText" then
         return function(self, v) self.text = v end
       end
+      if k == "SetFont" then
+        return function(self, _, size) self.fontSize = size end
+      end
+      -- (a text's width: its letters at about half its size each)
+      if k == "GetUnboundedStringWidth" then
+        return function(self) return #(rawget(self, "text") or "") * (rawget(self, "fontSize") or 12) * 0.55 end
+      end
       if k == "SetPoint" then
         return function(self, ...) self.point = { ... } end
       end
@@ -299,6 +306,21 @@ check(
   board.strip.tiles[1].value.text == "1/3" and board.strip.tiles[2].value.text == "1/2",
   "board: the figures, in all and by group"
 )
+
+-- A figure's label: its own size when it fits, a little smaller when it
+-- wouldn't, never cut short.
+do
+  local strip = K.figures(UIParent)
+  strip:set({ { "1", "slain" }, { "20", "a label far too long for its little tile" } }, 230)
+  local fits, long = strip.tiles[1].label, strip.tiles[2].label
+  check(
+    fits.fontSize == 11
+      and long.fontSize < 11
+      and long.fontSize >= 8
+      and long.text == "a label far too long for its little tile",
+    "figures: a label that fits keeps its size, a long one is set smaller, whole"
+  )
+end
 
 print(failures == 0 and "all good" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)

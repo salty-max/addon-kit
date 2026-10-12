@@ -343,9 +343,8 @@ local function tile(parent)
   t.art:SetAllPoints()
   t.value = K.label(t.art, K.TITLE_FONT, 20, T.gold)
   t.value:SetPoint("TOP", 0, -7)
-  -- (the label held between the tile's sides, centred, on one line: a long
-  -- one ends in "...", never past the tile's edge; its height fixed, so the
-  -- text sits where a label of its own size would)
+  -- (the label held between the tile's sides, centred, on one line; its
+  -- height fixed, so the text sits where a label of its own size would)
   t.label = K.label(t.art, K.BODY_FONT, 11, T.soft)
   t.label:SetPoint("BOTTOMLEFT", 4, 8)
   t.label:SetPoint("BOTTOMRIGHT", -4, 8)
@@ -355,12 +354,25 @@ local function tile(parent)
   t.label:SetWordWrap(false)
   return t
 end
+-- A text's width on one line, whatever its region's (0 where it can't be told).
+local function textWidth(fs)
+  local get = fs.GetUnboundedStringWidth or fs.GetStringWidth
+  local v = get and get(fs)
+  return type(v) == "number" and v or 0
+end
 local function setTile(t, strip, i, w, fig)
   t:SetSize(w, TILE_H)
   t:ClearAllPoints()
   t:SetPoint("TOPLEFT", strip, "TOPLEFT", (i - 1) * (w + TILE_GAP), 0)
   t.value:SetText(fig[1])
+  -- A label too wide for its tile is set a little smaller, never cut short.
+  local size = 11
+  t.label:SetFont(K.BODY_FONT, size, "")
   t.label:SetText(fig[2])
+  while size > 8 and textWidth(t.label) > w - 8 do
+    size = size - 1
+    t.label:SetFont(K.BODY_FONT, size, "")
+  end
   t:Show()
 end
 function K.figures(parent)
