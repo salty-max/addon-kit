@@ -852,7 +852,7 @@ end
 -- (a bar). A group with nothing to show is left out (no spoilers).
 --   B = K.board({
 --     parent = a panel, name = its scroll area's global name, width = 700,
---     groups = { { id, heading, picture, figure }, ... },
+--     groups = { { id, heading, picture (a texture, or a picture's setter), figure }, ... },
 --     figures = { { key, label }, ... }, -- "all": every one shown; else a group's figure
 --     items = function() return { { id, group, title, text, earned = { level, at } or nil,
 --       progress = function() return done, need end, unit = "pages" (a count without an end) }, ... } end,
@@ -915,7 +915,11 @@ function K.board(o)
   local function fill(r, a, picture, picked)
     local earned = a.earned
     r.id = a.id
-    K.icon(picture)(r.picture)
+    if type(picture) == "function" then
+      picture(r.picture)
+    else
+      K.icon(picture)(r.picture)
+    end
     r.picture.tex:SetDesaturated(not earned)
     local shade = earned and 1 or 0.6
     r.picture.tex:SetVertexColor(shade, shade, shade)
