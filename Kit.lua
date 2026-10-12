@@ -326,13 +326,13 @@ function K.setBadge(b, seal)
   b:Show()
 end
 
--- A round picture's ring: nil, the game's own bronze; else { r, g, b } laid
--- over it (a warmer gold: { 1, 0.85, 0.45 }), grey = true greying it first,
--- a metal of that colour (silver: { 1, 1, 1, grey = true }). Where the
--- client lacks the ring, the old disc in that colour or the theme's.
-function K.ringColour(p, c)
+-- A round picture's ring: no colour, the game's own bronze; else { r, g, b }
+-- laid over it (a warmer gold: { 1, 0.85, 0.45 }), grey greying it first, a
+-- metal of that colour (silver: { 1, 1, 1 }, grey). Where the client lacks
+-- the ring, the old disc in that colour or the theme's.
+function K.ringColour(p, c, grey)
   if not p.ringArt then return p.ring:SetVertexColor(unpack(c or T.ring)) end
-  p.ring:SetDesaturated(c and c.grey or false)
+  p.ring:SetDesaturated(grey and true or false)
   p.ring:SetVertexColor(c and c[1] or 1, c and c[2] or 1, c and c[3] or 1)
 end
 
