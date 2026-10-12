@@ -1,6 +1,8 @@
 -- The kit shared by Hearthtale, Lorekeeper's Codex, Explorer's Field Journal
--- and Second Wind: the books' look and the pieces their windows are made of,
--- each character's settings (taken from another, or by a code) and the
+-- and Second Wind: the books' look and the pieces their windows are made of
+-- (the list on the left, the page on the right and every part of a page, a
+-- board of achievements, a strip of figures), the banners that tell of a deed
+-- done, each character's settings (taken from another, or by a code) and the
 -- welcome page that offers them. Its source is the addon-kit repository
 -- (Kit.lua), beside the addons' own in ~/code/wow-addons; each addon keeps a
 -- copy, loaded into its own namespace (ns.kit: no global, no clash between
@@ -237,6 +239,974 @@ function K.highlight(row)
   mark:SetAlpha(0.7)
   mark:SetVertexColor(unpack(T.highlight))
   return mark
+end
+
+-- What a round picture shows, set by a function given the picture (p.tex: its
+-- texture): K.icon(path), K.crest(class), K.unitPortrait(unit), or the
+-- addon's own (a creature's portrait by its display id, ...).
+K.ICON_CROP = { 0.08, 0.92, 0.08, 0.92 }
+K.QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
+function K.icon(path)
+  return function(p)
+    p.display = nil
+    p.tex:SetTexture(path)
+    p.tex:SetTexCoord(unpack(K.ICON_CROP))
+  end
+end
+
+-- A class's round crest, the game's own (its token: "HUNTER"); else the
+-- fallback's icon.
+K.CRESTS = "Interface\\TargetingFrame\\UI-Classes-Circles"
+function K.crest(class, fallback)
+  return function(p)
+    local c = class and CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[class]
+    if c then
+      p.display = nil
+      p.tex:SetTexture(K.CRESTS)
+      p.tex:SetTexCoord(unpack(c))
+    else
+      K.icon(fallback or K.QUESTION)(p)
+    end
+  end
+end
+
+-- A unit's face as its unit frame shows it ("player": the character's own).
+function K.unitPortrait(unit, fallback)
+  return function(p)
+    if not SetPortraitTexture then return K.icon(fallback or K.QUESTION)(p) end
+    p.display = nil
+    p.tex:SetTexCoord(0, 1, 0, 1)
+    SetPortraitTexture(p.tex, unit)
+  end
+end
+
+-- A medal pinned on a round picture's lower edge: a seal's coin in a ring of
+-- its colour. K.setBadge(b, seal): seal = { icon, name, text, colour }, nil:
+-- none. The seal is the medal; the picture stays the subject's.
+K.GOLD = { "Interface\\Icons\\INV_Misc_Coin_01", "Gold", "", { 1, 0.82, 0 } }
+function K.badge(portrait, size)
+  size = size or 20
+  local b = K.roundIcon(portrait, size, true)
+  b:SetPoint("CENTER", portrait, "BOTTOMRIGHT", -size * 0.3, size * 0.3)
+  b:SetFrameLevel(portrait:GetFrameLevel() + 3)
+  b:Hide()
+  return b
+end
+function K.setBadge(b, seal)
+  if not seal then
+    b:Hide()
+    return
+  end
+  b.tex:SetTexture(seal[1])
+  b.tex:SetTexCoord(unpack(K.ICON_CROP))
+  b.ring:SetVertexColor(unpack(seal[4]))
+  b:Show()
+end
+
+-- A day as the books write it: "12 Oct 2026".
+function K.day(at) return date("%d %b %Y", at or 0) end
+
+-- ── items ────────────────────────────────────────────────────────────────────
+-- An item's name (the fallback while the game hasn't the item in its cache
+-- yet, or keeps it secret), icon and quality.
+function K.itemName(id, fallback)
+  local get = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  local name = get and get(id)
+  if name and not (issecretvalue and issecretvalue(name)) then return name end
+  return fallback
+end
+function K.itemIcon(id)
+  if C_Item and C_Item.GetItemIconByID then return C_Item.GetItemIconByID(id) end
+  return GetItemIcon and GetItemIcon(id)
+end
+function K.itemQuality(id)
+  if C_Item and C_Item.GetItemQualityByID then return C_Item.GetItemQualityByID(id) end
+  if GetItemInfo then return select(3, GetItemInfo(id)) end
+end
+
+-- Methods set on a frame (a frame's own metatable must stay as the game made it).
+local function extend(frame, methods)
+  for k, v in pairs(methods) do
+    frame[k] = v
+  end
+  return frame
+end
+
+-- ── figures ──────────────────────────────────────────────────────────────────
+-- A strip of figures side by side, each value large over its label, on a
+-- panel of its own: s = K.figures(parent); s:set({ { value, label }, ... },
+-- width) lays them out, returns its height.
+local TILE_H, TILE_GAP = 50, 10
+local function tile(parent)
+  local t = CreateFrame("Frame", nil, parent)
+  t.art = K.panel(t)
+  t.art:SetAllPoints()
+  t.value = K.label(t.art, K.TITLE_FONT, 20, T.gold)
+  t.value:SetPoint("TOP", 0, -7)
+  t.label = K.label(t.art, K.BODY_FONT, 11, T.soft)
+  t.label:SetPoint("BOTTOM", 0, 8)
+  return t
+end
+local function setTile(t, strip, i, w, fig)
+  t:SetSize(w, TILE_H)
+  t:ClearAllPoints()
+  t:SetPoint("TOPLEFT", strip, "TOPLEFT", (i - 1) * (w + TILE_GAP), 0)
+  t.value:SetText(fig[1])
+  t.label:SetText(fig[2])
+  t:Show()
+end
+function K.figures(parent)
+  local s = CreateFrame("Frame", nil, parent)
+  s.tiles = {}
+  function s:set(figures, width)
+    local w = math.floor((width - (#figures - 1) * TILE_GAP) / #figures)
+    self:SetSize(width, TILE_H)
+    for i, fig in ipairs(figures) do
+      self.tiles[i] = self.tiles[i] or tile(self)
+      setTile(self.tiles[i], self, i, w, fig)
+    end
+    for i = #figures + 1, #self.tiles do
+      self.tiles[i]:Hide()
+    end
+    return TILE_H
+  end
+  return s
+end
+
+-- ── the list ─────────────────────────────────────────────────────────────────
+-- The column on the left of a book: rows laid out from the top, one picked
+-- out (and kept in view). style(row, kind) places a row's parts for its kind
+-- and returns its height; each tab has its own kinds. rows: the pool of rows
+-- (made at the tab's load, for the tests); filtered: under the select of a
+-- tab with one.
+--   l = K.list(parent, style, rows, filtered)
+--   l:begin(), l:add(kind, text, count) (a row), l:grow(row, by), l:gap(by),
+--   l:pick(row) (the one the page shows), l:finish()
+K.ROW_WIDTH = 204
+local List = {}
+
+function K.list(parent, style, rows, filtered)
+  local l = extend(K.scrollArea(parent, K.ROW_WIDTH), List)
+  l.rows, l.style = rows or {}, style
+  l:SetPoint("TOPLEFT", parent, "TOPLEFT", 12, filtered and -70 or -40)
+  l:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -18, 12)
+  return l
+end
+
+function List:row(i)
+  local r = self.rows[i]
+  if r then return r end
+  r = CreateFrame("Button", nil, self.child)
+  r:SetSize(K.ROW_WIDTH, 18)
+  r.text = K.label(r, K.BODY_FONT, 12, T.text)
+  r.text:SetWordWrap(false)
+  r.count = K.label(r, K.BODY_FONT, 10, T.soft)
+  r.fold = r:CreateTexture(nil, "ARTWORK")
+  r.fold:SetSize(12, 12)
+  r.bar = false -- (a progress bar, made by the tab that wants one)
+  r.selected = K.highlight(r)
+  self.rows[i] = r
+  return r
+end
+
+function List:begin()
+  for _, r in ipairs(self.rows) do
+    r:Hide()
+  end
+  self.n, self.y, self.selectedY = 0, 0, false
+end
+
+-- A row of a kind, its text and count, under the last.
+function List:add(kind, text, count)
+  self.n = self.n + 1
+  local r = self:row(self.n)
+  r:ClearAllPoints()
+  r:SetPoint("TOPLEFT", 0, -self.y)
+  r.kind, r.key, r.id, r.zone, r.place = kind, false, false, false, false
+  r.text:ClearAllPoints()
+  r.text:SetText(text)
+  r.count:ClearAllPoints()
+  r.count:SetText(count and tostring(count) or "")
+  r.fold:ClearAllPoints()
+  r.fold:Hide()
+  if r.bar then r.bar:Hide() end
+  r.selected:Hide()
+  r:SetScript("OnClick", nil)
+  local height = self.style(r, kind)
+  r:SetHeight(height)
+  self.y = self.y + height
+  r:Show()
+  return r
+end
+
+-- A row taller than its kind (a progress bar under it).
+function List:grow(r, by)
+  r:SetHeight(r:GetHeight() + by)
+  self.y = self.y + by
+end
+
+function List:gap(by) self.y = self.y + by end
+
+function List:pick(r)
+  r.selected:Show()
+  r.text:SetTextColor(1, 1, 1)
+  self.selectedY = self.y
+end
+
+function List:finish()
+  self.child:SetHeight(self.y + 8)
+  self:UpdateThumb()
+  local y = self.selectedY
+  if y then
+    local top, height = self:GetVerticalScroll(), self:GetHeight()
+    if y - 18 < top or y > top + height then self:ScrollTo(y - height / 2) end
+  end
+end
+
+-- A row's fold mark: open (minus) or folded (plus).
+local PLUS, MINUS = "Interface\\Buttons\\UI-PlusButton-Up", "Interface\\Buttons\\UI-MinusButton-Up"
+function K.fold(r, open) r.fold:SetTexture(open and MINUS or PLUS) end
+
+-- ── the page ─────────────────────────────────────────────────────────────────
+-- The sheet on the right of a book: a header (a round portrait and its medal,
+-- the title, a line under it, a rule), then blocks laid out from the top: a
+-- note, sections under their heading, a label and its value, cards, a
+-- paragraph, a strip of figures, a creature turning in its frame, items'
+-- icons, names to pick. Every page of every book is made of these.
+--   p = K.page(parent, name, { width = 440, labelWidth = 110, pairs = pool })
+--   p:start(title, sub, setPicture, seal) (no picture: the title to the left)
+--   p:text(paragraphs), p:section(title), p:row(label, value),
+--   p:card(name, facts, setPicture, click, seal), p:paragraph(text, colour),
+--   p:stats({ { value, label } }), p:model(display, shape), p:items(list),
+--   p:chips(list), p:place(block, height) (a block of the tab's own),
+--   p:finish(keep)
+K.PAGE_WIDTH, K.PAGE_HEADER_H = 440, 88
+local Page = {}
+
+function K.page(parent, name, o)
+  o = o or {}
+  local width = o.width or K.PAGE_WIDTH
+  local p = extend(K.scrollArea(parent, width, name), Page)
+  p.width, p.labelWidth, p.pairs, p.headings = width, o.labelWidth or 110, o.pairs or {}, {}
+  p.cards, p.paragraphs, p.tiles, p.itemPool, p.chipPool = {}, {}, {}, {}, {}
+  p:SetPoint("TOPLEFT", parent, "TOPLEFT", 26, -22)
+  p:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -22, 14)
+  p.portrait = K.roundIcon(p.child, 64, true)
+  p.portrait:SetPoint("TOPLEFT", 2, -2)
+  p.portrait.badge = K.badge(p.portrait, 26)
+  p.title = K.label(p.child, K.TITLE_FONT, 24, T.gold)
+  p.title:SetWordWrap(false)
+  p.sub = K.label(p.child, K.BODY_FONT, 12, T.soft)
+  p.sub:SetPoint("TOPLEFT", p.title, "BOTTOMLEFT", 0, -7)
+  local line = K.rule(p.child)
+  line:SetPoint("TOPLEFT", 0, -76)
+  line:SetPoint("TOPRIGHT", 0, -76)
+  p.note = K.label(p.child, K.BODY_FONT, 13, T.text)
+  p.note:SetWidth(width)
+  p.note:SetSpacing(4)
+  return p
+end
+
+function Page:start(title, sub, setPicture, seal)
+  for _, pool in ipairs({
+    self.pairs,
+    self.headings,
+    self.cards,
+    self.paragraphs,
+    self.tiles,
+    self.itemPool,
+    self.chipPool,
+  }) do
+    for _, x in ipairs(pool) do
+      x:Hide()
+    end
+  end
+  self.note:Hide()
+  if rawget(self, "modelFrame") then self.modelFrame:Hide() end
+  local pictured = setPicture and true or false
+  self.title:ClearAllPoints()
+  if pictured then
+    self.title:SetPoint("TOPLEFT", self.portrait, "TOPRIGHT", 16, -8)
+  else
+    self.title:SetPoint("TOPLEFT", self.child, "TOPLEFT", 0, -10)
+  end
+  self.title:SetWidth(pictured and self.width - 86 or self.width)
+  self.sub:SetWidth(pictured and self.width - 86 or self.width)
+  self.title:SetText(title)
+  self.sub:SetText(sub or "")
+  self.portrait:SetShown(pictured)
+  if pictured then
+    self.portrait.tex:SetVertexColor(1, 1, 1)
+    self.portrait.tex:SetDesaturated(false)
+    setPicture(self.portrait)
+  end
+  K.setBadge(self.portrait.badge, pictured and seal or nil)
+  self.y, self.hi, self.pi, self.ci, self.qi, self.ti, self.ii, self.chi = K.PAGE_HEADER_H + 2, 0, 0, 0, 0, 0, 0, 0
+end
+
+-- A block at the page's next place (a frame or a font string), so tall.
+function Page:place(block, height)
+  block:ClearAllPoints()
+  block:SetPoint("TOPLEFT", self.child, "TOPLEFT", 0, -self.y)
+  block:Show()
+  self.y = self.y + height
+end
+
+-- The note at the head of a page (its paragraphs).
+function Page:text(paragraphs)
+  if not paragraphs or #paragraphs == 0 then return end
+  self.note:SetText(table.concat(paragraphs, "\n\n"))
+  self:place(self.note, self.note:GetStringHeight() + 20)
+end
+
+function Page:heading(i)
+  local h = self.headings[i]
+  if h then return h end
+  h = CreateFrame("Frame", nil, self.child)
+  h:SetSize(self.width, 24)
+  h.text = K.label(h, K.TITLE_FONT, 16, T.gold)
+  h.text:SetPoint("BOTTOMLEFT", 0, 5)
+  h.line = K.rule(h)
+  h.line:SetPoint("BOTTOMLEFT")
+  h.line:SetPoint("BOTTOMRIGHT")
+  self.headings[i] = h
+  return h
+end
+
+function Page:section(title)
+  self.hi = self.hi + 1
+  local h = self:heading(self.hi)
+  h.text:SetText(title)
+  self:place(h, 34)
+end
+
+function Page:pair(i)
+  local p = self.pairs[i]
+  if p then return p end
+  local w = self.labelWidth
+  p = CreateFrame("Frame", nil, self.child)
+  p:SetSize(self.width, 16)
+  p.label = K.label(p, K.BODY_FONT, 12, T.soft)
+  p.label:SetPoint("TOPLEFT", 0, 0)
+  p.label:SetWidth(w)
+  p.value = K.label(p, K.BODY_FONT, 12, T.text)
+  p.value:SetPoint("TOPLEFT", w + 8, 0)
+  p.value:SetWidth(self.width - w - 8)
+  p.value:SetSpacing(4)
+  self.pairs[i] = p
+  return p
+end
+
+-- A label and its value, side by side (nothing without a value).
+function Page:row(name, value)
+  if not value or value == "" then return end
+  self.pi = self.pi + 1
+  local p = self:pair(self.pi)
+  p.label:SetText(name)
+  p.value:SetText(value)
+  local height = math.max(16, p.value:GetStringHeight())
+  p:SetHeight(height)
+  self:place(p, height + 8)
+end
+
+-- A card: a round picture (setPicture, its medal: a seal or none), a name and
+-- a line under it, a rule below; a click calls click() (nil: none).
+local PAGE_CARD_H = 52
+function Page:card(name, facts, setPicture, click, seal)
+  self.ci = self.ci + 1
+  local c = self.cards[self.ci]
+  if not c then
+    c = CreateFrame("Button", nil, self.child)
+    c:SetSize(self.width, PAGE_CARD_H)
+    c.portrait = K.roundIcon(c, 40, true)
+    c.portrait:SetPoint("LEFT", 4, 0)
+    c.badge = K.badge(c.portrait, 18)
+    c.name = K.label(c, K.TITLE_FONT, 15, T.text)
+    c.name:SetPoint("TOPLEFT", c.portrait, "TOPRIGHT", 12, -2)
+    c.name:SetPoint("RIGHT", -4, 0)
+    c.name:SetWordWrap(false)
+    c.facts = K.label(c, K.BODY_FONT, 11, T.soft)
+    c.facts:SetPoint("TOPLEFT", c.name, "BOTTOMLEFT", 0, -5)
+    c.facts:SetPoint("RIGHT", -4, 0)
+    c.facts:SetWordWrap(false)
+    c.line = K.rule(c)
+    c.line:SetPoint("BOTTOMLEFT", 0, 0)
+    c.line:SetPoint("BOTTOMRIGHT", 0, 0)
+    c:SetHighlightTexture(K.HIGHLIGHT, "ADD")
+    c:SetScript("OnClick", function(cc)
+      if cc.click then cc.click() end
+    end)
+    self.cards[self.ci] = c
+  end
+  c.click = click
+  c.name:SetText(name)
+  c.facts:SetText(facts or "")
+  c.portrait.tex:SetVertexColor(1, 1, 1)
+  c.portrait.tex:SetDesaturated(false)
+  setPicture(c.portrait)
+  K.setBadge(c.badge, seal)
+  self:place(c, PAGE_CARD_H + 4)
+  return c
+end
+
+-- A paragraph of its own under a section (the head's note is the page's).
+function Page:paragraph(text, color)
+  self.qi = self.qi + 1
+  local p = self.paragraphs[self.qi]
+  if not p then
+    p = K.label(self.child, K.BODY_FONT, 13, T.text)
+    p:SetWidth(self.width)
+    p:SetSpacing(4)
+    self.paragraphs[self.qi] = p
+  end
+  p:SetTextColor(unpack(color or T.text))
+  p:SetText(text)
+  self:place(p, p:GetStringHeight() + 16)
+  return p
+end
+
+-- A strip of figures side by side: { { value, label }, ... }, the value large.
+function Page:stats(figures)
+  local w = math.floor((self.width - (#figures - 1) * TILE_GAP) / #figures)
+  local strip = self.tiles.strip
+  if not strip then
+    strip = CreateFrame("Frame", nil, self.child)
+    self.tiles.strip = strip
+  end
+  strip:SetSize(self.width, TILE_H)
+  for i, fig in ipairs(figures) do
+    self.ti = self.ti + 1
+    self.tiles[self.ti] = self.tiles[self.ti] or tile(strip)
+    setTile(self.tiles[self.ti], strip, i, w, fig)
+  end
+  self:place(strip, TILE_H + 14)
+end
+
+-- A creature in a frame of its own, turning slowly (its display id); shape:
+-- only its shape (the fog of the model's own light), or no frame where the
+-- client can't draw a shape.
+local MODEL_H = 210
+function Page:model(display, shape)
+  local m = rawget(self, "modelFrame")
+  if not m then
+    m = CreateFrame("Frame", nil, self.child)
+    m:SetSize(self.width, MODEL_H)
+    m.art = K.panel(m)
+    m.art:SetAllPoints()
+    local ok, model = pcall(CreateFrame, "PlayerModel", nil, m.art)
+    if ok and model and model.SetDisplayInfo then
+      model:SetPoint("TOPLEFT", 8, -8)
+      model:SetPoint("BOTTOMRIGHT", -8, 8)
+      model.facing = 0.4
+      model:SetScript("OnUpdate", function(mm, elapsed)
+        mm.facing = (mm.facing + elapsed * 0.35) % (2 * math.pi)
+        if mm.SetFacing then mm:SetFacing(mm.facing) end
+      end)
+      m.creature = model
+    end
+    self.modelFrame = m
+  end
+  local c = m.creature
+  if not (c and display and display > 0) or (shape and not c.SetFogColor) then
+    m:Hide()
+    return
+  end
+  c:ClearModel()
+  c:SetDisplayInfo(display)
+  if c.SetCamDistanceScale then c:SetCamDistanceScale(1.25) end
+  if shape then
+    c:SetFogColor(0.16, 0.14, 0.11)
+    c:SetFogNear(0)
+    c:SetFogFar(0.1)
+  elseif c.ClearFog then
+    c:ClearFog()
+  elseif c.SetFogFar then
+    c:SetFogFar(10000)
+  end
+  self:place(m, MODEL_H + 14)
+end
+
+-- A row of items' icons (wrapping): { { item id, name, faded, count, extra } },
+-- each with the game's tooltip, its quality's border, how many (count > 1)
+-- and extra(tooltip) for lines of its own; faded: one still to find (its icon
+-- only, darkened).
+local ITEM = 34
+function Page:items(list)
+  local per = math.floor((self.width + 6) / (ITEM + 6))
+  local rows = math.ceil(#list / per)
+  local box = self.itemPool.box
+  if not box then
+    box = CreateFrame("Frame", nil, self.child)
+    self.itemPool.box = box
+  end
+  box:SetSize(self.width, rows * (ITEM + 6))
+  for i, it in ipairs(list) do
+    self.ii = self.ii + 1
+    local b = self.itemPool[self.ii]
+    if not b then
+      b = CreateFrame("Button", nil, box)
+      b:SetSize(ITEM, ITEM)
+      b.icon = b:CreateTexture(nil, "ARTWORK")
+      b.icon:SetAllPoints()
+      b.border = b:CreateTexture(nil, "OVERLAY")
+      b.border:SetTexture("Interface\\Common\\WhiteIconFrame")
+      b.border:SetAllPoints()
+      b.count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
+      b.count:SetPoint("BOTTOMRIGHT", -2, 2)
+      b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+      b:SetScript("OnEnter", function(bb)
+        GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
+        if bb.faded then
+          GameTooltip:AddLine(bb.name or "?", T.soft[1], T.soft[2], T.soft[3])
+          GameTooltip:AddLine("Still to find here.", 1, 1, 1)
+        else
+          if GameTooltip.SetItemByID then GameTooltip:SetItemByID(bb.itemId) end
+          if bb.extra then bb.extra(GameTooltip) end
+        end
+        GameTooltip:Show()
+      end)
+      b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      self.itemPool[self.ii] = b
+    end
+    local col, row = (i - 1) % per, math.floor((i - 1) / per)
+    b:ClearAllPoints()
+    b:SetPoint("TOPLEFT", box, "TOPLEFT", col * (ITEM + 6), -row * (ITEM + 6))
+    b.itemId, b.name, b.faded, b.extra = it[1], it[2], it[3], it[5]
+    b.count:SetText((it[4] or 0) > 1 and it[4] or "")
+    local quality = not it[3] and K.itemQuality(it[1])
+    local color = quality and ITEM_QUALITY_COLORS and ITEM_QUALITY_COLORS[quality]
+    if color then
+      b.border:SetVertexColor(color.r, color.g, color.b)
+    else
+      b.border:SetVertexColor(0.6, 0.6, 0.6)
+    end
+    b.icon:SetTexture(K.itemIcon(it[1]) or K.QUESTION)
+    b.icon:SetDesaturated(it[3] and true or false)
+    b.icon:SetVertexColor(it[3] and 0.35 or 1, it[3] and 0.35 or 1, it[3] and 0.35 or 1)
+    b:Show()
+  end
+  self:place(box, rows * (ITEM + 6) + 10)
+end
+
+-- Names to pick, two to a row: { { text, click, picked, tip } } (picked: in
+-- the accent; tip: a line on hover).
+local CHIP_H = 20
+function Page:chips(list)
+  local rows = math.ceil(#list / 2)
+  local box = self.chipPool.box
+  if not box then
+    box = CreateFrame("Frame", nil, self.child)
+    self.chipPool.box = box
+  end
+  box:SetSize(self.width, rows * CHIP_H)
+  local w = math.floor((self.width - 10) / 2)
+  for i, ch in ipairs(list) do
+    self.chi = self.chi + 1
+    local b = self.chipPool[self.chi]
+    if not b then
+      b = CreateFrame("Button", nil, box)
+      b.text = K.label(b, K.BODY_FONT, 12, T.text)
+      b.text:SetPoint("LEFT", 6, 0)
+      b.text:SetPoint("RIGHT", -4, 0)
+      b.text:SetWordWrap(false)
+      K.highlight(b):Hide()
+      b:SetScript("OnClick", function(bb)
+        if bb.click then bb.click() end
+      end)
+      b:SetScript("OnEnter", function(bb)
+        if not bb.tip then return end
+        GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
+        GameTooltip:AddLine(bb.text:GetText(), T.accent[1], T.accent[2], T.accent[3])
+        GameTooltip:AddLine(bb.tip, 1, 1, 1, true)
+        GameTooltip:Show()
+      end)
+      b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      self.chipPool[self.chi] = b
+    end
+    b:SetSize(w, CHIP_H)
+    b:ClearAllPoints()
+    b:SetPoint("TOPLEFT", box, "TOPLEFT", ((i - 1) % 2) * (w + 10), -math.floor((i - 1) / 2) * CHIP_H)
+    b.text:SetText(ch[1])
+    b.text:SetTextColor(unpack(ch[3] and T.accent or T.text))
+    b.click, b.tip = ch[2], ch[4]
+    b:Show()
+  end
+  self:place(box, rows * CHIP_H + 10)
+end
+
+-- The page's height, scrolled to the top (keep: where it was).
+function Page:finish(keep)
+  self.child:SetHeight(self.y + 24)
+  if keep then
+    self:UpdateThumb()
+  else
+    self:ScrollTo(0)
+  end
+end
+
+-- ── a board of achievements ──────────────────────────────────────────────────
+-- A whole tab of a book's achievements: the figures on top, then each group
+-- under its heading (how many of it are earned), a row each: the group's
+-- picture (a medal on it once earned), the title (the accent once earned),
+-- what it asks, and on the right when it was earned or how far along it is
+-- (a bar). A group with nothing to show is left out (no spoilers).
+--   B = K.board({
+--     parent = a panel, name = its scroll area's global name, width = 700,
+--     groups = { { id, heading, picture, figure }, ... },
+--     figures = { { key, label }, ... }, -- "all": every one shown; else a group's figure
+--     items = function() return { { id, group, title, text, earned = { level, at } or nil,
+--       progress = function() return done, need end, unit = "pages" (a count without an end) }, ... } end,
+--   })
+--   B:refresh(picked) (picked: an id picked out, brought into view)
+--   (o.rows: the pool of rows, made at the tab's load, for the tests; B.rows)
+local BOARD_ROW = 50
+function K.board(o)
+  local width = o.width or 700
+  local B = { rows = o.rows or {}, headers = {} }
+  local scroll = K.scrollArea(o.parent, width, o.name)
+  scroll:SetPoint("TOPLEFT", 22, -18)
+  scroll:SetPoint("BOTTOMRIGHT", -22, 14)
+  B.scroll = scroll
+  local strip = o.figures and K.figures(scroll.child)
+  if strip then strip:SetPoint("TOPLEFT", 0, 0) end
+  B.strip = strip
+
+  local function row(i)
+    local r = B.rows[i]
+    if r then return r end
+    r = CreateFrame("Frame", nil, scroll.child)
+    r:SetSize(width, BOARD_ROW - 4)
+    r.bg = r:CreateTexture(nil, "BACKGROUND")
+    r.bg:SetAllPoints()
+    r.picture = K.roundIcon(r, 34, true)
+    r.picture:SetPoint("LEFT", 8, 0)
+    r.medal = K.badge(r.picture, 16)
+    r.title = K.label(r, K.TITLE_FONT, 15, T.gold)
+    r.title:SetPoint("TOPLEFT", 54, -7)
+    r.text = K.label(r, K.BODY_FONT, 11, T.soft)
+    r.text:SetPoint("TOPLEFT", r.title, "BOTTOMLEFT", 0, -5)
+    r.text:SetWidth(width - 200)
+    r.status = K.label(r, K.BODY_FONT, 11, T.soft)
+    r.status:SetPoint("TOPRIGHT", -12, -8)
+    r.status:SetJustifyH("RIGHT")
+    r.bar = K.bar(r)
+    r.bar:SetSize(150, 5)
+    r.bar:SetPoint("TOPRIGHT", r.status, "BOTTOMRIGHT", 0, -7)
+    B.rows[i] = r
+    return r
+  end
+
+  local function header(i)
+    local h = B.headers[i]
+    if h then return h end
+    h = CreateFrame("Frame", nil, scroll.child)
+    h:SetSize(width, 26)
+    h.text = K.label(h, K.TITLE_FONT, 17, T.gold)
+    h.text:SetPoint("BOTTOMLEFT", 2, 5)
+    h.count = K.label(h, K.BODY_FONT, 12, T.soft)
+    h.count:SetPoint("BOTTOMRIGHT", -4, 6)
+    h.line = K.rule(h)
+    h.line:SetPoint("BOTTOMLEFT")
+    h.line:SetPoint("BOTTOMRIGHT")
+    B.headers[i] = h
+    return h
+  end
+
+  local function fill(r, a, picture, picked)
+    local earned = a.earned
+    r.id = a.id
+    K.icon(picture)(r.picture)
+    r.picture.tex:SetDesaturated(not earned)
+    local shade = earned and 1 or 0.6
+    r.picture.tex:SetVertexColor(shade, shade, shade)
+    K.setBadge(r.medal, earned and K.GOLD or nil)
+    r.title:SetText(a.title)
+    r.text:SetText(a.text)
+    if earned then
+      r.title:SetTextColor(unpack(T.gold))
+      r.text:SetTextColor(unpack(T.text))
+      r.status:SetText(("Level %d, %s"):format(earned.level or 0, K.day(earned.at)))
+      r.bar:Hide()
+    else
+      local done, need = a.progress()
+      r.title:SetTextColor(unpack(T.dim))
+      r.text:SetTextColor(unpack(T.soft))
+      if a.unit then
+        r.status:SetText(("%d %s"):format(done, a.unit))
+        r.bar:Hide()
+      else
+        r.status:SetText(("%d/%d"):format(math.min(done, need), need))
+        r.bar:SetMinMaxValues(0, math.max(need, 1))
+        r.bar:SetValue(math.min(done, need))
+        r.bar:SetShown(need > 1)
+      end
+    end
+    if a.id == picked then
+      r.bg:SetColorTexture(T.accent[1], T.accent[2], T.accent[3], 0.22)
+    elseif earned then
+      r.bg:SetColorTexture(T.bar[1], T.bar[2], T.bar[3], 0.10)
+    else
+      r.bg:SetColorTexture(1, 1, 1, 0.03)
+    end
+  end
+
+  function B:refresh(picked)
+    local byGroup, counts = {}, { all = { 0, 0 } }
+    local figureOf = {}
+    for _, g in ipairs(o.groups) do
+      byGroup[g[1]], figureOf[g[1]] = {}, g[4]
+      if g[4] then counts[g[4]] = counts[g[4]] or { 0, 0 } end
+    end
+    for _, a in ipairs(o.items()) do
+      local shown = byGroup[a.group]
+      if shown then
+        table.insert(shown, a)
+        local one = a.earned and 1 or 0
+        for _, key in ipairs({ "all", figureOf[a.group] }) do
+          counts[key][1], counts[key][2] = counts[key][1] + one, counts[key][2] + 1
+        end
+      end
+    end
+    local y = 0
+    if strip then
+      local figures = {}
+      for _, f in ipairs(o.figures) do
+        local c = counts[f[1]] or { 0, 0 }
+        table.insert(figures, { ("%d/%d"):format(c[1], c[2]), f[2] })
+      end
+      y = strip:set(figures, width) + 14
+    end
+    local i, pickedY = 0, nil
+    for g, group in ipairs(o.groups) do
+      local shown, earned = byGroup[group[1]], 0
+      for _, a in ipairs(shown) do
+        if a.earned then earned = earned + 1 end
+      end
+      local h = header(g)
+      h:SetShown(#shown > 0)
+      if #shown > 0 then
+        h:ClearAllPoints()
+        h:SetPoint("TOPLEFT", 0, -y)
+        h.text:SetText(group[2])
+        h.count:SetText(("%d of %d"):format(earned, #shown))
+        y = y + 34
+        for _, a in ipairs(shown) do
+          i = i + 1
+          local r = row(i)
+          r:ClearAllPoints()
+          r:SetPoint("TOPLEFT", 0, -y)
+          if a.id == picked then pickedY = y end
+          fill(r, a, group[3], picked)
+          r:Show()
+          y = y + BOARD_ROW
+        end
+        y = y + 12
+      end
+    end
+    for k = i + 1, #B.rows do
+      B.rows[k]:Hide()
+    end
+    scroll.child:SetHeight(y)
+    scroll:UpdateThumb()
+    if pickedY then
+      local height = scroll:GetHeight()
+      scroll:SetVerticalScroll(math.min(math.max(0, y - height), math.max(0, pickedY - (height - BOARD_ROW) / 2)))
+      scroll:UpdateThumb()
+    end
+  end
+  return B
+end
+
+-- ── banners ──────────────────────────────────────────────────────────────────
+-- A word on something just done (a page found, a riddle read, a book closed),
+-- in the book's look: a card with its round picture (a medal on it), a short
+-- line, a name in the title face. It joins the game's own alerts, whose
+-- container stacks it with them and with every other addon's banners, where
+-- the player's interface keeps them; else it stands at the top of the screen.
+-- Two at a time, the others wait their turn; each goes after a few seconds,
+-- never while the mouse is on it. A click does what it is for; a right-click
+-- or its cross dismisses it.
+--   B = K.banners({ name = "FieldJournalBanner", art = a fallback picture,
+--                   seconds = function() return 8 end }) -- (0: until closed)
+--   B:show({ picture = a picture's setter (K.icon...) or a texture, medal = a seal,
+--            kicker = "A riddle read aright", title = "...", tip = "...", click = fn })
+--   B.frames (named name1, name2), f.joined: in the game's alerts (for the tests)
+local BANNER_W, BANNER_H, BANNERS_SHOWN, BANNERS_WAITING = 380, 66, 2, 6
+function K.banners(o)
+  local B = { frames = {}, waiting = {} }
+
+  -- Where they stand: placed by the game's alert container (a frame of its
+  -- own in its stack, a few pixels above the one under it), else in a column
+  -- of their own from the top of the screen.
+  local arrange
+  arrange = function()
+    local joined, y = false, -110
+    for _, f in ipairs(B.frames) do
+      if f.joined then
+        joined = true
+      elseif f:IsShown() then
+        f:ClearAllPoints()
+        f:SetPoint("TOP", UIParent, "TOP", 0, y)
+        y = y - BANNER_H - 6
+      end
+    end
+    -- (the container failing them: the column, from now on)
+    if joined and not pcall(AlertFrame.UpdateAnchors, AlertFrame) then
+      for _, f in ipairs(B.frames) do
+        f.joined = false
+      end
+      arrange()
+    end
+  end
+  local function join(f)
+    if not (AlertFrame and AlertFrame.AddAutoAnchoredSubSystem and AlertFrame.UpdateAnchors) then return end
+    f.SetAlertContainer = function(self, c) self.kitContainer = c end
+    f.GetAlertContainer = function(self) return self.kitContainer end
+    f.OnAlertAnchorUpdated = function(self)
+      local ok, point, rel, relPoint = pcall(self.GetPoint, self, 1)
+      if ok and point then self:SetPoint(point, rel, relPoint, 0, 8) end
+    end
+    f.joined = pcall(AlertFrame.AddAutoAnchoredSubSystem, AlertFrame, f) and f.kitContainer ~= false
+  end
+
+  local timer
+  local function dismiss(f)
+    if f.timer then f.timer:Cancel() end
+    f.timer = false
+    f:Hide()
+    arrange()
+    B:next()
+  end
+  B.dismiss = function(_, f) dismiss(f) end
+  -- (gone when its time is up, but not under the mouse: then a second later)
+  timer = function(f, seconds)
+    if f.timer then f.timer:Cancel() end
+    f.timer = false
+    if not (seconds and seconds > 0 and C_Timer and C_Timer.NewTimer) then return end
+    f.timer = C_Timer.NewTimer(seconds, function()
+      f.timer = false
+      if f:IsMouseOver() then
+        timer(f, 1)
+      else
+        dismiss(f)
+      end
+    end)
+  end
+
+  local function card(i)
+    local f = CreateFrame("Button", o.name .. i, UIParent, "BackdropTemplate")
+    -- (every field set: none read before it is)
+    f.joined, f.kitContainer, f.timer, f.click, f.tip, f.shows = false, false, false, false, false, false
+    f:SetSize(BANNER_W, BANNER_H)
+    f:SetFrameStrata("DIALOG")
+    f:SetClampedToScreen(true)
+    f:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    if ns.forever then
+      f.art = K.card(f)
+      f.art:SetAllPoints()
+    else
+      f:SetBackdrop({
+        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true,
+        tileSize = 16,
+        edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+      })
+      f:SetBackdropColor(T.shade[1], T.shade[2], T.shade[3], 0.95)
+      f:SetBackdropBorderColor(unpack(T.ring))
+    end
+    local body = CreateFrame("Frame", nil, f)
+    body:SetAllPoints()
+    body:SetFrameLevel(f:GetFrameLevel() + 4)
+    f.picture = K.roundIcon(body, 42, true)
+    f.picture:SetPoint("LEFT", 14, 0)
+    f.medal = K.badge(f.picture, 18)
+    f.kicker = K.label(body, K.BODY_FONT, 11, T.soft)
+    f.kicker:SetPoint("TOPLEFT", f.picture, "TOPRIGHT", 14, -2)
+    f.kicker:SetPoint("RIGHT", -30, 0)
+    f.kicker:SetWordWrap(false)
+    f.title = K.label(body, K.TITLE_FONT, 18, T.gold)
+    f.title:SetPoint("TOPLEFT", f.kicker, "BOTTOMLEFT", 0, -4)
+    f.title:SetPoint("RIGHT", -30, 0)
+    f.title:SetWordWrap(false)
+    f.close = CreateFrame("Button", nil, body, "UIPanelCloseButton")
+    f.close:SetSize(24, 24)
+    f.close:SetPoint("TOPRIGHT", -3, -3)
+    f.close:SetScript("OnClick", function() dismiss(f) end)
+    f:SetHighlightTexture(K.HIGHLIGHT, "ADD")
+    local hover = f:GetHighlightTexture()
+    if hover and hover.SetAlpha then hover:SetAlpha(0.25) end
+    f:SetScript("OnEnter", function(self)
+      if not self.tip then return end
+      GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+      GameTooltip:AddLine(self.tip, 1, 1, 1)
+      GameTooltip:Show()
+    end)
+    f:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f:SetScript("OnClick", function(self, button)
+      local click = self.click
+      dismiss(self)
+      if button ~= "RightButton" and click then click() end
+    end)
+    f:Hide()
+    join(f)
+    B.frames[i] = f
+    return f
+  end
+
+  local function put(f, s)
+    f.click, f.tip, f.shows = s.click or false, s.tip or false, s
+    f.picture.tex:SetVertexColor(1, 1, 1)
+    f.picture.tex:SetDesaturated(false)
+    local picture = s.picture
+    if type(picture) ~= "function" then picture = K.icon(picture or o.art or K.QUESTION) end
+    if not pcall(picture, f.picture) then K.icon(o.art or K.QUESTION)(f.picture) end
+    K.setBadge(f.medal, s.medal)
+    f.kicker:SetText(s.kicker or "")
+    f.title:SetText(s.title or "")
+    f:Show()
+    arrange()
+    local seconds = o.seconds
+    if type(seconds) == "function" then seconds = seconds() end
+    timer(f, seconds or 8)
+  end
+
+  -- The next waiting, into a free card.
+  function B:next()
+    while #self.waiting > 0 do
+      local free
+      for i = 1, BANNERS_SHOWN do
+        local f = self.frames[i] or card(i)
+        if not f:IsShown() then
+          free = f
+          break
+        end
+      end
+      if not free then return end
+      put(free, table.remove(self.waiting, 1))
+    end
+  end
+
+  function B:show(s)
+    if #self.waiting >= BANNERS_WAITING then table.remove(self.waiting, 1) end
+    table.insert(self.waiting, s)
+    self:next()
+  end
+
+  -- Every card closed, nothing waiting.
+  function B:clear()
+    self.waiting = {}
+    for _, f in ipairs(self.frames) do
+      if f:IsShown() then
+        if f.timer then f.timer:Cancel() end
+        f.timer = false
+        f:Hide()
+      end
+    end
+    arrange()
+  end
+  return B
 end
 
 -- ── choosing ─────────────────────────────────────────────────────────────────

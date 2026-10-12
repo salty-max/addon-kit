@@ -2,9 +2,11 @@
 
 The Lua shared by Hearthtale, Lorekeeper's Codex, Explorer's Field Journal and
 Second Wind: the books' look (one family, a theme each), the pieces their
-windows are made of (a select among them), each character's settings (copied
-from another character or by a code) and the welcome page that offers them. See
-`Kit.lua`'s header for what it holds.
+windows are made of (the list on the left, the page on the right and every part
+of a page, a board of achievements, a strip of figures, a select), the banners
+that tell of a deed done (in the game's own stack of alerts), each character's
+settings (copied from another character or by a code) and the welcome page that
+offers them. See `Kit.lua`'s header for what it holds.
 
 Each addon keeps a committed copy (`addon/<Addon>/Kit.lua`, listed in its TOC
 before the files that use it), loaded into the addon's own namespace as
@@ -12,8 +14,9 @@ before the files that use it), loaded into the addon's own namespace as
 players to install, and the addons' releases unchanged.
 
 - Change the kit here, format it (`stylua Kit.lua`, the addons' config), test it
-  (`luajit test.lua`: the select on stand-ins for the game's two dropdowns; the
-  rest is tested by each addon's simulation), commit.
+  (`luajit test.lua`: the select on stand-ins for the game's two dropdowns, the
+  banners with and without the game's alert container, the board; the rest is
+  tested by each addon's simulation), commit.
 - In each addon: `bun run kit:sync`, then its own checks. `bun run kit:check`
   fails when the copy isn't the kit's (a copy edited by hand).
 

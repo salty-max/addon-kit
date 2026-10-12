@@ -1,6 +1,7 @@
--- The kit's select on each of the game's dropdowns, against stand-ins for the
--- two APIs (the menu system's DropdownButton, the older UIDropDownMenu): its
--- options, its value set and chosen, its text, its placeholder.
+-- The kit against stand-ins for the game: its select on each of the game's
+-- two dropdowns (the menu system's DropdownButton, the older UIDropDownMenu):
+-- its options, its value set and chosen, its text, its placeholder; the
+-- banners, with the game's alert container and without; a board.
 --   luajit test.lua
 local failures = 0
 local function check(cond, msg)
@@ -31,6 +32,45 @@ local function frame()
       end
       if k == "IsShown" then
         return function(self) return self.shown end
+      end
+      if k == "SetShown" then
+        return function(self, v) self.shown = v and true or false end
+      end
+      if k == "CreateFontString" or k == "CreateTexture" or k == "CreateMaskTexture" then
+        return function() return frame() end
+      end
+      if k == "SetText" then
+        return function(self, v) self.text = v end
+      end
+      if k == "SetPoint" then
+        return function(self, ...) self.point = { ... } end
+      end
+      if k == "GetPoint" then
+        return function(self) return unpack(rawget(self, "point") or {}) end
+      end
+      if k == "ClearAllPoints" then
+        return function(self) self.point = nil end
+      end
+      if k == "IsMouseOver" then
+        return function(self) return rawget(self, "mouseOver") end
+      end
+      if k == "SetTexture" then
+        return function(self, v) self.texture = v end
+      end
+      if k == "SetHeight" then
+        return function(self, v) self.height = v end
+      end
+      if k == "GetHeight" then
+        return function(self) return rawget(self, "height") or 100 end
+      end
+      if k == "GetFrameLevel" then
+        return function() return 1 end
+      end
+      if k == "GetVerticalScroll" then
+        return function(self) return rawget(self, "vscroll") or 0 end
+      end
+      if k == "SetVerticalScroll" then
+        return function(self, v) self.vscroll = v end
       end
       return function(self) return self end
     end,
@@ -145,6 +185,120 @@ check(
 s.placeholder = "Nobody yet"
 s:SetOptions({})
 check(s:GetValue() == nil and s.box.shownText == "Nobody yet", "dropdown: the placeholder can change")
+
+-- ── banners ──────────────────────────────────────────────────────────────────
+-- Timers run when the test says their time has come (the oldest live one).
+local timers = {}
+C_Timer = {
+  NewTimer = function(seconds, fn)
+    local t = { seconds = seconds, fn = fn }
+    t.Cancel = function(self) self.cancelled = true end
+    table.insert(timers, t)
+    return t
+  end,
+}
+local function elapse()
+  for _, t in ipairs(timers) do
+    if not t.cancelled then
+      t.cancelled = true
+      t.fn()
+      return t.seconds
+    end
+  end
+end
+CreateFrame = function() return frame() end
+GameTooltip, date = frame(), os.date
+AlertFrame = nil
+K = load()
+local B = K.banners({ name = "TestBanner", art = "Logo", seconds = function() return 8 end })
+local clicked
+for n = 1, 3 do
+  B:show({ kicker = "A page found", title = "Page " .. n, picture = "Icon", click = function() clicked = n end })
+end
+local one, two = B.frames[1], B.frames[2]
+check(one.shown and two.shown and #B.waiting == 1, "banners: two at a time, the third waits its turn")
+check(
+  one.point[1] == "TOP" and two.point[5] < one.point[5] and not one.joined,
+  "banners: without the game's alerts, a column from the top of the screen"
+)
+check(one.title.text == "Page 1" and one.kicker.text == "A page found", "banners: the line and the name")
+one.mouseOver = true
+check(elapse() == 8 and one.shown, "banners: kept while the mouse is on one")
+one.mouseOver = false
+check(
+  elapse() == 8 and two.shown and two.title.text == "Page 3",
+  "banners: the other gone in its time, the one waiting in its place"
+)
+one.scripts.OnClick(one, "LeftButton")
+check(clicked == 1 and not one.shown, "banners: a click does what it is for, and closes it")
+B.frames[2].scripts.OnClick(B.frames[2], "RightButton")
+check(clicked == 1 and not B.frames[2].shown, "banners: a right-click only dismisses it")
+B:show({ title = "A broken picture", picture = function() error("no such picture") end })
+check(
+  B.frames[1].shown and B.frames[1].picture.tex.texture == "Logo",
+  "banners: a picture that fails gives way to the art"
+)
+
+-- With the game's alert container: placed by it, in its stack.
+AlertFrame = { subs = {}, updates = 0 }
+function AlertFrame:AddAutoAnchoredSubSystem(f)
+  f:SetAlertContainer(self)
+  table.insert(self.subs, f)
+end
+function AlertFrame:UpdateAnchors()
+  self.updates = self.updates + 1
+  local rel = self
+  for _, f in ipairs(self.subs) do
+    if f:IsShown() then
+      f:ClearAllPoints()
+      f:SetPoint("BOTTOM", rel, "TOP", 0, 0)
+      f:OnAlertAnchorUpdated()
+      rel = f
+    end
+  end
+end
+K = load()
+B = K.banners({ name = "Joined", seconds = 0 })
+B:show({ title = "One" })
+B:show({ title = "Two" })
+one, two = B.frames[1], B.frames[2]
+check(
+  one.joined and one.point[2] == AlertFrame and two.point[2] == one and two.point[5] == 8,
+  "banners: in the game's alerts, stacked by them, a little apart"
+)
+check(not one.timer and not two.timer, "banners: 0 seconds, until closed")
+AlertFrame.UpdateAnchors = function() error("broken") end
+one.scripts.OnClick(one, "RightButton")
+check(not two.joined and two.point[1] == "TOP", "banners: the container failing them, their own column")
+AlertFrame = nil
+
+-- ── a board ──────────────────────────────────────────────────────────────────
+K = load()
+local items = {
+  { id = "a", group = "g1", title = "A", text = "", earned = { level = 5, at = 0 } },
+  { id = "b", group = "g1", title = "B", text = "", progress = function() return 2, 5 end },
+  { id = "c", group = "g3", title = "C", text = "", unit = "pages", progress = function() return 7 end },
+}
+local board = K.board({
+  parent = frame(),
+  groups = { { "g1", "One", "Icon1", "x" }, { "g2", "Two", "Icon2", "x" }, { "g3", "Three", "Icon3", "y" } },
+  figures = { { "all", "earned" }, { "x", "of x" } },
+  items = function() return items end,
+})
+board:refresh("b")
+local rows, heads = board.rows, board.headers
+check(
+  heads[1].shown and heads[1].count.text == "1 of 2" and not heads[2].shown and heads[3].shown,
+  "board: each group's heading and count, none for a group with nothing to show"
+)
+check(
+  rows[1].medal.shown and not rows[2].medal.shown and rows[2].status.text == "2/5" and rows[3].status.text == "7 pages",
+  "board: a medal on what is earned, how far along the rest is"
+)
+check(
+  board.strip.tiles[1].value.text == "1/3" and board.strip.tiles[2].value.text == "1/2",
+  "board: the figures, in all and by group"
+)
 
 print(failures == 0 and "all good" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)
