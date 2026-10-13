@@ -42,6 +42,13 @@ local function frame()
       if k == "SetText" then
         return function(self, v) self.text = v end
       end
+      -- (a texture's tint and greying: a ring's colour)
+      if k == "SetVertexColor" then
+        return function(self, r, g, b) self.vertex = { r, g, b } end
+      end
+      if k == "SetDesaturated" then
+        return function(self, v) self.desaturated = v end
+      end
       if k == "SetFont" then
         return function(self, _, size) self.fontSize = size end
       end
@@ -303,8 +310,12 @@ check(
   "board: each group's heading and count, none for a group with nothing to show"
 )
 check(
-  rows[1].medal.shown and not rows[2].medal.shown and rows[2].status.text == "2/5" and rows[3].status.text == "7 pages",
-  "board: a medal on what is earned, how far along the rest is"
+  rows[1].picture.ring.vertex[2] == K.RINGS.gold[1][2]
+    and not rows[1].picture.ring.desaturated
+    and rows[2].picture.ring.desaturated
+    and rows[2].status.text == "2/5"
+    and rows[3].status.text == "7 pages",
+  "board: a gold ring on what is earned, iron on the rest, how far along it is"
 )
 check(
   board.strip.tiles[1].value.text == "1/3" and board.strip.tiles[2].value.text == "1/2",

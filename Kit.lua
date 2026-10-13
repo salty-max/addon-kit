@@ -203,35 +203,28 @@ end
 -- ── pictures and rows ────────────────────────────────────────────────────────
 -- A round picture in a ring (p.tex: what it shows; p.ring); back: a dark disc
 -- behind it, for pictures that don't fill the circle. The ring is the game's
--- own round frame (Interface/COMMON/BlueMenuRing: a bevelled bronze ring, in
--- every client), laid over the picture's edge: the round mask alone leaves
--- steps on it. Its outer edge 2 pixels past the picture's, never more (a
--- scroll area clips what reaches past its side), cut there from its file,
--- shadow left out. The file holds the ring off-centre: its centre, its outer
--- edge's radius, the square it is cut from, in the file's pixels (measured on
--- the texture). K.ringColour tints it.
+-- own bevelled bronze ring (Interface/COMMON/BlueMenuRing) without the shadow
+-- its file carries: the kit's Media/Ring (the metal kept, the black halo
+-- dropped, centred on the metal; kit:sync copies it beside the addon's),
+-- laid over the picture's edge: the round mask alone leaves steps on it. Its
+-- outer edge 2 pixels past the picture's, never more (a scroll area clips
+-- what reaches past its side): that edge lies at RING_EDGE of the file's half
+-- width, its inner edge at 0.773 (measured on the file). K.ringColour tints it.
 local MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-local RING = "Interface\\COMMON\\BlueMenuRing"
-local RING_X, RING_Y, RING_OUT, RING_CUT, RING_FILE = 51.4, 53.6, 39, 41, 128
+local RING, RING_EDGE = "Interface\\AddOns\\" .. (addonName or "") .. "\\Media\\Ring", 0.9744
 function K.roundIcon(parent, size, back)
   local p = CreateFrame("Frame", nil, parent)
   p:SetSize(size, size)
   p.ring = p:CreateTexture(nil, "OVERLAY")
   p.ring:SetPoint("CENTER")
   if p.ring:SetTexture(RING) == false then
-    -- (a client without it: the old ring, a disc a little larger behind)
+    -- (the file missing: the old ring, a disc a little larger behind)
     p.ring:SetDrawLayer("BACKGROUND")
     p.ring:SetTexture(MASK)
     p.ring:SetSize(size + 4, size + 4)
   else
     p.ringArt = true
-    p.ring:SetTexCoord(
-      (RING_X - RING_CUT) / RING_FILE,
-      (RING_X + RING_CUT) / RING_FILE,
-      (RING_Y - RING_CUT) / RING_FILE,
-      (RING_Y + RING_CUT) / RING_FILE
-    )
-    local d = 2 * RING_CUT * (size / 2 + 2) / RING_OUT
+    local d = 2 * (size / 2 + 2) / RING_EDGE
     p.ring:SetSize(d, d)
   end
   K.ringColour(p)
@@ -1053,7 +1046,8 @@ end
 -- ── a board of achievements ──────────────────────────────────────────────────
 -- A whole tab of a book's achievements: the figures on top, then each group
 -- under its heading (how many of it are earned), a row each: the group's
--- picture (a medal on it once earned), the title (the accent once earned),
+-- picture (its ring gold once earned, iron till then), the title (the accent
+-- once earned),
 -- what it asks, and on the right when it was earned or how far along it is
 -- (a bar). A group with nothing to show is left out (no spoilers).
 --   B = K.board({
@@ -1086,7 +1080,6 @@ function K.board(o)
     r.bg:SetAllPoints()
     r.picture = K.roundIcon(r, 34, true)
     r.picture:SetPoint("LEFT", 8, 0)
-    r.medal = K.badge(r.picture, 16)
     r.title = K.label(r, K.TITLE_FONT, 15, T.gold)
     r.title:SetPoint("TOPLEFT", 54, -7)
     r.text = K.label(r, K.BODY_FONT, 11, T.soft)
@@ -1129,7 +1122,8 @@ function K.board(o)
     r.picture.tex:SetDesaturated(not earned)
     local shade = earned and 1 or 0.6
     r.picture.tex:SetVertexColor(shade, shade, shade)
-    K.setBadge(r.medal, earned and K.GOLD or nil)
+    local ring = earned and K.RINGS.gold or K.RINGS.iron
+    K.ringColour(r.picture, ring[1], ring[2])
     r.title:SetText(a.title)
     r.text:SetText(a.text)
     -- (a row grows with what it asks: a description on two lines is never cut)
