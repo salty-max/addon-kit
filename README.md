@@ -13,12 +13,18 @@ before the files that use it), loaded into the addon's own namespace as
 `ns.kit`: no global, no version clash between the addons, nothing more for
 players to install, and the addons' releases unchanged.
 
+`Media/` holds the kit's pictures: `Ring.tga`, the game's bronze ring
+(`COMMON/BlueMenuRing`) with the shadow baked into its file removed, worn by
+every round picture. `kit:sync` copies it into each addon's `Media/`.
+
 - Change the kit here, format it (`stylua Kit.lua`, the addons' config), test it
-  (`luajit test.lua`: the select on stand-ins for the game's two dropdowns, the
-  banners with and without the game's alert container, the board; the rest is
-  tested by each addon's simulation), commit.
+  (`luajit test.lua`: the select, the banners, the board and its rings, the
+  slot, a page's list of cards, the figures; the rest is tested by each
+  addon's simulation), commit.
 - In each addon: `bun run kit:sync`, then its own checks. `bun run kit:check`
   fails when the copy isn't the kit's (a copy edited by hand).
+- A visual change is checked first against the game's own textures and code
+  (Gethe/wow-ui-textures and wow-ui-source), rendered at the sizes it's drawn.
 
 Conventions: Conventional Commits, lowercase subjects, no AI co-author
 trailers; commit locally, ask before any push.
