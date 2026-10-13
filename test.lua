@@ -353,6 +353,17 @@ check(
 )
 check(round.portrait and round.picture == round.portrait and round.badge, "card row: round, a portrait and its medal")
 
+-- A creature's ring by its rank, as the target frame marks one.
+K = load()
+check(
+  K.rankRing("elite") == K.RINGS.gold
+    and K.rankRing("rareelite") == K.RINGS.silver
+    and K.rankRing("worldboss") == K.RINGS.rose
+    and K.rankRing("normal") == nil
+    and K.rankRing(nil) == nil,
+  "rank ring: elite gold, rare silver, boss rose, the rest bronze"
+)
+
 -- A page's list of cards: a rule between them, none under the last.
 K = load()
 local pg = K.page(frame(), "TestPage")

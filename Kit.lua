@@ -331,15 +331,22 @@ function K.ringColour(p, c, grey)
   p.ring:SetVertexColor(c and c[1] or 1, c and c[2] or 1, c and c[3] or 1)
 end
 
--- The rings of a deed's tiers, { colour, grey } (K.ringColour's): gold,
--- silver, copper, and iron for one not done yet (rendered on the ring, all
--- four apart from the plain bronze every other picture wears).
+-- The rings, { colour, grey } (K.ringColour's): a deed's tiers, gold, silver,
+-- copper, and iron for one not done yet; rose, a boss's (rendered on the
+-- ring, each apart from the plain bronze every other picture wears).
 K.RINGS = {
   gold = { { 1, 0.85, 0.45 } },
   silver = { { 1, 1, 1 }, true },
   copper = { { 1, 0.68, 0.5 } },
   iron = { { 0.5, 0.5, 0.52 }, true },
+  rose = { { 1, 0.72, 0.67 }, true },
 }
+
+-- A creature's ring by its rank, the game's word for it (UnitClassification's),
+-- as its target frame marks one: an elite gold, a rare or a rare elite silver,
+-- a boss rose; any other, none (the plain bronze).
+local RANK_RINGS = { elite = "gold", rare = "silver", rareelite = "silver", worldboss = "rose", boss = "rose" }
+function K.rankRing(rank) return rank and K.RINGS[RANK_RINGS[rank]] or nil end
 
 -- A day as the books write it: "12 Oct 2026".
 function K.day(at) return date("%d %b %Y", at or 0) end
