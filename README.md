@@ -13,6 +13,12 @@ before the files that use it), loaded into the addon's own namespace as
 `ns.kit`: no global, no version clash between the addons, nothing more for
 players to install, and the addons' releases unchanged.
 
+Every word the kit shows goes through `K.L` (its addon's too, as `ns.L`),
+English by default: a missing word is its own English. An addon's language
+file fills it before anything is drawn, with the language's plural rule
+(`K.isOne`, used by `K.plural`) and its month names (`K.day`). The kit's
+words are few: the welcome's, the board's, a tooltip's.
+
 `Media/` holds the kit's pictures: `Ring.tga`, the game's bronze ring
 (`COMMON/BlueMenuRing`) with the shadow baked into its file removed, worn by
 every round picture. `kit:sync` copies it into each addon's `Media/`.

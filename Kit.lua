@@ -57,6 +57,17 @@ K.theme()
 -- A colour as a text code: "|cffd9b36b".
 function K.hex(c) return ("|cff%02x%02x%02x"):format(c[1] * 255, c[2] * 255, c[3] * 255) end
 
+-- ── words ────────────────────────────────────────────────────────────────────
+-- Every word the kit and its addon show goes through K.L, English by default
+-- (a missing word is its own English): a language's file (the addon's
+-- Text_<locale>.lua, which the client loads by its own language) fills it
+-- before anything is drawn, with the language's plural rule (K.isOne: is n
+-- the "one" form?) and its month names (K.day).
+local L = setmetatable({}, { __index = function(_, k) return k end })
+K.L = L
+function K.isOne(n) return n == 1 end
+function K.plural(n, one, many) return K.isOne(n) and L[one] or L[many] end
+
 -- ── type ─────────────────────────────────────────────────────────────────────
 -- Titles in the game's own display face where the client's letters have it
 -- (Latin alphabets), else the body's.
@@ -349,7 +360,11 @@ local RANK_RINGS = { elite = "gold", rare = "silver", rareelite = "silver", worl
 function K.rankRing(rank) return rank and K.RINGS[RANK_RINGS[rank]] or nil end
 
 -- A day as the books write it: "12 Oct 2026".
-function K.day(at) return date("%d %b %Y", at or 0) end
+local MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
+function K.day(at)
+  local d = date("*t", at or 0)
+  return L["%02d %s %d"]:format(d.day, L[MONTHS[d.month]], d.year)
+end
 
 -- ── items ────────────────────────────────────────────────────────────────────
 -- An item's name (the fallback while the game hasn't the item in its cache
@@ -974,7 +989,7 @@ function Page:items(list)
         GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
         if bb.faded then
           GameTooltip:AddLine(bb.name or "?", T.soft[1], T.soft[2], T.soft[3])
-          GameTooltip:AddLine("Still to find here.", 1, 1, 1)
+          GameTooltip:AddLine(L["Still to find here."], 1, 1, 1)
         else
           if GameTooltip.SetItemByID then GameTooltip:SetItemByID(bb.itemId) end
           if bb.extra then bb.extra(GameTooltip) end
@@ -1139,7 +1154,7 @@ function K.board(o)
     if earned then
       r.title:SetTextColor(unpack(T.gold))
       r.text:SetTextColor(unpack(T.text))
-      r.status:SetText(("Level %d, %s"):format(earned.level or 0, K.day(earned.at)))
+      r.status:SetText(L["Level %d, %s"]:format(earned.level or 0, K.day(earned.at)))
       r.bar:Hide()
     else
       local done, need = a.progress()
@@ -1203,7 +1218,7 @@ function K.board(o)
         h:ClearAllPoints()
         h:SetPoint("TOPLEFT", 0, -y)
         h.text:SetText(group[2])
-        h.count:SetText(("%d of %d"):format(earned, #shown))
+        h.count:SetText(L["%d of %d"]:format(earned, #shown))
         y = y + 34
         for _, a in ipairs(shown) do
           i = i + 1
@@ -1482,7 +1497,7 @@ function K.achievements(o)
       failed = true
       if o.say then
         o.say(
-          ("the game's achievement alert could not be set up (%s): the book shows its own banner."):format(
+          L["the game's achievement alert could not be set up (%s): the book shows its own banner."]:format(
             tostring(err)
           )
         )
@@ -2080,7 +2095,7 @@ function K.welcome(o)
     for _, other in ipairs(P:others()) do
       table.insert(options, { value = other, text = other })
     end
-    picker.select.placeholder = options[1] and "Choose a character" or "No other character yet"
+    picker.select.placeholder = options[1] and L["Choose a character"] or L["No other character yet"]
     picker.select:SetOptions(options)
     picker.copy:SetEnabled(picker.select:GetValue() ~= nil)
   end
@@ -2093,16 +2108,16 @@ function K.welcome(o)
     picker = CreateFrame("Frame", nil, parent)
     picker:SetSize(WELCOME_TEXT, 26)
     picker:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
-    picker.copy = welcomeButton(picker, "Copy their choices", 150)
+    picker.copy = welcomeButton(picker, L["Copy their choices"], 150)
     picker.copy:SetPoint("RIGHT", 0, 0)
-    picker.select = K.select(picker, WELCOME_TEXT - 160, "Choose a character")
+    picker.select = K.select(picker, WELCOME_TEXT - 160, L["Choose a character"])
     picker.select:SetPoint("LEFT", 0, 0)
     picker.select.onChange = function() picker.copy:SetEnabled(true) end
     picker.copy:SetScript("OnClick", function()
       local other = picker.select:GetValue()
       if other and P:copy(other) then
         refresh()
-        say(("%s's choices are this character's now."):format(other), T.accent)
+        say(L["%s's choices are this character's now."]:format(other), T.accent)
       end
     end)
     return picker
@@ -2113,9 +2128,9 @@ function K.welcome(o)
     code = CreateFrame("Frame", nil, parent)
     code:SetSize(WELCOME_TEXT, 54)
     code:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -10)
-    code.export = welcomeButton(code, "Give a code", 120)
+    code.export = welcomeButton(code, L["Give a code"], 120)
     code.export:SetPoint("TOPLEFT", 0, 0)
-    code.import = welcomeButton(code, "Use a code", 120)
+    code.import = welcomeButton(code, L["Use a code"], 120)
     code.import:SetPoint("LEFT", code.export, "RIGHT", 8, 0)
     code.box = CreateFrame("EditBox", nil, code, "InputBoxTemplate")
     code.box:SetSize(WELCOME_TEXT - 268, 22)
@@ -2137,7 +2152,7 @@ function K.welcome(o)
       if P:import(self:GetText()) then
         self:ClearFocus()
         refresh()
-        say("The code's choices are this character's now.", T.accent)
+        say(L["The code's choices are this character's now."], T.accent)
       else
         say(o.refused, REFUSED)
       end
@@ -2184,11 +2199,11 @@ function K.welcome(o)
     right:SetPoint("TOPLEFT", left, "TOPRIGHT", 4, 32)
     right:SetPoint("BOTTOMRIGHT", -8, 8)
     local who = P:key()
-    local last = heading(right, who and ("Choices for %s"):format(who:match("^(.-) %- ") or who) or "Your choices")
+    local last = heading(right, who and L["Choices for %s"]:format(who:match("^(.-) %- ") or who) or L["Your choices"])
     for _, c in ipairs(choices) do
       last = choice(right, last, c)
     end
-    last = heading(right, "From another character", last, 14)
+    last = heading(right, L["From another character"], last, 14)
     last = buildPicker(right, last)
     last = buildCode(right, last)
     local footnote = K.label(right, K.BODY_FONT, 11, T.soft)
@@ -2196,7 +2211,7 @@ function K.welcome(o)
     footnote:SetWidth(WELCOME_TEXT)
     footnote:SetText(o.footnote)
 
-    local begin = welcomeButton(right, "Begin", 110)
+    local begin = welcomeButton(right, L["Begin"], 110)
     begin:SetHeight(24)
     begin:SetPoint("BOTTOMRIGHT", -22, 16)
     begin:SetScript("OnClick", function() frame:Hide() end)
@@ -2265,7 +2280,7 @@ function K.copySetting(category, variable, P, tooltip, said)
     category,
     variable,
     Settings.VarType.String,
-    "Copy settings from",
+    L["Copy settings from"],
     "",
     function() return "" end,
     function(other)
@@ -2274,7 +2289,7 @@ function K.copySetting(category, variable, P, tooltip, said)
   )
   Settings.CreateDropdown(category, copy, function()
     local options = Settings.CreateControlTextContainer()
-    options:Add("", "Choose a character")
+    options:Add("", L["Choose a character"])
     for _, other in ipairs(P:others()) do
       options:Add(other, other)
     end
