@@ -424,35 +424,56 @@ local function textHeight(fs)
   local v = fs.GetStringHeight and fs:GetStringHeight()
   return type(v) == "number" and v or 0
 end
-local function setTile(t, strip, i, w, fig)
-  t:SetSize(w, TILE_H)
+-- A label too wide for its tile takes two lines, at its own size (the strip
+-- grows for it, every tile alike): never set smaller, never cut short. Only
+-- one still too wide for two is set a little smaller.
+local LABEL_LINE = 13
+local function setTile(t, strip, i, w, h, fig, two)
+  t:SetSize(w, h)
   t:ClearAllPoints()
   t:SetPoint("TOPLEFT", strip, "TOPLEFT", (i - 1) * (w + TILE_GAP), 0)
   t.value:SetText(fig[1])
-  -- A label too wide for its tile is set a little smaller, never cut short.
   local size = 11
   t.label:SetFont(K.BODY_FONT, size, "")
   t.label:SetText(fig[2])
-  while size > 8 and textWidth(t.label) > w - 8 do
+  local wraps = two and textWidth(t.label) > w - 8
+  t.label:SetWordWrap(wraps)
+  t.label:SetHeight(wraps and 2 * LABEL_LINE + 1 or LABEL_LINE)
+  local room = wraps and 2 * (w - 8) - 12 or w - 8
+  while size > 8 and textWidth(t.label) > room do
     size = size - 1
     t.label:SetFont(K.BODY_FONT, size, "")
   end
   t:Show()
 end
+-- The figures as tiles on a strip, from tiles[first] on (made as needed):
+-- returns the strip's height, a line taller when any label needs two.
+local function layTiles(strip, tiles, first, figures, width)
+  local w = math.floor((width - (#figures - 1) * TILE_GAP) / #figures)
+  local two = false
+  for i, fig in ipairs(figures) do
+    local t = tiles[first + i - 1] or tile(strip)
+    tiles[first + i - 1] = t
+    t.label:SetFont(K.BODY_FONT, 11, "")
+    t.label:SetText(fig[2])
+    if textWidth(t.label) > w - 8 then two = true end
+  end
+  local h = two and TILE_H + LABEL_LINE or TILE_H
+  strip:SetSize(width, h)
+  for i, fig in ipairs(figures) do
+    setTile(tiles[first + i - 1], strip, i, w, h, fig, two)
+  end
+  return h
+end
 function K.figures(parent)
   local s = CreateFrame("Frame", nil, parent)
   s.tiles = {}
   function s:set(figures, width)
-    local w = math.floor((width - (#figures - 1) * TILE_GAP) / #figures)
-    self:SetSize(width, TILE_H)
-    for i, fig in ipairs(figures) do
-      self.tiles[i] = self.tiles[i] or tile(self)
-      setTile(self.tiles[i], self, i, w, fig)
-    end
+    local h = layTiles(self, self.tiles, 1, figures, width)
     for i = #figures + 1, #self.tiles do
       self.tiles[i]:Hide()
     end
-    return TILE_H
+    return h
   end
   return s
 end
@@ -748,6 +769,7 @@ function Page:pair(i)
   p.label = K.label(p, K.BODY_FONT, 12, T.soft)
   p.label:SetPoint("TOPLEFT", 0, 0)
   p.label:SetWidth(w)
+  p.label:SetSpacing(2)
   p.value = K.label(p, K.BODY_FONT, 12, T.text)
   p.value:SetPoint("TOPLEFT", w + 8, 0)
   p.value:SetWidth(self.width - w - 8)
@@ -763,9 +785,11 @@ function Page:row(name, value)
   local p = self:pair(self.pi)
   p.label:SetText(name)
   p.value:SetText(value)
-  local height = math.max(16, p.value:GetStringHeight())
+  -- (as tall as the taller of the two: a label too wide for its column takes
+  -- a second line, and the next row waits for it)
+  local height = math.max(16, p.value:GetStringHeight(), p.label:GetStringHeight())
   p:SetHeight(height)
-  self:place(p, height + 8)
+  self:place(p, height + 10)
 end
 
 -- A card's row, as every book draws one: a round picture (c.portrait, its
@@ -906,19 +930,14 @@ end
 
 -- A strip of figures side by side: { { value, label }, ... }, the value large.
 function Page:stats(figures)
-  local w = math.floor((self.width - (#figures - 1) * TILE_GAP) / #figures)
   local strip = self.tiles.strip
   if not strip then
     strip = CreateFrame("Frame", nil, self.child)
     self.tiles.strip = strip
   end
-  strip:SetSize(self.width, TILE_H)
-  for i, fig in ipairs(figures) do
-    self.ti = self.ti + 1
-    self.tiles[self.ti] = self.tiles[self.ti] or tile(strip)
-    setTile(self.tiles[self.ti], strip, i, w, fig)
-  end
-  self:place(strip, TILE_H + 14)
+  local h = layTiles(strip, self.tiles, self.ti + 1, figures, self.width)
+  self.ti = self.ti + #figures
+  self:place(strip, h + 14)
 end
 
 -- A creature in a frame of its own, turning slowly (its display id); shape:

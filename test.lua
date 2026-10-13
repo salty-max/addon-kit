@@ -42,6 +42,9 @@ local function frame()
       if k == "SetText" then
         return function(self, v) self.text = v end
       end
+      if k == "SetWordWrap" then
+        return function(self, v) self.wordWrap = v end
+      end
       -- (a texture's tint and greying: a ring's colour)
       if k == "SetVertexColor" then
         return function(self, r, g, b) self.vertex = { r, g, b } end
@@ -373,19 +376,36 @@ local second = pg:card("Two", "", K.icon("Icon"), nil, nil, K.RINGS.gold)
 pg:section("After them")
 check(first.line.shown and not second.line.shown, "page: a rule between two cards, none under the last")
 
--- A figure's label: its own size when it fits, a little smaller when it
--- wouldn't, never cut short.
+-- A figure's label: its own size on one line when it fits, on two (the
+-- strip a line taller, every tile alike) when it wouldn't, a little smaller
+-- only when even two lines are too few; never cut short.
 do
   local strip = K.figures(UIParent)
-  strip:set({ { "1", "slain" }, { "20", "a label far too long for its little tile" } }, 230)
+  local h = strip:set({ { "1", "slain" }, { "20", "zones parcourues" } }, 150)
   local fits, long = strip.tiles[1].label, strip.tiles[2].label
   check(
-    fits.fontSize == 11
-      and long.fontSize < 11
-      and long.fontSize >= 8
-      and long.text == "a label far too long for its little tile",
-    "figures: a label that fits keeps its size, a long one is set smaller, whole"
+    h == 63 and fits.fontSize == 11 and long.fontSize == 11 and long.wordWrap and long.height > 20,
+    "figures: a label too wide for one line takes two, at its own size, the strip a line taller"
   )
+  h = strip:set({ { "1", "slain" }, { "2", "seen" } }, 150)
+  check(h == 50 and not strip.tiles[2].label.wordWrap, "… and one line again when every label fits")
+  strip:set({ { "1", "slain" }, { "20", "a label far too long for even two lines of its little tile" } }, 150)
+  long = strip.tiles[2].label
+  check(
+    long.fontSize < 11
+      and long.fontSize >= 8
+      and long.text == "a label far too long for even two lines of its little tile",
+    "… set a little smaller only when two lines are too few, whole"
+  )
+end
+
+-- A row of a page: as tall as its label when the label takes two lines.
+do
+  local pg2 = K.page(UIParent, "KitTestRows", { width = 300, labelWidth = 60 })
+  pg2:start("Rows")
+  pg2:pair(1).label.stringHeight = 30 -- (a label on two lines)
+  pg2:row("Vu pour la dernière fois", "12 oct.")
+  check(pg2.pairs[1].height == 30, "page: a row as tall as its label on two lines")
 end
 
 -- The game's achievement alert: set up as the book's (its picture, line and
