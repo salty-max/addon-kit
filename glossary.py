@@ -157,7 +157,7 @@ def main():
             for id, english in en[g].items():
                 # (prose often drops a name's "The": "the Sludge Fen")
                 bare_en = english[4:] if english.startswith("The ") else english
-                if len(bare_en) < 4 or not re.search(rf"(?<![\w']){re.escape(bare_en)}(?![\w'])", prose):
+                if len(bare_en) < 4 or not re.search(rf"(?<![\w']){re.escape(bare_en)}(?!\w|'(?!s\b))", prose):
                     continue
                 entry = out[kind].setdefault(english, {})
                 if loc[g].get(id) and g not in entry:
@@ -179,7 +179,7 @@ def main():
         for m in re.finditer(r"\[(\d+)\] = \{[^{}]*?\[npcKeys\.name\] = \"([^\"]+)\"", open(os.path.join(ROOT, args.traces), encoding="utf-8").read()):
             known.setdefault(m.group(2), m.group(1))
     for name, id in known.items():
-        if " " in name and re.search(rf"(?<![\w']){re.escape(name)}(?![\w'])", prose):
+        if " " in name and re.search(rf"(?<![\w']){re.escape(name)}(?!\w|'(?!s\b))", prose):
             ids.add(id)
     for p in pages:
         head = open(p, encoding="utf-8").read().split("\n---\n", 1)[0]
