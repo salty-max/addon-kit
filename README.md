@@ -1,6 +1,6 @@
 # addon-kit
 
-The Lua shared by Hearthtale, Lorekeeper's Codex, Explorer's Field Journal and
+The Lua shared by Hearthtale, Lorekeeper's Codex, Yonder and
 Second Wind: the books' look (one family, a theme each), the pieces their
 windows are made of (the list on the left, the page on the right and every part
 of a page, a board of achievements, a strip of figures, a select), the banners

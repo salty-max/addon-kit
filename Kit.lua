@@ -1,5 +1,5 @@
--- The kit shared by Hearthtale, Lorekeeper's Codex, Explorer's Field Journal
--- and Second Wind: the books' look and the pieces their windows are made of
+-- The kit shared by Hearthtale, Lorekeeper's Codex, Yonder and
+-- Second Wind: the books' look and the pieces their windows are made of
 -- (the list on the left, the page on the right and every part of a page, a
 -- board of achievements, a strip of figures), the banners that tell of a deed
 -- done (the game's achievement alert for an achievement earned), each
@@ -1241,7 +1241,7 @@ end
 -- Two at a time, the others wait their turn; each goes after a few seconds,
 -- never while the mouse is on it. A click does what it is for; a right-click
 -- or its cross dismisses it.
---   B = K.banners({ name = "FieldJournalBanner", art = a fallback picture,
+--   B = K.banners({ name = "YonderBanner", art = a fallback picture,
 --                   seconds = function() return 8 end }) -- (0: until closed)
 --   B:show({ picture = a picture's setter (K.icon...) or a texture, medal = a seal,
 --            kicker = "A riddle read aright", title = "...", tip = "...", click = fn })
@@ -1427,7 +1427,7 @@ end
 -- ── the game's achievement alert ─────────────────────────────────────────────
 -- A book's own achievement (a milestone) earned: the game's achievement alert
 -- itself (AchievementAlertFrameTemplate, queued among the game's alerts: two
--- at a time, six waiting), the book's picture, a short line ("Field Journal
+-- at a time, six waiting), the book's picture, a short line ("Yonder
 -- milestone"), its name, no points. A click opens the book there, a
 -- right-click dismisses it. Where the client has no such alert, or it fails
 -- to set up (said once, through o.say), the book's own banner (K.banners)

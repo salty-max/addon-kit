@@ -397,7 +397,7 @@ do
   local banners = { show = function(_, b) table.insert(shown, b) end }
   local a = K.achievements({ banners = banners, art = "Logo", say = function(m) table.insert(said, m) end })
   AlertFrame, C_XMLUtil = nil, nil
-  a:show({ kicker = "Field Journal milestone", title = "First Steps" })
+  a:show({ kicker = "Yonder milestone", title = "First Steps" })
   check(#shown == 1 and shown[1].title == "First Steps", "achievements: no alert in the client, the book's banner")
 
   local alert = frame()
@@ -414,7 +414,7 @@ do
   a = K.achievements({ banners = banners, art = "Logo", say = function(m) table.insert(said, m) end })
   a:show({
     picture = "Book",
-    kicker = "Field Journal milestone",
+    kicker = "Yonder milestone",
     title = "First Steps",
     click = function() opened = true end,
   })
@@ -423,7 +423,7 @@ do
     queued.template == "AchievementAlertFrameTemplate"
       and queued.shownAtOnce == 2
       and alert.texture == "Book"
-      and alert.Unlocked.text == "Field Journal milestone"
+      and alert.Unlocked.text == "Yonder milestone"
       and alert.Name.text == "First Steps"
       and alert.Shield.shown == false
       and opened
