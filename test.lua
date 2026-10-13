@@ -376,26 +376,19 @@ local second = pg:card("Two", "", K.icon("Icon"), nil, nil, K.RINGS.gold)
 pg:section("After them")
 check(first.line.shown and not second.line.shown, "page: a rule between two cards, none under the last")
 
--- A figure's label: its own size on one line when it fits, on two (the
--- strip a line taller, every tile alike) when it wouldn't, a little smaller
--- only when even two lines are too few; never cut short.
+-- A figure's label: its own size when it fits, a little smaller when it
+-- wouldn't, on its one line, never cut short.
 do
   local strip = K.figures(UIParent)
-  local h = strip:set({ { "1", "slain" }, { "20", "zones parcourues" } }, 150)
+  local h = strip:set({ { "1", "slain" }, { "20", "a label far too long for its little tile" } }, 230)
   local fits, long = strip.tiles[1].label, strip.tiles[2].label
   check(
-    h == 63 and fits.fontSize == 11 and long.fontSize == 11 and long.wordWrap and long.height > 20,
-    "figures: a label too wide for one line takes two, at its own size, the strip a line taller"
-  )
-  h = strip:set({ { "1", "slain" }, { "2", "seen" } }, 150)
-  check(h == 50 and not strip.tiles[2].label.wordWrap, "… and one line again when every label fits")
-  strip:set({ { "1", "slain" }, { "20", "a label far too long for even two lines of its little tile" } }, 150)
-  long = strip.tiles[2].label
-  check(
-    long.fontSize < 11
+    h == 50
+      and fits.fontSize == 11
+      and long.fontSize < 11
       and long.fontSize >= 8
-      and long.text == "a label far too long for even two lines of its little tile",
-    "… set a little smaller only when two lines are too few, whole"
+      and long.text == "a label far too long for its little tile",
+    "figures: a label that fits keeps its size, a long one is set smaller on its one line, whole"
   )
 end
 

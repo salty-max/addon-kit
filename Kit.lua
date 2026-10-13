@@ -424,46 +424,33 @@ local function textHeight(fs)
   local v = fs.GetStringHeight and fs:GetStringHeight()
   return type(v) == "number" and v or 0
 end
--- A label too wide for its tile takes two lines, at its own size (the strip
--- grows for it, every tile alike): never set smaller, never cut short. Only
--- one still too wide for two is set a little smaller.
-local LABEL_LINE = 13
-local function setTile(t, strip, i, w, h, fig, two)
-  t:SetSize(w, h)
+-- A label too wide for its tile is set a little smaller, on its one line,
+-- never cut short (a translation keeps its labels short: they fit).
+local function setTile(t, strip, i, w, fig)
+  t:SetSize(w, TILE_H)
   t:ClearAllPoints()
   t:SetPoint("TOPLEFT", strip, "TOPLEFT", (i - 1) * (w + TILE_GAP), 0)
   t.value:SetText(fig[1])
   local size = 11
   t.label:SetFont(K.BODY_FONT, size, "")
   t.label:SetText(fig[2])
-  local wraps = two and textWidth(t.label) > w - 8
-  t.label:SetWordWrap(wraps)
-  t.label:SetHeight(wraps and 2 * LABEL_LINE + 1 or LABEL_LINE)
-  local room = wraps and 2 * (w - 8) - 12 or w - 8
-  while size > 8 and textWidth(t.label) > room do
+  while size > 8 and textWidth(t.label) > w - 8 do
     size = size - 1
     t.label:SetFont(K.BODY_FONT, size, "")
   end
   t:Show()
 end
 -- The figures as tiles on a strip, from tiles[first] on (made as needed):
--- returns the strip's height, a line taller when any label needs two.
+-- returns the strip's height.
 local function layTiles(strip, tiles, first, figures, width)
   local w = math.floor((width - (#figures - 1) * TILE_GAP) / #figures)
-  local two = false
+  strip:SetSize(width, TILE_H)
   for i, fig in ipairs(figures) do
     local t = tiles[first + i - 1] or tile(strip)
     tiles[first + i - 1] = t
-    t.label:SetFont(K.BODY_FONT, 11, "")
-    t.label:SetText(fig[2])
-    if textWidth(t.label) > w - 8 then two = true end
+    setTile(t, strip, i, w, fig)
   end
-  local h = two and TILE_H + LABEL_LINE or TILE_H
-  strip:SetSize(width, h)
-  for i, fig in ipairs(figures) do
-    setTile(tiles[first + i - 1], strip, i, w, h, fig, two)
-  end
-  return h
+  return TILE_H
 end
 function K.figures(parent)
   local s = CreateFrame("Frame", nil, parent)
