@@ -474,5 +474,139 @@ do
   K.isOne = one
 end
 
+-- ── what the game says of the world, shared ──────────────────────────────────
+-- Off until the player says yes; then a quest's texts (their name, class and
+-- race as the game's tokens), a creature's facts, an NPC's line (never one
+-- naming another player), loot by source; a no forgets it all.
+do
+  local units = {}
+  GetBuildInfo = function() return "1.15.9", "70003", "Oct 1 2026", 11509 end
+  UnitName = function(u) return (units[u] or {}).name end
+  UnitClass = function(u) return (units[u] or {}).class end
+  UnitRace = function(u) return (units[u] or {}).race end
+  UnitGUID = function(u) return (units[u] or {}).guid end
+  UnitExists = function(u) return units[u] ~= nil end
+  UnitIsPlayer = function(u) return (units[u] or {}).player == true end
+  UnitLevel = function(u) return (units[u] or {}).level end
+  UnitClassification = function(u) return (units[u] or {}).rank end
+  UnitCreatureType = function(u) return (units[u] or {}).ctype end
+  UnitCreatureFamily = function() return nil end
+  UnitReaction = function() return 2 end
+  C_Map = {
+    GetBestMapForUnit = function() return 1426 end,
+    GetPlayerMapPosition = function()
+      return { GetXY = function() return 0.4612, 0.2501 end }
+    end,
+  }
+  units.player = { name = "Maxou", class = "Warrior", race = "Dwarf", player = true }
+  local quest = {}
+  GetQuestID = function() return quest.id end
+  GetTitleText = function() return quest.title end
+  GetQuestText = function() return quest.details end
+  GetObjectiveText = function() return quest.objectives end
+  GetProgressText = function() return quest.request end
+  GetRewardText = function() return quest.reward end
+  local loot = {}
+  GetNumLootItems = function() return #loot end
+  GetLootSlotLink = function(i) return loot[i].link end
+  GetLootSourceInfo = function(i) return unpack(loot[i].sources) end
+  local made
+  CreateFrame = function()
+    made = frame()
+    return made
+  end
+  local K = load()
+  _G.SaltyMaxCollector = nil
+  local saved = {}
+  local C = K.collect({ saved = function() return saved end })
+  C:start()
+  check(not C:on() and made == nil and next(saved.facts) == nil, "collect: off by default, nothing kept")
+  C:set(true)
+  local fire = function(event, ...) made.scripts.OnEvent(made, event, ...) end
+  units.questnpc = { guid = "Creature-0-1-0-1-197-0000000001" }
+  quest.id, quest.title = 33, "Wolves Across the Border"
+  quest.details = "Hey Maxou, a Dwarf Warrior like you can bring me meat."
+  quest.objectives = "Bring 8 Tough Wolf Meat."
+  fire("QUEST_DETAIL")
+  local q = saved.facts.enUS.quest[33]
+  check(
+    q
+      and q.details == "Hey $N, a $R $C like you can bring me meat."
+      and q.giver == "npc:197"
+      and q.map == 1426
+      and q.x == 46.1,
+    "collect: a quest's texts, its giver and where, the player as the game's tokens"
+  )
+  quest.reward = "Thanks, Maxou."
+  fire("QUEST_COMPLETE")
+  check(q.reward == "Thanks, $N." and q.ender == "npc:197", "collect: its reward text and ender")
+  units.mouseover =
+    { guid = "Creature-0-1-0-1-299-0000000002", name = "Young Wolf", level = 2, rank = "normal", ctype = "Beast" }
+  fire("UPDATE_MOUSEOVER_UNIT")
+  units.mouseover.level = 3
+  fire("UPDATE_MOUSEOVER_UNIT")
+  local w = saved.facts.enUS.npc[299]
+  check(
+    w and w.name == "Young Wolf" and w.level[1] == 2 and w.level[2] == 3 and w.type == "Beast" and w.rank == "normal",
+    "collect: a creature, its levels seen"
+  )
+  units.mouseover = { guid = "Player-1-0000ABCD", name = "Someone", player = true }
+  fire("UPDATE_MOUSEOVER_UNIT")
+  check(
+    saved.facts.enUS.npc[0] == nil and next(saved.facts.enUS.npc, next(saved.facts.enUS.npc)) == nil,
+    "collect: never a player"
+  )
+  fire(
+    "CHAT_MSG_MONSTER_YELL",
+    "Maxou! Fresh meat!",
+    "Hogger",
+    "",
+    "",
+    "",
+    "",
+    0,
+    0,
+    "",
+    0,
+    0,
+    "Creature-0-1-0-1-448-0000000003"
+  )
+  units.party1 = { name = "Friendly", player = true }
+  fire(
+    "CHAT_MSG_MONSTER_SAY",
+    "Friendly, come here.",
+    "Hogger",
+    "",
+    "",
+    "",
+    "",
+    0,
+    0,
+    "",
+    0,
+    0,
+    "Creature-0-1-0-1-448-0000000003"
+  )
+  local h = saved.facts.enUS.say[448]
+  check(
+    h and h["$N! Fresh meat!"] == "yell" and h["Friendly, come here."] == nil,
+    "collect: an NPC's line, never one naming another player"
+  )
+  loot = {
+    { link = "|cff9d9d9d|Hitem:750:0:0|h[Tough Wolf Meat]|h|r", sources = { "Creature-0-1-0-1-299-0000000002", 1 } },
+    { link = "|cffffffff|Hitem:2589:0:0|h[Linen Cloth]|h|r", sources = { "Creature-0-1-0-1-299-0000000002", 1 } },
+  }
+  fire("LOOT_OPENED")
+  local l = saved.facts.enUS.loot["npc:299"]
+  check(l and l.looted == 1 and l.items[750] == 1 and l.items[2589] == 1, "collect: what a corpse gave, once a looting")
+  C:set(false)
+  fire("QUEST_DETAIL")
+  check(next(saved.facts) == nil and not C:on(), "collect: a no forgets it all, keeps nothing more")
+  C:set(true)
+  fire("QUEST_DETAIL")
+  check(saved.facts.enUS and saved.facts.enUS.quest[33], "collect: a yes again starts afresh")
+  _G.SaltyMaxCollector = nil
+end
+
 print(failures == 0 and "all good" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)

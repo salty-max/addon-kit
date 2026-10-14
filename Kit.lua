@@ -3,8 +3,9 @@
 -- (the list on the left, the page on the right and every part of a page, a
 -- board of achievements, a strip of figures), the banners that tell of a deed
 -- done (the game's achievement alert for an achievement earned), each
--- character's settings (taken from another, or by a code) and the
--- welcome page that offers them. Its source is the addon-kit repository
+-- character's settings (taken from another, or by a code), the
+-- welcome page that offers them, and the opt-in that shares what the game
+-- tells of the world with the addons' database (K.collect). Its source is the addon-kit repository
 -- (Kit.lua), beside the addons' own in ~/code/wow-addons; each addon keeps a
 -- copy, loaded into its own namespace (ns.kit: no global, no clash between
 -- them), made by its kit:sync. Edit the kit, then sync: never the copy.
@@ -1900,6 +1901,282 @@ function K.profiles(o)
     return true
   end
   return P
+end
+
+-- ── what the game says of the world, shared (opt-in) ────────────────────────
+-- The world's facts the game's server tells the client and no file of the
+-- game holds: a quest's texts, giver and ender, a creature's level, type and
+-- rank, what NPCs say, what a corpse or a chest gave. Kept only when the
+-- player says yes (off by default), in the addon's account-wide table, which
+-- Ravenpost sends to the addons' database (wow-data): the game's own words in
+-- the player's language, so the addons know new content without waiting for
+-- others. Never the player's own: their name, class and race in a text become
+-- the game's tokens ($N, $C, $R); no player, no chat of players.
+-- One collector a session among the addons: the first that may claims it.
+--   C = K.collect({ saved = function() return MyAddonCollect end })
+--   C:on(), C:set(on) (the player's choice: the welcome page's, the options'),
+--   C:start() at the login (after the saved tables are read)
+-- Kept in saved().facts[locale] = { quest = { [id] = { title, details,
+--   objectives, request, reward, giver, ender, map, x, y, b } },
+--   npc = { [id] = { name, level = { lo, hi }, rank, type, family, reaction,
+--   map, x, y, b } }, say = { [id] = { [text] = kind } }, gossip = { [id] =
+--   { [text] = true } }, loot = { ["npc:id" | "object:id"] = { looted = n,
+--   items = { [item id] = n } } } }, saved().game ("classic" | "forever").
+local COLLECT_CAP = 40000 -- (facts kept at most: a saved file stays small)
+local function plainText(s) return type(s) == "string" and not (issecretvalue and issecretvalue(s)) and s ~= "" end
+
+function K.collect(o)
+  local C = {}
+  local facts, count, me
+  local function saved()
+    local t = o.saved()
+    t.facts = t.facts or {}
+    return t
+  end
+  function C:on() return saved().share == true end
+  function C:set(on)
+    saved().share = on and true or false
+    if on then
+      C:start()
+    else
+      saved().facts = {} -- (a no forgets what was kept)
+      facts = nil
+    end
+  end
+
+  -- (the player's own name, wherever it is, and their class and race as
+  -- words: the game's tokens; a text naming another player is not kept)
+  local function others(s)
+    local units = { "target", "focus" }
+    for i = 1, 4 do
+      table.insert(units, "party" .. i)
+    end
+    for i = 1, 40 do
+      table.insert(units, "raid" .. i)
+    end
+    for _, u in ipairs(units) do
+      local name = UnitExists(u) and UnitIsPlayer(u) and UnitName(u)
+      if plainText(name) and name ~= me["$N"] and s:find(name, 1, true) then return true end
+    end
+  end
+  local function tokens(s)
+    if not plainText(s) then return nil end
+    if me["$N"] ~= "" then s = s:gsub((me["$N"]:gsub("%p", "%%%0")), "$N") end
+    for _, token in ipairs({ "$C", "$R" }) do
+      local word = me[token]
+      if word ~= "" then s = s:gsub("%f[%w]" .. (word:gsub("%p", "%%%0")) .. "%f[%W]", token) end
+    end
+    if others(s) then return nil end
+    return s
+  end
+  local function idOf(guid)
+    if not plainText(guid) then return end
+    local kind, id = guid:match("^(%a+)%-%d+%-%d+%-%d+%-%d+%-(%d+)")
+    if kind == "Creature" or kind == "Vehicle" then return "npc", tonumber(id) end
+    if kind == "GameObject" then return "object", tonumber(id) end
+  end
+  local function where()
+    local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local pos = map and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(map, "player")
+    if not pos then return map end
+    local x, y = pos:GetXY()
+    if not x or (issecretvalue and issecretvalue(x)) then return map end
+    return map, math.floor(x * 1000 + 0.5) / 10, math.floor(y * 1000 + 0.5) / 10
+  end
+  local function shelf(kind)
+    facts[kind] = facts[kind] or {}
+    return facts[kind]
+  end
+  local function room() return count < COLLECT_CAP end
+  local function entry(kind, id)
+    local s = shelf(kind)
+    if not s[id] then
+      if not room() then return end
+      count = count + 1
+      s[id] = { b = select(2, GetBuildInfo()) }
+    end
+    return s[id]
+  end
+  local function put(e, k, v)
+    if e and v ~= nil and e[k] == nil then e[k] = v end
+  end
+
+  local function quest(event)
+    local id = GetQuestID and GetQuestID()
+    if not id or id == 0 then return end
+    local e = entry("quest", id)
+    if not e then return end
+    local kind, npc = idOf(UnitGUID("questnpc") or UnitGUID("npc"))
+    local who = npc and (kind .. ":" .. npc)
+    if event == "QUEST_DETAIL" then
+      put(e, "title", tokens(GetTitleText()))
+      put(e, "details", tokens(GetQuestText()))
+      put(e, "objectives", tokens(GetObjectiveText()))
+      put(e, "giver", who)
+      if e.map == nil then
+        e.map, e.x, e.y = where()
+      end
+    elseif event == "QUEST_PROGRESS" then
+      put(e, "request", tokens(GetProgressText()))
+      put(e, "ender", who)
+    elseif event == "QUEST_COMPLETE" then
+      put(e, "reward", tokens(GetRewardText()))
+      put(e, "ender", who)
+    end
+  end
+  local function unit(u)
+    if not UnitExists(u) or UnitIsPlayer(u) then return end
+    local kind, id = idOf(UnitGUID(u))
+    if kind ~= "npc" then return end
+    local name, level = UnitName(u), UnitLevel(u)
+    if not plainText(name) or (issecretvalue and issecretvalue(level)) then return end
+    local e = entry("npc", id)
+    if not e then return end
+    put(e, "name", name)
+    if type(level) == "number" and level > 0 then
+      e.level = e.level or { level, level }
+      e.level[1], e.level[2] = math.min(e.level[1], level), math.max(e.level[2], level)
+    end
+    local rank, ctype, family = UnitClassification(u), UnitCreatureType(u), UnitCreatureFamily(u)
+    if plainText(rank) then put(e, "rank", rank) end
+    if plainText(ctype) then put(e, "type", ctype) end
+    if plainText(family) then put(e, "family", family) end
+    local reaction = UnitReaction(u, "player")
+    if type(reaction) == "number" and not (issecretvalue and issecretvalue(reaction)) then
+      put(e, "reaction", reaction)
+    end
+    if e.map == nil then
+      e.map, e.x, e.y = where()
+    end
+  end
+  local function said(kind, text, guid)
+    local what, id = idOf(guid)
+    text = tokens(text)
+    if what ~= "npc" or not text then return end
+    local s = shelf("say")
+    if not s[id] then
+      if not room() then return end
+      count = count + 1
+      s[id] = {}
+    end
+    s[id][text] = s[id][text] or kind
+  end
+  local function gossip()
+    local kind, id = idOf(UnitGUID("npc"))
+    local text =
+      tokens(C_GossipInfo and C_GossipInfo.GetText and C_GossipInfo.GetText() or (GetGossipText and GetGossipText()))
+    if not id or not text then return end
+    local s = shelf("gossip")
+    if not s[id] then
+      if not room() then return end
+      count = count + 1
+      s[id] = {}
+    end
+    s[id][text] = true
+  end
+  local function loot()
+    local seen = {}
+    for slot = 1, (GetNumLootItems and GetNumLootItems() or 0) do
+      local link = GetLootSlotLink(slot)
+      local item = plainText(link) and tonumber(link:match("item:(%d+)"))
+      local sources = { GetLootSourceInfo(slot) }
+      for i = 1, #sources, 2 do
+        local kind, id = idOf(sources[i])
+        if kind then
+          local key = kind .. ":" .. id
+          local s = shelf("loot")
+          if not s[key] then
+            if not room() then return end
+            count = count + 1
+            s[key] = { looted = 0, items = {} }
+          end
+          if not seen[key] then
+            seen[key] = true
+            s[key].looted = s[key].looted + 1
+          end
+          if item then s[key].items[item] = (s[key].items[item] or 0) + 1 end
+        end
+      end
+    end
+  end
+
+  local frame
+  function C:start()
+    if not C:on() then return end
+    if _G.SaltyMaxCollector and _G.SaltyMaxCollector ~= o.saved then return end -- (another of the addons collects)
+    _G.SaltyMaxCollector = o.saved
+    local t = saved()
+    local toc = select(4, GetBuildInfo())
+    t.game = (toc >= 16000 and toc < 20000) and "forever" or "classic"
+    local locale = GetLocale()
+    t.facts[locale] = t.facts[locale] or {}
+    facts = t.facts[locale]
+    count = 0
+    for _, byLocale in pairs(t.facts) do
+      for _, s in pairs(byLocale) do
+        for _ in pairs(s) do
+          count = count + 1
+        end
+      end
+    end
+    me = { ["$N"] = UnitName("player") or "", ["$C"] = UnitClass("player") or "", ["$R"] = UnitRace("player") or "" }
+    if frame then return end
+    frame = CreateFrame("Frame")
+    for _, e in ipairs({
+      "QUEST_DETAIL",
+      "QUEST_PROGRESS",
+      "QUEST_COMPLETE",
+      "PLAYER_TARGET_CHANGED",
+      "UPDATE_MOUSEOVER_UNIT",
+      "GOSSIP_SHOW",
+      "LOOT_OPENED",
+      "CHAT_MSG_MONSTER_SAY",
+      "CHAT_MSG_MONSTER_YELL",
+      "CHAT_MSG_MONSTER_EMOTE",
+      "CHAT_MSG_MONSTER_WHISPER",
+    }) do
+      pcall(frame.RegisterEvent, frame, e)
+    end
+    frame:SetScript("OnEvent", function(_, event, ...)
+      if not C:on() or not facts then return end -- (said no since: nothing more)
+      pcall(function(...)
+        if event:find("^QUEST_") then
+          quest(event)
+        elseif event == "PLAYER_TARGET_CHANGED" then
+          unit("target")
+        elseif event == "UPDATE_MOUSEOVER_UNIT" then
+          unit("mouseover")
+        elseif event == "GOSSIP_SHOW" then
+          gossip()
+        elseif event == "LOOT_OPENED" then
+          loot()
+        else
+          local text, _, _, _, _, _, _, _, _, _, _, guid = ...
+          said(event:match("CHAT_MSG_MONSTER_(%a+)"):lower(), text, guid)
+        end
+      end, ...)
+    end)
+  end
+  C.tokens = function(_, s) return tokens(s) end -- (for the tests)
+  return C
+end
+
+-- The opt-in, as a welcome page's choice and a box on the game's Options page
+-- (the addon's category).
+function K.collectChoice(C)
+  return {
+    text = L["Share what you see"],
+    hint = L["Quests, creatures and NPCs' words, as the game tells you, sent by Ravenpost to the addons' database. Never your name, your character or your chat."],
+    get = function() return C:on() end,
+    set = function(v) C:set(v) end,
+  }
+end
+function K.collectSetting(category, variable, C)
+  if not (Settings and Settings.RegisterProxySetting and Settings.CreateCheckbox) then return end
+  local c = K.collectChoice(C)
+  local setting =
+    Settings.RegisterProxySetting(category, variable, Settings.VarType.Boolean, c.text, false, c.get, c.set)
+  Settings.CreateCheckbox(category, setting, c.hint)
 end
 
 -- ── the window ───────────────────────────────────────────────────────────────
