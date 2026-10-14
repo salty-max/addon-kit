@@ -1944,7 +1944,7 @@ function K.collect(o)
       if not was and o.prefix then
         print(
           o.prefix
-            .. L["Thank you. What you see is kept for the addons' database, and Ravenpost sends it from this computer: %s"]:format(
+            .. L["Thank you, it's a real help. What you see will help the addons keep up with Forever, and Ravenpost sends it from this computer: %s"]:format(
               RAVENPOST
             )
         )
@@ -2183,7 +2183,7 @@ end
 function K.collectChoice(C)
   return {
     text = L["Share what you see"],
-    hint = L["What the game tells you of quests, creatures and NPCs goes to the addons' database, for every player. Never your name, your character or your chat. It needs Ravenpost, a small app: %s"]:format(
+    hint = L["Help the addons keep up with Forever: what the game tells you of quests, creatures and NPCs goes to their shared database. Never your name, your character or your chat. It needs Ravenpost, a small app: %s"]:format(
       RAVENPOST
     ),
     get = function() return C:on() end,

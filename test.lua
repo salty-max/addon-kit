@@ -528,7 +528,7 @@ do
   C:set(true)
   print = print0
   check(
-    #said == 1 and said[1]:find("^Kit: Thank you%.") and said[1]:find("github.com/salty-max/ravenpost", 1, true),
+    #said == 1 and said[1]:find("^Kit: Thank you,") and said[1]:find("github.com/salty-max/ravenpost", 1, true),
     "collect: a yes says where Ravenpost is, once"
   )
   local fire = function(event, ...) made.scripts.OnEvent(made, event, ...) end
