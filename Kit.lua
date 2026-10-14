@@ -1914,7 +1914,8 @@ end
 -- Discovery's). Never the player's own: their name, class and race in a text become
 -- the game's tokens ($N, $C, $R); no player, no chat of players.
 -- One collector a session among the addons: the first that may claims it.
---   C = K.collect({ saved = function() return MyAddonCollect end })
+--   C = K.collect({ saved = function() return MyAddonCollect end, prefix = ns.PREFIX })
+--   (prefix: the addon's chat prefix, for the line a yes prints: Ravenpost's address)
 --   C:on(), C:set(on) (the player's choice: the welcome page's, the options'),
 --   C:start() at the login (after the saved tables are read)
 -- Kept in saved().facts[locale] = { quest = { [id] = { title, details,
@@ -1924,6 +1925,7 @@ end
 --   { [text] = true } }, loot = { ["npc:id" | "object:id"] = { looted = n,
 --   items = { [item id] = n } } } }, saved().game ("classic" | "forever").
 local COLLECT_CAP = 40000 -- (facts kept at most: a saved file stays small)
+local RAVENPOST = "github.com/salty-max/ravenpost" -- (where the opt-in sends a player for Ravenpost)
 local function plainText(s) return type(s) == "string" and not (issecretvalue and issecretvalue(s)) and s ~= "" end
 
 function K.collect(o)
@@ -1936,8 +1938,17 @@ function K.collect(o)
   end
   function C:on() return saved().share == true end
   function C:set(on)
+    local was = C:on()
     saved().share = on and true or false
     if on then
+      if not was and o.prefix then
+        print(
+          o.prefix
+            .. L["Thank you. What you see is kept for the addons' database, and Ravenpost sends it from this computer: %s"]:format(
+              RAVENPOST
+            )
+        )
+      end
       C:start()
     else
       saved().facts = {} -- (a no forgets what was kept)
@@ -2172,7 +2183,9 @@ end
 function K.collectChoice(C)
   return {
     text = L["Share what you see"],
-    hint = L["Quests, creatures and NPCs' words, as the game tells you, sent by Ravenpost to the addons' database. Never your name, your character or your chat."],
+    hint = L["What the game tells you of quests, creatures and NPCs goes to the addons' database, for every player. Never your name, your character or your chat. It needs Ravenpost, a small app: %s"]:format(
+      RAVENPOST
+    ),
     get = function() return C:on() end,
     set = function(v) C:set(v) end,
   }
@@ -2347,6 +2360,7 @@ function K.welcome(o)
     note:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
     name:SetText(c.text)
     note:SetText(c.hint)
+    row.note = note
     row.get, row.kind = c.get, c.options and "select" or "check"
     if c.options then
       name:SetPoint("TOPLEFT", 0, -3)
@@ -2367,6 +2381,8 @@ function K.welcome(o)
         c.set(row.box:GetChecked() and true or false)
       end)
     end
+    -- (a longer line on what it does: the row grows to hold it)
+    row:SetHeight(math.max(WELCOME_ROW - 6, 3 + textHeight(name) + 3 + textHeight(note) + 2))
     table.insert(rows, row)
     return row
   end
@@ -2504,9 +2520,14 @@ function K.welcome(o)
     right:SetPoint("BOTTOMRIGHT", -8, 8)
     local who = P:key()
     local last = heading(right, who and L["Choices for %s"]:format(who:match("^(.-) %- ") or who) or L["Your choices"])
+    local grown = 0
     for _, c in ipairs(choices) do
       last = choice(right, last, c)
+      grown = grown + last:GetHeight() - (WELCOME_ROW - 6)
     end
+    -- (the window holds the rows grown for their text, as far as the screen allows)
+    local rightNeeded = WELCOME_H + math.max(0, #choices - 3) * WELCOME_ROW + grown
+    if rightNeeded > frame:GetHeight() then frame:SetHeight(math.min(rightNeeded, most)) end
     last = heading(right, L["From another character"], last, 14)
     last = buildPicker(right, last)
     last = buildCode(right, last)

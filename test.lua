@@ -518,10 +518,19 @@ do
   local K = load()
   _G.SaltyMaxCollector = nil
   local saved = {}
-  local C = K.collect({ saved = function() return saved end })
+  local C = K.collect({ saved = function() return saved end, prefix = "Kit: " })
   C:start()
   check(not C:on() and made == nil and next(saved.facts) == nil, "collect: off by default, nothing kept")
+  local said = {}
+  local print0 = print
+  print = function(s) table.insert(said, s) end
   C:set(true)
+  C:set(true)
+  print = print0
+  check(
+    #said == 1 and said[1]:find("^Kit: Thank you%.") and said[1]:find("github.com/salty-max/ravenpost", 1, true),
+    "collect: a yes says where Ravenpost is, once"
+  )
   local fire = function(event, ...) made.scripts.OnEvent(made, event, ...) end
   units.questnpc = { guid = "Creature-0-1-0-1-197-0000000001" }
   quest.id, quest.title = 33, "Wolves Across the Border"
