@@ -7,29 +7,28 @@ one's folder:
 
   python3 ../addon-kit/subzones.py frFR
 
-Writes i18n/<locale>/subzones.json, { "forever": { English: name },
+The names are wow-data's (../wow-data, its databases' `name` table, kind
+wmo_area). Writes i18n/<locale>/subzones.json, { "forever": { English: name },
 "classic": { English: name where Classic's differs } }: only the names the
-language writes otherwise. The tables are cached in the kit's .cache/i18n/.
+language writes otherwise.
 """
-import csv, json, os, sys
+import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from glossary import CACHE, PRODUCTS, fetch
+from glossary import db
 
 locale = sys.argv[1]
 
-
-def names(game, loc):
-    q = "" if loc == "enUS" else f"&locale={loc}"
-    path = fetch(f"https://wago.tools/db2/WMOAreaTable/csv?{PRODUCTS[game]}{q}", os.path.join(CACHE, game, f"WMOAreaTable-{loc}.csv"))
-    return {r["ID"]: r["AreaName_lang"].strip() for r in csv.DictReader(open(path, encoding="utf-8"))}
-
-
 out = {}
 for game in ("forever", "classic"):
-    en, tr = names(game, "enUS"), names(game, locale)
     mine = {}
-    for id, name in sorted(en.items(), key=lambda kv: int(kv[0])):
-        t = (tr.get(id) or "").replace("’", "'")
+    # (the lowest id first: an English name's first translation of its own)
+    for name, t in db(game).execute(
+        """SELECT e.name, l.name FROM name e
+           LEFT JOIN name l ON l.kind = e.kind AND l.id = e.id AND l.locale = ?
+           WHERE e.kind = 'wmo_area' AND e.locale = 'enUS' ORDER BY e.id""",
+        (locale,),
+    ):
+        name, t = name.strip(), (t or "").strip().replace("’", "'")
         if name and t and t != name and name not in mine:
             mine[name] = t
     out[game] = mine
