@@ -31,10 +31,12 @@ classic-by-hand.json's, which win): Classic's own replace Forever's when the
 file loads there (Locale.lua). The names lose the English some carry in
 brackets ("Les Carmines (Redridge Mts)") and the curly apostrophes.
 """
-import glob, json, os, re, sqlite3, subprocess
+import glob, json, os, re, sys
 
 ROOT = os.getcwd()  # (the addon's folder)
 KIT = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(KIT, "..", "wow-data", "py"))
+from wowdata import db  # noqa: E402  (wow-data's databases, read only)
 GAMES = ("forever", "classic")
 # the glossary's headings and the kinds of names under each (wow-data's
 # `name` kinds), the first kind holding an English name giving it. Titles of
@@ -46,17 +48,6 @@ KINDS = {
     "peoples": ("race",),
 }
 
-_dbs = {}
-
-
-def db(game):
-    """wow-data's database for a game, read only (../wow-data/bin/path.ts db)"""
-    if game not in _dbs:
-        run = subprocess.run(["bun", os.path.join(KIT, "..", "wow-data", "bin", "path.ts"), "db", game], capture_output=True, text=True)
-        if run.returncode:
-            raise SystemExit(run.stderr.strip())
-        _dbs[game] = sqlite3.connect(f"file:{run.stdout.strip()}?mode=ro", uri=True)
-    return _dbs[game]
 
 
 def names(game, kinds, locale, common=False):
