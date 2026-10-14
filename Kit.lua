@@ -2062,7 +2062,7 @@ function K.collect(o)
     s[id][text] = s[id][text] or kind
   end
   local function gossip()
-    local kind, id = idOf(UnitGUID("npc"))
+    local _, id = idOf(UnitGUID("npc"))
     local text =
       tokens(C_GossipInfo and C_GossipInfo.GetText and C_GossipInfo.GetText() or (GetGossipText and GetGossipText()))
     if not id or not text then return end
@@ -2103,8 +2103,8 @@ function K.collect(o)
   local frame
   function C:start()
     if not C:on() then return end
-    if _G.SaltyMaxCollector and _G.SaltyMaxCollector ~= o.saved then return end -- (another of the addons collects)
-    _G.SaltyMaxCollector = o.saved
+    if SaltyMaxCollector and SaltyMaxCollector ~= o.saved then return end -- (another of the addons collects)
+    SaltyMaxCollector = o.saved
     local t = saved()
     local toc = select(4, GetBuildInfo())
     t.game = (toc >= 16000 and toc < 20000) and "forever" or "classic"
