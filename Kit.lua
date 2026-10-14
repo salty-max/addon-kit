@@ -2194,11 +2194,26 @@ function K.welcome(o)
     local line = K.rule(left)
     line:SetPoint("TOP", tagline, "BOTTOM", 0, -12)
     line:SetWidth(WELCOME_LEFT - 40)
-    local intro = K.label(left, K.BODY_FONT, 12, T.text)
-    intro:SetPoint("TOPLEFT", line, "BOTTOMLEFT", 0, -12)
+    -- The intro in a scroll of its own: the window grows to hold it, as far as
+    -- the screen allows, and what it still can't hold scrolls (a translation
+    -- runs longer than the English).
+    local scroll = K.scrollArea(left, WELCOME_LEFT - 40, o.name .. "Intro")
+    scroll:SetPoint("TOPLEFT", line, "BOTTOMLEFT", 0, -12)
+    scroll:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -20, 12)
+    local intro = K.label(scroll.child, K.BODY_FONT, 12, T.text)
+    intro:SetPoint("TOPLEFT", 0, 0)
     intro:SetWidth(WELCOME_LEFT - 40)
     intro:SetSpacing(3)
     intro:SetText(type(o.intro) == "function" and o.intro() or o.intro)
+    local textH = textHeight(intro)
+    scroll.child:SetHeight(textH + 4)
+    -- (the left column: its top, the logo, the heading and tagline, the rule,
+    -- the intro, its margins)
+    local needed = 58 + 16 + 112 + 8 + textHeight(title) + 4 + textHeight(tagline) + 24 + textH + 12 + 8
+    local most = (UIParent and UIParent.GetHeight and UIParent:GetHeight() or 768) - 40
+    if needed > frame:GetHeight() then frame:SetHeight(math.min(needed, most)) end
+    scroll:UpdateThumb()
+    W.intro = scroll -- (for the tests)
 
     -- Right: this character's choices, and another's.
     local right = K.panel(frame)
