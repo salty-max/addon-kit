@@ -605,6 +605,15 @@ do
   C:set(true)
   fire("QUEST_DETAIL")
   check(saved.facts.enUS and saved.facts.enUS.quest[33], "collect: a yes again starts afresh")
+  for _, world in ipairs({ { toc = 20506 }, { toc = 11509, season = 2 } }) do
+    GetBuildInfo = function() return "x", "70003", "Oct 1 2026", world.toc end
+    C_Seasons = { GetActiveSeason = function() return world.season end }
+    _G.SaltyMaxCollector = nil
+    local other = { share = true }
+    K.collect({ saved = function() return other end }):start()
+    check(_G.SaltyMaxCollector == nil and other.game == nil, "collect: never TBC's world nor the Season of Discovery's")
+  end
+  C_Seasons = nil
   _G.SaltyMaxCollector = nil
 end
 
