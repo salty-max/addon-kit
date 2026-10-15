@@ -19,7 +19,9 @@ creatures' names ("Explorers' League") and peoples (races) whose English name
 the pages use, the first kind holding a name giving it; figures by the ids
 the texts' front matter gives under --ids, and the characters the prose names
 (a creature's name of two words or more). Names neither game has (later
-lore: Deathwing, Ulduar) are the by-hand file's.
+lore: Deathwing, Ulduar) are the by-hand file's. A name the databases give a
+language only because its client shows the English there (their source
+"english") is no translation: left out.
 
 Writes i18n/<locale>/glossary.json, { "places" | "factions" | "titles" |
 "peoples" | "figures" | "by hand": { English: { "use": name, "forever": ...,
@@ -60,7 +62,7 @@ def names(game, kinds, locale, common=False):
     out, votes = {}, {}
     for en, loc in db(game).execute(
         f"""SELECT e.name, l.name FROM name e
-            LEFT JOIN name l ON l.kind = e.kind AND l.id = e.id AND l.locale = ?
+            LEFT JOIN name l ON l.kind = e.kind AND l.id = e.id AND l.locale = ? AND l.source <> 'english'
             WHERE e.locale = 'enUS' AND e.kind IN ({marks}) ORDER BY CASE e.kind {order} END, e.id""",
         (locale, *kinds),
     ):
@@ -81,7 +83,9 @@ def names(game, kinds, locale, common=False):
 
 def creature(game, id, locale):
     """a creature's name in a game and a language, or None"""
-    row = db(game).execute("SELECT name FROM name WHERE kind = 'creature' AND id = ? AND locale = ?", (int(id), locale)).fetchone()
+    row = db(game).execute(
+        "SELECT name FROM name WHERE kind = 'creature' AND id = ? AND locale = ? AND source <> 'english'", (int(id), locale)
+    ).fetchone()
     return row[0] if row else None
 
 
