@@ -490,7 +490,13 @@ do
   UnitLevel = function(u) return (units[u] or {}).level end
   UnitClassification = function(u) return (units[u] or {}).rank end
   UnitCreatureType = function(u) return (units[u] or {}).ctype end
-  UnitCreatureFamily = function() return nil end
+  UnitCreatureFamily = function(u) return (units[u] or {}).family end
+  C_CreatureInfo = {
+    GetCreatureTypeIDs = function() return { 1, 7 } end,
+    GetCreatureTypeInfo = function(id) return ({ { name = "Beast" }, [7] = { name = "Humanoid" } })[id] end,
+    GetCreatureFamilyIDs = function() return { 1 } end,
+    GetCreatureFamilyInfo = function(id) return ({ { name = "Wolf" } })[id] end,
+  }
   UnitReaction = function() return 2 end
   C_Map = {
     GetBestMapForUnit = function() return 1426 end,
@@ -549,16 +555,36 @@ do
   quest.reward = "Thanks, Maxou."
   fire("QUEST_COMPLETE")
   check(q.reward == "Thanks, $N." and q.ender == "npc:197", "collect: its reward text and ender")
-  units.mouseover =
-    { guid = "Creature-0-1-0-1-299-0000000002", name = "Young Wolf", level = 2, rank = "normal", ctype = "Beast" }
+  units.mouseover = {
+    guid = "Creature-0-1-0-1-299-0000000002",
+    name = "Young Wolf",
+    level = 2,
+    rank = "normal",
+    ctype = "Beast",
+    family = "Wolf",
+  }
   fire("UPDATE_MOUSEOVER_UNIT")
   units.mouseover.level = 3
   fire("UPDATE_MOUSEOVER_UNIT")
   local w = saved.facts.enUS.npc[299]
   check(
-    w and w.name == "Young Wolf" and w.level[1] == 2 and w.level[2] == 3 and w.type == "Beast" and w.rank == "normal",
-    "collect: a creature, its levels seen"
+    w
+      and w.name == "Young Wolf"
+      and w.level[1] == 2
+      and w.level[2] == 3
+      and w.typeId == 1
+      and w.familyId == 1
+      and w.type == nil
+      and w.rank == "normal",
+    "collect: a creature, its levels seen, its type and family by their ids"
   )
+  units.mouseover = { guid = "Creature-0-1-0-1-300-0000000003", name = "Odd Thing", level = 5, ctype = "Oddity" }
+  fire("UPDATE_MOUSEOVER_UNIT")
+  check(
+    saved.facts.enUS.npc[300].type == "Oddity" and saved.facts.enUS.npc[300].typeId == nil,
+    "collect: a type the game gives no id to, as the game says it"
+  )
+  saved.facts.enUS.npc[300] = nil
   units.mouseover = { guid = "Player-1-0000ABCD", name = "Someone", player = true }
   fire("UPDATE_MOUSEOVER_UNIT")
   check(

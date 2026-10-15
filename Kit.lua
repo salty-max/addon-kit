@@ -2012,6 +2012,19 @@ function K.collect(o)
   local function put(e, k, v)
     if e and v ~= nil and e[k] == nil then e[k] = v end
   end
+  -- The creature types' or families' words, in the client's language, to their ids.
+  local words = {}
+  local function wordIds(what)
+    if words[what] then return words[what] end
+    local out, info = {}, C_CreatureInfo or {}
+    local list = info["GetCreature" .. what .. "IDs"] and info["GetCreature" .. what .. "IDs"]() or {}
+    for _, id in ipairs(list) do
+      local t = info["GetCreature" .. what .. "Info"](id)
+      if t and type(t.name) == "string" and t.name ~= "" then out[t.name] = id end
+    end
+    words[what] = out
+    return out
+  end
 
   local function quest(event)
     local id = GetQuestID and GetQuestID()
@@ -2051,8 +2064,23 @@ function K.collect(o)
     end
     local rank, ctype, family = UnitClassification(u), UnitCreatureType(u), UnitCreatureFamily(u)
     if plainText(rank) then put(e, "rank", rank) end
-    if plainText(ctype) then put(e, "type", ctype) end
-    if plainText(family) then put(e, "family", family) end
+    -- (a type and a family by their ids, the game's word only where it has none)
+    if plainText(ctype) then
+      local typeId = wordIds("Type")[ctype]
+      if typeId then
+        put(e, "typeId", typeId)
+      else
+        put(e, "type", ctype)
+      end
+    end
+    if plainText(family) then
+      local familyId = wordIds("Family")[family]
+      if familyId then
+        put(e, "familyId", familyId)
+      else
+        put(e, "family", family)
+      end
+    end
     local reaction = UnitReaction(u, "player")
     if type(reaction) == "number" and not (issecretvalue and issecretvalue(reaction)) then
       put(e, "reaction", reaction)
