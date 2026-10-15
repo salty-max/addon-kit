@@ -32,14 +32,14 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
 - A visual change is checked first against the game's own textures and code
   (Gethe/wow-ui-textures and wow-ui-source), rendered at the sizes it's drawn.
 
-`windows/` holds the test builds' installer, kept beside the zips in the
-iCloud test folder: `Install Classic Era.cmd` and `Install Forever beta.cmd`
-call `install.cmd`, which unzips every addon zip beside it into that game's
-`Interface\AddOns` (`_classic_era_` or `_classic_beta_`), each zip's old
-folders removed first. Yonder's `FieldJournal` handover goes to Classic Era
-only. Windows' own `tar.exe` does the unzipping, no PowerShell. The game's
-folder is found where Battle.net puts it, else asked once and kept in
-`wow-folder.txt`. CRLF line endings: batch files need them.
+`windows/install.cmd` is the test builds' installer, copied twice beside the
+zips in the iCloud test folder, as `Install Classic Era.cmd` and `Install
+Forever beta.cmd`: its name picks the game. It unzips every addon zip beside
+it into that game's `Interface\AddOns` (`_classic_era_` or `_classic_beta_`),
+each zip's old folders removed first. Yonder's `FieldJournal` handover goes
+to Classic Era only. Windows' own `tar.exe` does the unzipping, no
+PowerShell. The game's folder is found where Battle.net puts it, else asked
+once and kept in `wow-folder.txt`. CRLF line endings: batch files need them.
 
 Conventions: Conventional Commits, lowercase subjects, no AI co-author
 trailers; commit locally, ask before any push.

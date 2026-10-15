@@ -1,8 +1,9 @@
 @echo off
 rem Installs every addon zip beside this script into one game's AddOns folder:
-rem _classic_era_ (Classic Era) or _classic_beta_ (Forever's beta).
-rem
-rem   install.cmd _classic_era_       or double-click a launcher beside it
+rem _classic_era_ (Classic Era) or _classic_beta_ (Forever's beta). Its name
+rem picks the game: copied as "Install Classic Era.cmd" and "Install Forever
+rem beta.cmd", a double-click is enough (else it asks, or takes the folder's
+rem name as its argument: install.cmd _classic_era_).
 rem
 rem Each zip's folders are removed from AddOns first, so no file of an older
 rem version stays behind. Yonder's FieldJournal handover goes to Classic Era
@@ -13,6 +14,9 @@ rem tar.exe (Windows 10 1803 and later): no PowerShell.
 setlocal EnableExtensions EnableDelayedExpansion
 set "HERE=%~dp0"
 set "FLAVOR=%~1"
+rem the script's own name, else ask
+if not defined FLAVOR echo %~n0| findstr /i "forever beta" >nul && set "FLAVOR=_classic_beta_"
+if not defined FLAVOR echo %~n0| findstr /i "era" >nul && set "FLAVOR=_classic_era_"
 if not defined FLAVOR (
   echo Which game?
   echo   1  Classic Era   [_classic_era_]
