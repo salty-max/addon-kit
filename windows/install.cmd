@@ -38,9 +38,11 @@ if defined WOW if not exist "!WOW!\%FLAVOR%\" set "WOW="
 if not defined WOW if exist "%ProgramFiles(x86)%\World of Warcraft\%FLAVOR%\" set "WOW=%ProgramFiles(x86)%\World of Warcraft"
 if not defined WOW if exist "%ProgramFiles%\World of Warcraft\%FLAVOR%\" set "WOW=%ProgramFiles%\World of Warcraft"
 if not defined WOW if exist "C:\World of Warcraft\%FLAVOR%\" set "WOW=C:\World of Warcraft"
+set "ASKED="
 if not defined WOW (
   echo World of Warcraft's folder wasn't found where Battle.net usually puts it.
   set /p "WOW=Paste the folder that holds %FLAVOR%: "
+  set "ASKED=1"
 )
 set "WOW=!WOW:"=!"
 if "!WOW:~-1!"=="\" set "WOW=!WOW:~0,-1!"
@@ -48,7 +50,8 @@ if not exist "!WOW!\%FLAVOR%\" (
   echo No %FLAVOR% folder in "!WOW!": is this game installed there?
   goto :end
 )
-(echo !WOW!)>"%HERE%wow-folder.txt"
+rem (kept only when asked for: one found where Battle.net puts it is found again)
+if defined ASKED (>"%HERE%wow-folder.txt" echo !WOW!)
 
 set "ADDONS=!WOW!\%FLAVOR%\Interface\AddOns"
 if not exist "!ADDONS!\" mkdir "!ADDONS!"
