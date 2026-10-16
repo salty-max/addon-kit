@@ -2051,12 +2051,17 @@ function K.collect(o)
   end
   local function unit(u)
     if not UnitExists(u) or UnitIsPlayer(u) then return end
+    -- Summons can have Creature GUIDs too. Their names, levels and positions
+    -- describe a player's companion, not a creature living in the world.
+    local controlled = UnitPlayerControlled(u)
+    if (issecretvalue and issecretvalue(controlled)) or controlled then return end
     local kind, id = idOf(UnitGUID(u))
     if kind ~= "npc" then return end
     local name, level = UnitName(u), UnitLevel(u)
     if not plainText(name) or (issecretvalue and issecretvalue(level)) then return end
     local e = entry("npc", id)
     if not e then return end
+    e.world = true -- the inbox rejects observations from before this check
     put(e, "name", name)
     if type(level) == "number" and level > 0 then
       e.level = e.level or { level, level }
@@ -2155,6 +2160,13 @@ function K.collect(o)
     t.game = toc >= 16000 and "forever" or "classic"
     local locale = GetLocale()
     t.facts[locale] = t.facts[locale] or {}
+    -- Older collectors kept summons as NPCs. Re-observe NPCs with the new
+    -- filter, in every saved language, without discarding quests or dialogue.
+    for _, byLocale in pairs(t.facts) do
+      for id, npc in pairs(byLocale.npc or {}) do
+        if npc.world ~= true then byLocale.npc[id] = nil end
+      end
+    end
     facts = t.facts[locale]
     count = 0
     for _, byLocale in pairs(t.facts) do

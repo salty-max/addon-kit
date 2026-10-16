@@ -487,6 +487,7 @@ do
   UnitGUID = function(u) return (units[u] or {}).guid end
   UnitExists = function(u) return units[u] ~= nil end
   UnitIsPlayer = function(u) return (units[u] or {}).player == true end
+  UnitPlayerControlled = function(u) return (units[u] or {}).controlled == true end
   UnitLevel = function(u) return (units[u] or {}).level end
   UnitClassification = function(u) return (units[u] or {}).rank end
   UnitCreatureType = function(u) return (units[u] or {}).ctype end
@@ -578,6 +579,17 @@ do
       and w.rank == "normal",
     "collect: a creature, its levels seen, its type and family by their ids"
   )
+  check(w.world == true, "collect: a world NPC carries the controlled-unit check")
+  units.target = {
+    guid = "Creature-0-1-0-1-1860-0000000010",
+    name = "Graz'nar",
+    level = 10,
+    controlled = true,
+  }
+  fire("PLAYER_TARGET_CHANGED")
+  check(saved.facts.enUS.npc[1860] == nil, "collect: a summoned Voidwalker with a Creature GUID is not world data")
+  fire("UPDATE_MOUSEOVER_UNIT")
+  check(saved.facts.enUS.npc[299] == w, "collect: an uncontrolled creature is still recorded")
   units.mouseover = { guid = "Creature-0-1-0-1-300-0000000003", name = "Odd Thing", level = 5, ctype = "Oddity" }
   fire("UPDATE_MOUSEOVER_UNIT")
   check(
@@ -640,6 +652,17 @@ do
   C:set(true)
   fire("QUEST_DETAIL")
   check(saved.facts.enUS and saved.facts.enUS.quest[33], "collect: a yes again starts afresh")
+  saved.facts.enUS.npc = { [1860] = { name = "Graz'nar" }, [299] = { name = "Young Wolf", world = true } }
+  saved.facts.deDE = { npc = { [1860] = { name = "Graz'nar" } }, gossip = { [448] = { Hallo = true } } }
+  C:start()
+  check(
+    saved.facts.enUS.npc[1860] == nil
+      and saved.facts.deDE.npc[1860] == nil
+      and saved.facts.enUS.npc[299].world
+      and saved.facts.enUS.quest[33]
+      and saved.facts.deDE.gossip[448].Hallo,
+    "collect: old unchecked NPCs are purged in every language, preserving new NPCs, quests and dialogue"
+  )
   for _, world in ipairs({ { toc = 20506 }, { toc = 11509, season = 2 } }) do
     GetBuildInfo = function() return "x", "70003", "Oct 1 2026", world.toc end
     C_Seasons = { GetActiveSeason = function() return world.season end }
