@@ -593,6 +593,7 @@ function K.page(parent, name, o)
   p.sub = K.label(p.child, K.BODY_FONT, 12, T.soft)
   p.sub:SetPoint("TOPLEFT", p.title, "BOTTOMLEFT", 0, -7)
   local line = K.rule(p.child)
+  p.headerRule = line
   line:SetPoint("TOPLEFT", 0, -76)
   line:SetPoint("TOPRIGHT", 0, -76)
   p.note = K.label(p.child, K.BODY_FONT, 13, T.text)
