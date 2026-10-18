@@ -274,7 +274,16 @@ type Report = {
 export async function inspect(repo: string): Promise<Report> {
   const page = readPage(readFileSync(join(repo, "addon", "CURSEFORGE.md"), "utf8"));
   const id = projectId(repo);
-  const now = await live(id);
+  // (CurseForge now and then answers with a copy from before the last save:
+  // a page that isn't the file read again, a few times, before it's told; a
+  // copy can't be the file by chance, so any read that is the file settles it)
+  const isFile = (p: Live) => p.DescriptionType === MARKDOWN && p.Description.trimEnd() === page.body.trimEnd();
+  let now = await live(id);
+  for (let i = 0; i < 3 && !isFile(now); i++) {
+    await Bun.sleep(1500);
+    const again = await live(id);
+    if (isFile(again)) now = again;
+  }
   // (the live page as Markdown: compared as written; still in the editor's
   // HTML: compared as words, both rendered by CurseForge)
   const changes =
