@@ -13,6 +13,13 @@ wmo_area). The ids that bear the same name in every language are one place:
 the lowest of them stands for them all. Writes i18n/<locale>/subzones.json,
 { "forever": { id: name }, "classic": { id: name } }: each game's places, every
 one this language names.
+
+An id the file held before stays in it, whatever a new build does: journals
+keep places by these ids, and one that no longer reads would show as "w94415".
+A new build can merge two places' names (then the lowest id stands for the
+group, and the old one is kept beside it, under its own name in the database)
+or drop an id (then it keeps the name it had). Both addons turn a name into
+the lowest id bearing it, so a kept id changes nothing for new records.
 """
 import collections, json, os, sys
 
@@ -42,9 +49,30 @@ def places(game):
     return dict(sorted(out.items(), key=lambda kv: int(kv[0])))
 
 
-out = {"forever": places("forever"), "classic": places("classic")}
+def own_name(game, i):
+    """this id's own name in this language in the database, if it has one"""
+    row = db(game).execute(
+        "SELECT name FROM name WHERE kind = 'wmo_area' AND id = ? AND locale = ?", (int(i), locale)
+    ).fetchone()
+    n = (row[0] or "").strip().replace("’", "'") if row else ""
+    return n or None
+
+
+file = os.path.join("i18n", locale, "subzones.json")
+before = json.load(open(file, encoding="utf-8")) if os.path.exists(file) else {}
+out, kept = {}, 0
+for game in ("forever", "classic"):
+    now = places(game)
+    for i, name in (before.get(game) or {}).items():
+        if i not in now:
+            now[i] = own_name(game, i) or name
+            kept += 1
+    out[game] = dict(sorted(now.items(), key=lambda kv: int(kv[0])))
 os.makedirs(os.path.join("i18n", locale), exist_ok=True)
-with open(os.path.join("i18n", locale, "subzones.json"), "w", encoding="utf-8") as f:
+with open(file, "w", encoding="utf-8") as f:
     json.dump(out, f, ensure_ascii=False, indent=1)
     f.write("\n")
-print(f"i18n/{locale}/subzones.json: {len(out['forever'])} of Forever's places, {len(out['classic'])} of Classic's")
+print(
+    f"i18n/{locale}/subzones.json: {len(out['forever'])} of Forever's places, {len(out['classic'])} of Classic's"
+    + (f" ({kept} kept from before: ids a journal may hold)" if kept else "")
+)
