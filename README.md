@@ -43,3 +43,20 @@ once and kept in `wow-folder.txt`. CRLF line endings: batch files need them.
 
 Conventions: Conventional Commits, lowercase subjects, no AI co-author
 trailers; commit locally, ask before any push.
+
+## The store page
+
+`store.ts` puts an addon's `addon/CURSEFORGE.md` on its CurseForge page, as
+Markdown (its comments left out), through what the authors site's own editor
+does (CurseForge has no API for descriptions). From an addon's repository:
+
+```bash
+bun ../addon-kit/store.ts .           # the live page against the file: nothing saved
+bun ../addon-kit/store.ts . --apply   # the live page replaced, then read back
+bun ../addon-kit/store.ts . --show    # the title, summary and GitHub notes the file gives
+```
+
+It needs the signed-in browser's cookie for authors.curseforge.com in
+`~/.config/wow-addons/curseforge-cookie` (or `CURSEFORGE_COOKIE`): never in
+CI, never committed. Updating the live page publishes: a dry run first.
+
