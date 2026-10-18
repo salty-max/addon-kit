@@ -675,5 +675,22 @@ do
   _G.SaltyMaxCollector = nil
 end
 
+-- The game's window: its body the dialog box's dark, not the grey stone.
+do
+  local bg, seen = frame(), nil
+  bg.SetTexture = function(_, file) seen = file end
+  CreateFrame = function()
+    local w = frame()
+    w.Bg = bg
+    return w
+  end
+  local w = K.gameWindow("TestWindow", "Test")
+  check(
+    w and seen == "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+    "gameWindow: its body dark, the dialog box's"
+  )
+  CreateFrame = function() return frame() end
+end
+
 print(failures == 0 and "all good" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)
