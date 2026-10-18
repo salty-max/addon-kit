@@ -356,7 +356,7 @@ if (import.meta.main) {
   }
   const todo = reports.filter((r) => r.state !== "same" || r.github || wagoDue(r));
   if (!todo.length) {
-    console.log("✓ every page is its file");
+    console.log(reports.some((r) => typeof r.wago === "string") ? "✓ every page read is its file (Wago not read)" : "✓ every page is its file");
     process.exit(0);
   }
   if (!args.includes("--apply")) {
