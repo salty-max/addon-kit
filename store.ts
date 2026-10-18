@@ -190,9 +190,15 @@ function tell(r: Report, verbose: boolean) {
 async function apply(r: Report) {
   if (r.state !== "same") {
     await call("PUT", `projects/description/${r.id}`, { id: r.id, description: r.page.body, descriptionType: MARKDOWN });
-    const after = await live(r.id);
-    if (after.DescriptionType !== MARKDOWN || after.Description.trimEnd() !== r.page.body.trimEnd())
-      throw new Error(`project ${r.id}: saved, but the page read back differs from the file: look at it on the site`);
+    // (read back, a few seconds given: right after a save CurseForge may still
+    // answer with the page before it, Keyring's on 19 October 2026)
+    const same = (p: Live) => p.DescriptionType === MARKDOWN && p.Description.trimEnd() === r.page.body.trimEnd();
+    let after = await live(r.id);
+    for (let i = 0; i < 8 && !same(after); i++) {
+      await Bun.sleep(1500);
+      after = await live(r.id);
+    }
+    if (!same(after)) throw new Error(`project ${r.id}: saved, but the page read back differs from the file: look at it on the site`);
     console.log(`  ✓ project ${r.id}: the live page is the file`);
   }
   if (r.github && r.page.github) {
