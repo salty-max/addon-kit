@@ -54,7 +54,15 @@ does (CurseForge has no API for descriptions). From an addon's repository:
 bun ../addon-kit/store.ts .           # the live page against the file: nothing saved
 bun ../addon-kit/store.ts . --apply   # the live page replaced, then read back
 bun ../addon-kit/store.ts . --show    # the title, summary and GitHub notes the file gives
+bun addon-kit/store.ts --all          # every addon beside the kit (from ~/code/wow-addons)
+bun addon-kit/store.ts --all --apply  # every page that differs put up, GitHub's descriptions too
 ```
+
+Beside each page it checks the summary: the file's note against CurseForge's
+(changed by hand on the project's General page: its save sends the whole
+project, links among them, which no read gives back) and the TOCs' English
+Notes. With a GitHub note in the file, GitHub's description too (put up
+through `gh` with `--apply`).
 
 It needs the signed-in browser's cookie for authors.curseforge.com in
 `~/.config/wow-addons/curseforge-cookie` (or `CURSEFORGE_COOKIE`): never in
