@@ -1,7 +1,9 @@
 /**
- * An addon's store page on CurseForge, from its `addon/CURSEFORGE.md`: the
- * file as the page, Markdown, its comments left out (the summary's and the
- * GitHub description's notes stay in the file).
+ * An addon's store pages on CurseForge and Wago, from its `addon/CURSEFORGE.md`:
+ * the file as the page, Markdown, its comments left out (the summary's and
+ * the GitHub description's notes stay in the file). On Wago the summary goes
+ * up with the page (its form carries every field); on CurseForge it is
+ * checked only (below).
  *
  *   bun ../addon-kit/store.ts <addon repo>           the live page against the
  *                                                    file: what would change
@@ -105,8 +107,125 @@ function diff(a: string, b: string): string {
   const dir = mkdtempSync(join(tmpdir(), "store-"));
   writeFileSync(join(dir, "live"), a);
   writeFileSync(join(dir, "file"), b);
-  const r = Bun.spawnSync(["diff", "-u", "--label", "live page", "--label", "CURSEFORGE.md", join(dir, "live"), join(dir, "file")]);
+  const r = Bun.spawnSync(["diff", "-u", "--label", "the live page", "--label", "CURSEFORGE.md", join(dir, "live"), join(dir, "file")]);
   return r.stdout.toString();
+}
+
+// ── Wago ─────────────────────────────────────────────────────────────────────
+// Wago Addons' dashboard (Laravel and Inertia, read 19 October 2026): a
+// project's settings page carries the whole addon in its data (#app's
+// data-page: props.addon, props.attachedCategories), saved by POST
+// /developers/projects/create/<slug> with every field of its form, the
+// description and the summary from the file, the rest as read (nothing
+// wiped), the XSRF-TOKEN cookie's value as X-XSRF-TOKEN. It trims the text's
+// last line break. The session: the browser's cookie for addons.wago.io in
+// ~/.config/wow-addons/wago-cookie (or WAGO_COOKIE), as CurseForge's.
+const WAGO = "https://addons.wago.io";
+
+function wagoCookie(): string | undefined {
+  const env = process.env.WAGO_COOKIE;
+  if (env) return env.trim();
+  const file = join(homedir(), ".config", "wow-addons", "wago-cookie");
+  if (existsSync(file)) return readFileSync(file, "utf8").trim().replace(/^cookie:\s*/i, "");
+}
+
+export function wagoId(repo: string): string | undefined {
+  const addon = join(repo, "addon");
+  for (const dir of readdirSync(addon, { withFileTypes: true }).filter((d) => d.isDirectory()))
+    for (const f of readdirSync(join(addon, dir.name)).filter((f) => f.endsWith(".toc"))) {
+      const m = readFileSync(join(addon, dir.name, f), "utf8").match(/^## X-Wago-ID:\s*(\S+)/m);
+      if (m) return m[1];
+    }
+}
+
+async function wagoFetch(path: string, init: { method?: string; body?: unknown } = {}) {
+  const cookie = wagoCookie()!;
+  const xsrf = decodeURIComponent(cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)?.[1] ?? "");
+  const r = await fetch(`${WAGO}${path}`, {
+    method: init.method ?? "GET",
+    headers: {
+      cookie,
+      "X-XSRF-TOKEN": xsrf,
+      "X-Requested-With": "XMLHttpRequest",
+      accept: "text/html,application/xhtml+xml",
+      ...(init.body ? { "content-type": "application/json" } : {}),
+    },
+    body: init.body ? JSON.stringify(init.body) : undefined,
+  });
+  if (r.status === 401 || r.status === 419 || /\/login/.test(r.url)) throw new Error(`Wago said ${r.status}: the session has expired, copy its cookie again`);
+  if (!r.ok) throw new Error(`Wago said ${r.status} to ${init.method ?? "GET"} ${path}`);
+  return r;
+}
+
+// (a page's Inertia data, from its HTML)
+async function wagoPage(path: string): Promise<Record<string, any>> {
+  const html = await (await wagoFetch(path)).text();
+  const m = html.match(/id="app"[^>]*data-page="([^"]*)"/);
+  if (!m) throw new Error(`Wago's ${path} carries no page data (signed out, or a challenge in the way)`);
+  const json = m[1].replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  return JSON.parse(json).props;
+}
+
+let wagoSlugs: Map<string, string> | undefined;
+async function wagoSlug(id: string): Promise<string | undefined> {
+  if (!wagoSlugs) {
+    const props = await wagoPage("/developers");
+    wagoSlugs = new Map((props.addons ?? []).map((a: { id: string; slug: string }) => [a.id, a.slug]));
+  }
+  return wagoSlugs.get(id);
+}
+
+const uncommented = (text: string) => text.replace(/<!--[\s\S]*?-->/g, "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+
+type WagoReport = {
+  slug: string;
+  props: Record<string, any>;
+  // the page: the file, the same words with the comments a hand paste left, or changed
+  state: "same" | "comments" | "changed";
+  changes: string;
+  summary?: string; // Wago's, where it differs (saved with the page)
+};
+
+async function inspectWago(repo: string, page: Page): Promise<WagoReport | string> {
+  if (!wagoCookie()) return "no session (~/.config/wow-addons/wago-cookie)";
+  const id = wagoId(repo);
+  if (!id) return "no X-Wago-ID in the TOCs";
+  const slug = await wagoSlug(id);
+  if (!slug) return `project ${id} isn't among the dashboard's`;
+  const props = await wagoPage(`/developers/projects/${slug}/settings`);
+  const now: string = props.addon.description ?? "";
+  const body = page.body.trimEnd();
+  const state = now === body ? "same" : uncommented(now) === body ? "comments" : "changed";
+  const report: WagoReport = { slug, props, state, changes: state === "changed" ? diff(uncommented(now) + "\n", page.body) : "" };
+  if (page.summary && props.addon.summary !== page.summary) report.summary = props.addon.summary ?? "";
+  return report;
+}
+
+async function applyWago(w: WagoReport, page: Page) {
+  const a = w.props.addon;
+  const data = {
+    display_name: a.display_name,
+    slug: a.slug,
+    summary: page.summary ?? a.summary,
+    description: page.body.trimEnd(),
+    website: a.website,
+    license_url: a.license_url,
+    source_url: a.source_url,
+    wiki_url: a.wiki_url,
+    support_url: a.support_url,
+    discord_url: a.discord_url,
+    thumbnail: null,
+    categories: w.props.attachedCategories,
+    is_hidden_from_external: a.is_hidden_from_external,
+    is_unlisted: a.is_unlisted,
+  };
+  await wagoFetch(`/developers/projects/create/${w.slug}`, { method: "POST", body: data });
+  const after = (await wagoPage(`/developers/projects/${w.slug}/settings`)).addon;
+  if (after.description !== data.description || after.summary !== data.summary)
+    throw new Error(`Wago's ${w.slug}: saved, but the page read back differs from the file: look at it on the site`);
+  for (const k of ["display_name", "slug", "website", "source_url", "is_unlisted", "is_hidden_from_external"])
+    if (after[k] !== a[k]) throw new Error(`Wago's ${w.slug}: ${k} changed in the save: look at it on the site`);
+  console.log(`  ✓ Wago's ${w.slug}: the page and summary are the file's`);
 }
 
 // ── one addon, every addon ──────────────────────────────────────────────────
@@ -149,6 +268,7 @@ type Report = {
   summary?: string; // CurseForge's, where it differs from the file's
   notes?: string; // the TOCs', where it differs
   github?: { slug: string; now: string }; // GitHub's description, where it differs
+  wago: WagoReport | string; // Wago's page, or why it wasn't read
 };
 
 export async function inspect(repo: string): Promise<Report> {
@@ -161,7 +281,7 @@ export async function inspect(repo: string): Promise<Report> {
     now.DescriptionType === MARKDOWN ? diff(now.Description.trimEnd() + "\n", page.body) : diff(words(now.Description), words(await rendered(page.body)));
   const state = changes ? "changed" : now.DescriptionType === MARKDOWN ? "same" : "format";
   const project = (await call("GET", `projects/${id}`)) as { summary?: string };
-  const report: Report = { repo, page, id, state, changes };
+  const report: Report = { repo, page, id, state, changes, wago: await inspectWago(repo, page) };
   if (page.summary && project.summary?.trim() !== page.summary) report.summary = project.summary ?? "";
   const notes = tocNotes(repo);
   if (page.summary && notes !== page.summary) report.notes = notes ?? "";
@@ -183,9 +303,17 @@ function tell(r: Report, verbose: boolean) {
   if (r.summary !== undefined) line("", `the file's: "${r.page.summary}"`);
   line("TOC Notes", r.notes === undefined ? "✓ the file's summary" : `differ from the file's summary: "${r.notes}"`);
   line("GitHub", r.page.github ? (r.github ? `differs: "${r.github.now}"` : "✓ the file's") : "(no note in the file)");
+  const w = r.wago;
+  if (typeof w === "string") line("Wago", `not read: ${w}`);
+  else {
+    line("Wago page", w.state === "same" ? "✓ the file" : w.state === "comments" ? "the same words, the file's comments to go" : "changed (below)");
+    line("Wago sum.", w.summary === undefined ? "✓ the file's" : `differs, saved with the page: "${w.summary}"`);
+  }
   if (r.page.body.includes(";")) line("!", "a semicolon in the page: none in what players read");
   if (r.state === "changed" && verbose) console.log(r.changes.replace(/^/gm, "    "));
+  if (typeof w !== "string" && w.state === "changed" && verbose) console.log(w.changes.replace(/^/gm, "    "));
 }
+const wagoDue = (r: Report) => typeof r.wago !== "string" && (r.wago.state !== "same" || r.wago.summary !== undefined);
 
 async function apply(r: Report) {
   if (r.state !== "same") {
@@ -201,6 +329,7 @@ async function apply(r: Report) {
     if (!same(after)) throw new Error(`project ${r.id}: saved, but the page read back differs from the file: look at it on the site`);
     console.log(`  ✓ project ${r.id}: the live page is the file`);
   }
+  if (wagoDue(r)) await applyWago(r.wago as WagoReport, r.page);
   if (r.github && r.page.github) {
     const e = gh("repo", "edit", r.github.slug, "--description", r.page.github);
     if (e.exitCode !== 0) throw new Error(`GitHub refused the description: ${e.stderr.toString().trim()}`);
@@ -225,7 +354,7 @@ if (import.meta.main) {
     reports.push(r);
     tell(r, true);
   }
-  const todo = reports.filter((r) => r.state !== "same" || r.github);
+  const todo = reports.filter((r) => r.state !== "same" || r.github || wagoDue(r));
   if (!todo.length) {
     console.log("✓ every page is its file");
     process.exit(0);

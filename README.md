@@ -65,6 +65,9 @@ Notes. With a GitHub note in the file, GitHub's description too (put up
 through `gh` with `--apply`).
 
 It needs the signed-in browser's cookie for authors.curseforge.com in
-`~/.config/wow-addons/curseforge-cookie` (or `CURSEFORGE_COOKIE`): never in
-CI, never committed. Updating the live page publishes: a dry run first.
+`~/.config/wow-addons/curseforge-cookie` (or `CURSEFORGE_COOKIE`), and for
+Wago, addons.wago.io's in `~/.config/wow-addons/wago-cookie` (or
+`WAGO_COOKIE`; without it Wago is skipped): never in CI, never committed.
+Wago's page and summary go up together (its settings form carries every
+field). Updating a live page publishes: a dry run first.
 
