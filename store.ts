@@ -98,7 +98,7 @@ function diff(a: string, b: string): string {
   const dir = mkdtempSync(join(tmpdir(), "store-"));
   writeFileSync(join(dir, "live"), a);
   writeFileSync(join(dir, "file"), b);
-  const r = Bun.spawnSync(["diff", "-u", join(dir, "live"), join(dir, "file")]);
+  const r = Bun.spawnSync(["diff", "-u", "--label", "live page", "--label", "CURSEFORGE.md", join(dir, "live"), join(dir, "file")]);
   return r.stdout.toString();
 }
 
