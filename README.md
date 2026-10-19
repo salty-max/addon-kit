@@ -44,6 +44,29 @@ once and kept in `wow-folder.txt`. CRLF line endings: batch files need them.
 Conventions: Conventional Commits, lowercase subjects, no AI co-author
 trailers; commit locally, ask before any push.
 
+## Every repository at once
+
+Two scripts for what needs no thinking, from `~/code/wow-addons`:
+
+```bash
+bun addon-kit/status.ts              # every repository: ahead/behind, uncommitted, each
+                                     # workflow's last run, open pull requests, and
+                                     # whether its iCloud test build is its HEAD
+bun addon-kit/status.ts --no-fetch   # the same without fetching first
+bun addon-kit/each.ts -- bun run check            # one command in every addon
+bun addon-kit/each.ts --kit -- bun run kit:sync   # in every addon with a kit copy
+bun addon-kit/each.ts --all --verbose -- git status --short
+```
+
+`status.ts` lists what wants a hand last: files uncommitted, commits to push
+or pull, a workflow that failed, a pull request open, a test build behind
+what ships (the addon's folders, not its store page or tests; Ravenpost's
+app, not its inbox). `each.ts` runs one after the other (`--parallel`: all
+at once), prints a line for each that passed and the end of each failure,
+and exits non-zero if one failed; `--only a,b` and `--skip a,b` pick
+repositories by folder. Their pure parts are tested in `tools.test.ts`
+(`bun test`).
+
 ## The store page
 
 `store.ts` puts an addon's `addon/CURSEFORGE.md` on its CurseForge page, as
