@@ -56,7 +56,18 @@ bun ../addon-kit/store.ts . --apply   # the live page replaced, then read back
 bun ../addon-kit/store.ts . --show    # the title, summary and GitHub notes the file gives
 bun addon-kit/store.ts --all          # every addon beside the kit (from ~/code/wow-addons)
 bun addon-kit/store.ts --all --apply  # every page that differs put up, GitHub's descriptions too
+bun addon-kit/store.ts --ui           # the same in a browser page on this computer
 ```
+
+`--ui` (`store-ui.ts`) serves a page on 127.0.0.1:4190 (`STORE_UI_PORT`)
+and opens it: Check all streams the dry run's log into a window and fills a
+card per addon (CurseForge's page, the summary, the TOC Notes, Wago, GitHub),
+Changes shows each difference coloured, Put up publishes one addon after a
+confirmation, refused when its `CURSEFORGE.md` changed since it was checked,
+each store read back after. The cookies stay on this computer: the server
+answers this machine only, and a key made at each start keeps another site
+from pressing its buttons. `--ui --demo` shows made-up addons, nothing read
+or saved. `bun test` runs its tests.
 
 Beside each page it checks the summary: the file's note against CurseForge's
 (changed by hand on the project's General page: its save sends the whole

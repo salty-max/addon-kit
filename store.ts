@@ -12,6 +12,9 @@
  *                                                    the file, then read back
  *   bun ../addon-kit/store.ts <addon repo> --show    what the file gives
  *   bun ../addon-kit/store.ts --all [--apply]        every addon beside the kit
+ *   bun ../addon-kit/store.ts --ui                   the same in a browser page,
+ *                                                    from this computer
+ *                                                    (store-ui.ts)
  *
  * Beside the page, it checks the summary (the file's note against
  * CurseForge's and the TOCs' Notes: a summary is changed by hand on the
@@ -177,7 +180,9 @@ async function wagoSlug(id: string): Promise<string | undefined> {
 
 const uncommented = (text: string) => text.replace(/<!--[\s\S]*?-->/g, "").replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 
-type WagoReport = {
+export type Say = (line: string) => void;
+
+export type WagoReport = {
   slug: string;
   props: Record<string, any>;
   // the page: the file, the same words with the comments a hand paste left, or changed
@@ -201,7 +206,7 @@ async function inspectWago(repo: string, page: Page): Promise<WagoReport | strin
   return report;
 }
 
-async function applyWago(w: WagoReport, page: Page) {
+async function applyWago(w: WagoReport, page: Page, say: Say) {
   const a = w.props.addon;
   const data = {
     display_name: a.display_name,
@@ -225,7 +230,7 @@ async function applyWago(w: WagoReport, page: Page) {
     throw new Error(`Wago's ${w.slug}: saved, but the page read back differs from the file: look at it on the site`);
   for (const k of ["display_name", "slug", "website", "source_url", "is_unlisted", "is_hidden_from_external"])
     if (after[k] !== a[k]) throw new Error(`Wago's ${w.slug}: ${k} changed in the save: look at it on the site`);
-  console.log(`  ✓ Wago's ${w.slug}: the page and summary are the file's`);
+  say(`  ✓ Wago's ${w.slug}: the page and summary are the file's`);
 }
 
 // ── one addon, every addon ──────────────────────────────────────────────────
@@ -252,13 +257,13 @@ function tocNotes(repo: string): string | undefined {
 }
 
 // (the repository on GitHub, from its remote: owner/name)
-function githubRepo(repo: string): string | undefined {
+export function githubRepo(repo: string): string | undefined {
   const r = Bun.spawnSync(["git", "-C", repo, "remote", "get-url", "origin"]);
   return r.stdout.toString().trim().match(/github\.com[:/](.+?)(\.git)?$/)?.[1];
 }
 const gh = (...args: string[]) => Bun.spawnSync(["gh", ...args]);
 
-type Report = {
+export type Report = {
   repo: string;
   page: Page;
   id: number;
@@ -303,11 +308,11 @@ export async function inspect(repo: string): Promise<Report> {
   return report;
 }
 
-function tell(r: Report, verbose: boolean) {
+export function tell(r: Report, verbose: boolean, say: Say = console.log) {
   const name = r.page.title || r.repo;
-  const line = (label: string, text: string) => console.log(`  ${label.padEnd(10)} ${text}`);
-  console.log(`${name} (project ${r.id})`);
-  line("page", r.state === "same" ? "✓ the file" : r.state === "format" ? "the same words, to become Markdown" : "changed (below)");
+  const line = (label: string, text: string) => say(`  ${label.padEnd(10)} ${text}`);
+  say(`${name} (project ${r.id})`);
+  line("page", r.state === "same" ? "✓ the file" : r.state === "format" ? "the same words, to become Markdown" : `changed${verbose ? " (below)" : ""}`);
   line("summary", r.summary === undefined ? "✓ CurseForge's is the file's" : `differs, change it on the project's General page. CurseForge's: "${r.summary}"`);
   if (r.summary !== undefined) line("", `the file's: "${r.page.summary}"`);
   line("TOC Notes", r.notes === undefined ? "✓ the file's summary" : `differ from the file's summary: "${r.notes}"`);
@@ -315,16 +320,21 @@ function tell(r: Report, verbose: boolean) {
   const w = r.wago;
   if (typeof w === "string") line("Wago", `not read: ${w}`);
   else {
-    line("Wago page", w.state === "same" ? "✓ the file" : w.state === "comments" ? "the same words, the file's comments to go" : "changed (below)");
+    line("Wago page", w.state === "same" ? "✓ the file" : w.state === "comments" ? "the same words, the file's comments to go" : `changed${verbose ? " (below)" : ""}`);
     line("Wago sum.", w.summary === undefined ? "✓ the file's" : `differs, saved with the page: "${w.summary}"`);
   }
   if (r.page.body.includes(";")) line("!", "a semicolon in the page: none in what players read");
-  if (r.state === "changed" && verbose) console.log(r.changes.replace(/^/gm, "    "));
-  if (typeof w !== "string" && w.state === "changed" && verbose) console.log(w.changes.replace(/^/gm, "    "));
+  if (r.state === "changed" && verbose) say(r.changes.replace(/^/gm, "    "));
+  if (typeof w !== "string" && w.state === "changed" && verbose) say(w.changes.replace(/^/gm, "    "));
 }
-const wagoDue = (r: Report) => typeof r.wago !== "string" && (r.wago.state !== "same" || r.wago.summary !== undefined);
+export const wagoDue = (r: Report) => typeof r.wago !== "string" && (r.wago.state !== "same" || r.wago.summary !== undefined);
 
-async function apply(r: Report) {
+/** What --apply puts up for this addon: CurseForge's page, Wago's page and summary, GitHub's description. */
+export function due(r: Report): string[] {
+  return [r.state !== "same" && "CurseForge's page", wagoDue(r) && "Wago's page and summary", r.github && r.page.github && "GitHub's description"].filter((x): x is string => !!x);
+}
+
+export async function apply(r: Report, say: Say = console.log) {
   if (r.state !== "same") {
     await call("PUT", `projects/description/${r.id}`, { id: r.id, description: r.page.body, descriptionType: MARKDOWN });
     // (read back, a few seconds given: right after a save CurseForge may still
@@ -336,18 +346,22 @@ async function apply(r: Report) {
       after = await live(r.id);
     }
     if (!same(after)) throw new Error(`project ${r.id}: saved, but the page read back differs from the file: look at it on the site`);
-    console.log(`  ✓ project ${r.id}: the live page is the file`);
+    say(`  ✓ project ${r.id}: the live page is the file`);
   }
-  if (wagoDue(r)) await applyWago(r.wago as WagoReport, r.page);
+  if (wagoDue(r)) await applyWago(r.wago as WagoReport, r.page, say);
   if (r.github && r.page.github) {
     const e = gh("repo", "edit", r.github.slug, "--description", r.page.github);
     if (e.exitCode !== 0) throw new Error(`GitHub refused the description: ${e.stderr.toString().trim()}`);
-    console.log(`  ✓ ${r.github.slug}: GitHub's description is the file's`);
+    say(`  ✓ ${r.github.slug}: GitHub's description is the file's`);
   }
 }
 
 if (import.meta.main) {
   const args = process.argv.slice(2);
+  if (args.includes("--ui")) {
+    await (await import("./store-ui.ts")).open({ demo: args.includes("--demo") });
+    await new Promise(() => {}); // (serving until stopped)
+  }
   const all = args.includes("--all");
   const repos = all ? addons() : [args.find((a) => !a.startsWith("--")) ?? "."];
   if (args.includes("--show")) {
@@ -363,7 +377,7 @@ if (import.meta.main) {
     reports.push(r);
     tell(r, true);
   }
-  const todo = reports.filter((r) => r.state !== "same" || r.github || wagoDue(r));
+  const todo = reports.filter((r) => due(r).length);
   if (!todo.length) {
     console.log(reports.some((r) => typeof r.wago === "string") ? "✓ every page read is its file (Wago not read)" : "✓ every page is its file");
     process.exit(0);
