@@ -1,7 +1,7 @@
 // The store pages' browser page (store-ui.ts), its server with made-up
 // addons: nothing read from the stores, nothing saved. bun test
 import { describe, expect, test } from "bun:test";
-import type { Report } from "./store";
+import { cookieJar, renew, type Report } from "./store";
 import { handler, type Deps, type View } from "./store-ui";
 
 const PORT = 4190;
@@ -85,4 +85,15 @@ describe("the store pages' page", () => {
     const page = await (await ask(handler(fake(), KEY, PORT), "/", { method: "GET" })).text();
     for (const m of page.matchAll(/<script>([\s\S]*?)<\/script>/g)) expect(() => new Function(m[1])).not.toThrow();
   });
+});
+
+// (store.ts's Wago cookies, renewed as Wago answers)
+test("the Wago session's cookies renewed from an answer", () => {
+  const jar = cookieJar("laravel_session=abc; XSRF-TOKEN=old%3D; other=x=y");
+  expect(jar.get("XSRF-TOKEN")).toBe("old%3D");
+  expect(jar.get("other")).toBe("x=y");
+  renew(jar, ["XSRF-TOKEN=new%3D; expires=Mon, 19 Oct 2026 20:00:00 GMT; path=/; samesite=lax", "laravel_session=def; path=/; httponly"]);
+  expect(jar.get("XSRF-TOKEN")).toBe("new%3D");
+  expect(jar.get("laravel_session")).toBe("def");
+  expect(jar.get("other")).toBe("x=y");
 });

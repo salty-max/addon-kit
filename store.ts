@@ -141,9 +141,31 @@ export function wagoId(repo: string): string | undefined {
     }
 }
 
+// The session's cookies, kept for the run and renewed from each answer's
+// Set-Cookie: Wago (Laravel) hands out a new XSRF token as it goes, and a
+// save sent with the saved file's older one is refused (419, "page expired")
+// while reads still pass.
+let jar: Map<string, string> | undefined;
+export function cookieJar(cookie: string): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const part of cookie.split(/;\s*/)) {
+    const i = part.indexOf("=");
+    if (i > 0) m.set(part.slice(0, i).trim(), part.slice(i + 1).trim());
+  }
+  return m;
+}
+export function renew(jar: Map<string, string>, setCookies: string[]) {
+  for (const c of setCookies) {
+    const first = c.split(";")[0];
+    const i = first.indexOf("=");
+    if (i > 0) jar.set(first.slice(0, i).trim(), first.slice(i + 1).trim());
+  }
+}
+
 async function wagoFetch(path: string, init: { method?: string; body?: unknown } = {}) {
-  const cookie = wagoCookie()!;
-  const xsrf = decodeURIComponent(cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/)?.[1] ?? "");
+  jar ??= cookieJar(wagoCookie()!);
+  const cookie = [...jar].map(([k, v]) => `${k}=${v}`).join("; ");
+  const xsrf = decodeURIComponent(jar.get("XSRF-TOKEN") ?? "");
   const r = await fetch(`${WAGO}${path}`, {
     method: init.method ?? "GET",
     headers: {
@@ -155,6 +177,7 @@ async function wagoFetch(path: string, init: { method?: string; body?: unknown }
     },
     body: init.body ? JSON.stringify(init.body) : undefined,
   });
+  renew(jar, r.headers.getSetCookie());
   if (r.status === 401 || r.status === 419 || /\/login/.test(r.url)) throw new Error(`Wago said ${r.status}: the session has expired, copy its cookie again`);
   if (!r.ok) throw new Error(`Wago said ${r.status} to ${init.method ?? "GET"} ${path}`);
   return r;
