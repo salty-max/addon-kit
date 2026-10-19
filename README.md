@@ -58,14 +58,24 @@ bun addon-kit/each.ts --kit -- bun run kit:sync   # in every addon with a kit co
 bun addon-kit/each.ts --all --verbose -- git status --short
 ```
 
+```bash
+bun addon-kit/secret.ts WAGO_API_TOKEN       # the clipboard, read once, on every repo using it
+bun addon-kit/secret.ts INBOX_EVENTS_TOKEN --generate --vercel ravenpost/inbox
+```
+
 `status.ts` lists what wants a hand last: files uncommitted, commits to push
 or pull, a workflow that failed, a pull request open, a test build behind
 what ships (the addon's folders, not its store page or tests; Ravenpost's
 app, not its inbox). `each.ts` runs one after the other (`--parallel`: all
 at once), prints a line for each that passed and the end of each failure,
 and exits non-zero if one failed; `--only a,b` and `--skip a,b` pick
-repositories by folder. Their pure parts are tested in `tools.test.ts`
-(`bun test`).
+repositories by folder. `secret.ts` sets one secret on every repository
+whose workflows read it (directly or through wow-data's reusable workflow),
+from the clipboard or a value it makes (`--generate`), and on a Vercel
+project with `--vercel <dir>`; it checks the token's shape first
+(CurseForge's is a UUID, Wago's isn't), asks before setting, and never
+prints the value. Their pure parts are tested in `tools.test.ts` (`bun
+test`).
 
 ## The store page
 

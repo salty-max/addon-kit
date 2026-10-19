@@ -1,6 +1,7 @@
-// status.ts's and each.ts's pure parts (bun test).
+// status.ts's, each.ts's and secret.ts's pure parts (bun test).
 import { describe, expect, test } from "bun:test";
 import { parse, pick } from "./each";
+import { unfit, users } from "./secret";
 import { attention, buildVersion, latestPerWorkflow, slugOf, type Repo, type Run } from "./status";
 
 describe("status", () => {
@@ -68,5 +69,30 @@ describe("each", () => {
     expect(pick(names, o(["--kit"]), test_)).toEqual(["palaver"]);
     expect(pick(names, o(["--all", "--skip", "wow-data"]), test_)).toEqual(["addon-kit", "keyring", "palaver"]);
     expect(pick(names, o(["--only", "wow-data,nope"]), test_)).toEqual(["wow-data"]);
+  });
+});
+
+describe("secret", () => {
+  test("a value fit for its secret", () => {
+    const uuid = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    expect(unfit("CURSEFORGE_TOKEN", uuid)).toBeUndefined();
+    expect(unfit("CURSEFORGE_TOKEN", "abcdefghijklmnopqrstuvwxyz")).toBe("a CurseForge token is a UUID, this isn't one");
+    expect(unfit("WAGO_API_TOKEN", uuid)).toBe("this is a UUID: CurseForge's token, not Wago's");
+    expect(unfit("WAGO_API_TOKEN", "a".repeat(40))).toBeUndefined();
+    expect(unfit("WAGO_API_TOKEN", "")).toBe("it is empty");
+    expect(unfit("WAGO_API_TOKEN", "two words here and more")).toBe("it holds a space or a line break: not a token");
+    expect(unfit("INBOX_EVENTS_TOKEN", "short")).toBe("5 characters: too short for a token");
+  });
+
+  test("the repositories that read it", () => {
+    const workflows = {
+      keyring: ["CF_API_KEY: ${{ secrets.CURSEFORGE_TOKEN }}\nWAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}"],
+      palaver: ["jobs:\n  data:\n    uses: salty-max/wow-data/.github/workflows/addon-data.yml@main\n    secrets: inherit\n"],
+      ravenpost: ["name: CI\n"],
+    };
+    expect(users("WAGO_API_TOKEN", workflows)).toEqual(["keyring"]);
+    // (wow-data's addon-data.yml, beside the kit, reads INBOX_EVENTS_TOKEN)
+    expect(users("INBOX_EVENTS_TOKEN", workflows)).toEqual(["palaver"]);
+    expect(users("NOTHING_READS_THIS", workflows)).toEqual([]);
   });
 });
