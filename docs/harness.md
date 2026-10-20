@@ -28,9 +28,10 @@ its own.
   asking how worktrees fit: "I want everything to be visible in the
   board"). No session hands writing work to worktree sessions or
   subagents. A session's first write is its card, running, naming every
-  repository it writes, and the session takes the card's title. A card
-  holds its repositories while it runs or is blocked; another session that
-  needs one blocks its card on the holder and waits.
+  repository it writes, and the session takes the card's title. A running
+  card holds its repositories, the first to run first; another session
+  that needs one blocks its card on the holder and waits, holding nothing
+  meanwhile.
 - **Models by kind.** `opusplan` for code and mechanical work (this build
   included), full Opus for prose, voices, translations and design. Helpers
   unchanged: reviewer Opus, data-scout and prose-reader Sonnet.
@@ -226,13 +227,17 @@ the helpers and the push or release prompts the user answered come from
 the transcripts. What it can't draw: `harness-view/README.md`.
 
 The board as the lock (that evening, the decision above): a card's
-`repos` (every repository the task writes) and `waits` (a blocked card's
-holder) in its front matter, the `blocked` status, `held` warnings on
-stderr when a card comes to hold what another session's running or
-blocked card holds (written anyway, so the board shows it), notes for
-cards waiting on the user in the same repository, `board.ts held
-[repo…]` (exit 1 when another session holds one named), and a card moved
-to done naming the blocked cards it frees. The panel's Board box shows
+`repos` (every repository the task writes), `waits` (a blocked card's
+holder) and `since` (when it last started running) in its front matter,
+the `blocked` status, `held` warnings on stderr when a running card comes
+to share a repository with another session's card running since earlier
+(written anyway, so the board shows it), notes for cards with unpushed
+work there, `board.ts held [repo…]` (exit 1 when another session holds
+one named), and a card that stops running naming the blocked cards it
+frees. The reviewer's first pass found the first cut deadlocking (blocked
+cards held too: a holder was told to block on its waiter, two waiters
+locked each other out once it was done): only a running card holds, in
+the order it came to run. The panel's Board box shows
 each card's repositories, a blocked card's holder or "free now", the
 counts running and blocked; the Repositories box a dot before each held
 name. Made live

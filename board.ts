@@ -1,7 +1,7 @@
 /**
  * The task board: one Markdown card per task in ~/code/wow-addons/board/,
  * written and listed here so no session hand-edits its front matter (repo,
- * title, status, session, updated, repos, waits). Its body says what to
+ * title, status, session, updated, repos, waits, since). Its body says what to
  * try, what's committed and what's left. The desktop panel reads the same
  * files.
  *
@@ -11,7 +11,7 @@
  *   bun addon-kit/board.ts held [repo…]
  *
  *   repos    every repository the task writes (add: the card's repo); a
- *            card holds them while it is running or blocked
+ *            running card holds them, the first to run there first
  *   fields   --try "…" --committed "…" --left "…" (each its section of the
  *            body, replaced), --body "…" (the whole body)
  *   status   running, blocked, waiting-test, waiting-review, ready-to-push,
@@ -21,13 +21,16 @@
  *   session  the session's name or id (add: $CLAUDE_CODE_SESSION_ID)
  *
  * The board is the lock of "two sessions never write the same repository at
- * once". A card that comes to hold a repository another session's running or
- * blocked card holds is written, and warned about on stderr: the session
- * sets it blocked --on the holder and waits. Cards waiting on the user in
- * the same repository are a note: their commits go out with the next push.
- * `held` lists who holds what (each repository named, or all), exit 1 when
- * another session's card holds one named. Moving a card to done names the
- * blocked cards it frees.
+ * once". A running card holds its repositories; of two running cards sharing
+ * one, the one running since earlier (`since`, set each time a card starts
+ * running) holds it, and the later is written anyway and warned on stderr
+ * (`held:`): its session sets it blocked --on the holder and waits. A
+ * blocked or waiting card holds nothing (a waiter never locks out another),
+ * but its unpushed commits are a `note:` to a card in the same repository:
+ * they go out with the next push. A blocked card is told when its holder
+ * stops running. `held` lists who holds what (each repository named, or
+ * all), exit 1 when another session's card holds one named before this
+ * session's own. A card that stops running names the blocked cards it frees.
  *
  * add prints the card's id: <repo>-<a slug of the title>. A card added or
  * moved to another status gets a line in the harness's event log (events.ts).
@@ -41,12 +44,12 @@ import { familyPath } from "./root";
 // what waits on another card, then what runs)
 export const STATUSES = ["waiting-test", "waiting-review", "ready-to-push", "blocked", "running", "done"] as const;
 export type Status = (typeof STATUSES)[number];
-export type Card = { id: string; repo: string; title: string; status: Status; session: string; updated: string; repos: string[]; waits: string; body: string };
+export type Card = { id: string; repo: string; title: string; status: Status; session: string; updated: string; repos: string[]; waits: string; since: string; body: string };
 const KEYS = ["repo", "title", "status", "session", "updated"] as const;
-/** A card in the middle of its task: it holds its repositories. */
-export const HOLDS: readonly Status[] = ["running", "blocked"];
-/** A card waiting on the user: its commits are in its repositories, unpushed. */
-export const WAITS: readonly Status[] = ["waiting-test", "waiting-review", "ready-to-push"];
+/** A card writing its repositories now: it holds them. */
+export const HOLDS: readonly Status[] = ["running"];
+/** A card stopped mid-task (on the user, or on another card): its commits are in its repositories, unpushed. */
+export const WAITS: readonly Status[] = ["waiting-test", "waiting-review", "ready-to-push", "blocked"];
 const SECTIONS = { try: "Try", committed: "Committed", left: "Left" } as const;
 
 export const boardDir = () => familyPath("board");
@@ -77,6 +80,7 @@ export function format(c: Card): string {
   const keys = KEYS.map((k) => `${k}: ${quote(c[k])}`);
   if (c.repos.length > 0 && !isOwn(c)) keys.push(`repos: ${quote(c.repos.join(", "))}`);
   if (c.waits) keys.push(`waits: ${quote(c.waits)}`);
+  if (c.since) keys.push(`since: ${quote(c.since)}`);
   return `---\n${keys.join("\n")}\n---\n${c.body.replace(/^\n+/, "").trimEnd()}\n`;
 }
 
@@ -104,6 +108,7 @@ export function parseCard(id: string, text: string): Card {
     updated: fields.updated ?? "",
     repos: fields.repos !== undefined ? repoList(fields.repos) : ownRepos(fields.repo ?? ""),
     waits: fields.waits ?? "",
+    since: fields.since ?? "",
     body: m ? m[2] : text,
   };
 }
@@ -178,26 +183,39 @@ export function lines(list: Card[], from = Date.now()): string[] {
   return list.map((c) => `${c.status.padEnd(14)} ${where(c).padEnd(wr)}  ${c.id.padEnd(wi)}  ${c.title}${c.waits ? ` (on ${c.waits})` : ""}  ${ago(c.updated, from)}`.trimEnd());
 }
 
+/** When a card started running (its `since`; an older card's last update). */
+const sinceOf = (c: Pick<Card, "since" | "updated">) => c.since || c.updated;
+/** Whether `a` came to run before `b`: the earlier holds, the id breaks a tie (two adds in the same second). */
+export const before = (a: Card, b: Pick<Card, "id" | "since" | "updated">) => sinceOf(a) < sinceOf(b) || (sinceOf(a) === sinceOf(b) && a.id < b.id);
+
 /**
  * What stands in the way of `card` writing its repositories: another
- * session's cards in the middle of a task there (`held`: it waits for them),
- * and cards waiting on the user there (`pending`: their commits go out with
- * the next push). A card of the same session, or the card itself, is neither.
+ * session's running cards there that ran first (`held`: it waits for them),
+ * those that ran after (`later`: they were told to wait), and cards stopped
+ * mid-task there (`pending`: their commits go out with the next push). A
+ * card of the same session, or the card itself, is none of them.
  */
-export function conflicts(card: Pick<Card, "id" | "session" | "repos">, list: Card[]): { held: Card[]; pending: Card[] } {
+export function conflicts(card: Pick<Card, "id" | "session" | "repos" | "since" | "updated">, list: Card[]): { held: Card[]; later: Card[]; pending: Card[] } {
   const isOther = (c: Card) => c.id !== card.id && !(card.session && c.session === card.session);
   const shares = (c: Card) => c.repos.some((r) => card.repos.includes(r));
   const near = list.filter((c) => isOther(c) && shares(c));
-  return { held: near.filter((c) => HOLDS.includes(c.status)), pending: near.filter((c) => WAITS.includes(c.status)) };
+  const running = near.filter((c) => HOLDS.includes(c.status));
+  return { held: running.filter((c) => before(c, card)), later: running.filter((c) => !before(c, card)), pending: near.filter((c) => WAITS.includes(c.status)) };
 }
 
-/** The warnings a session reads when its card comes to hold a repository: what to do, and why. */
+/** What a session reads after writing its card: whether it may write, whether its holder still runs, why. */
 export function warnings(card: Card, list: Card[]): string[] {
-  if (!HOLDS.includes(card.status)) return [];
-  const { held, pending } = conflicts(card, list);
   const shared = (c: Card) => c.repos.filter((r) => card.repos.includes(r)).join(", ");
-  const out = held.map((c) => `held: ${shared(c)} by ${c.id} (${c.status}, session ${c.session || "?"}): set ${card.id} --status blocked --on ${c.id} and wait`);
-  for (const c of pending) out.push(`note: ${shared(c)} has ${c.id} (${c.status}) waiting on the user: its commits go out with the next push`);
+  if (card.status === "blocked") {
+    const on = list.find((c) => c.id === card.waits);
+    if (!on || !HOLDS.includes(on.status)) return [`free: ${card.waits || "its holder"} is ${on ? on.status : "no open card"}: set ${card.id} --status running (held again if another got there first)`];
+    return [`still held: ${shared(on) || on.repo} by ${on.id} (running)`];
+  }
+  if (!HOLDS.includes(card.status)) return [];
+  const { held, later, pending } = conflicts(card, list);
+  const out = held.map((c) => `held: ${shared(c)} by ${c.id} (running since ${sinceOf(c).slice(11, 16)}, session ${c.session || "?"}): set ${card.id} --on ${c.id} and leave ${shared(c)} alone`);
+  for (const c of later) out.push(`note: ${shared(c)} has ${c.id} running since after this card: it was told to wait`);
+  for (const c of pending) out.push(`note: ${shared(c)} has ${c.id} (${c.status}) with unpushed work: its commits go out with the next push`);
   return out;
 }
 
@@ -231,6 +249,8 @@ function apply(c: Card, o: Opts): Card {
   if (o.on !== undefined) next.status = "blocked";
   if (o.on !== undefined) next.waits = o.on;
   if (next.status !== "blocked") next.waits = "";
+  // A card starting to run (added, or running again) takes its place in the repositories' queue now.
+  if (next.status === "running" && (c.status !== "running" || !c.since || !c.updated)) next.since = now();
   if (o.body !== undefined) next.body = o.body;
   for (const [k, heading] of Object.entries(SECTIONS)) {
     const v = o[k as keyof typeof SECTIONS];
@@ -254,7 +274,7 @@ export function add(repo: string, title: string, o: Opts = {}): Card {
   for (let n = 2; existsSync(join(dir, `${id}.md`)); n++) id = `${base}-${n}`;
   const blank = Object.values(SECTIONS).map((h) => `## ${h}\n\n`).join("\n");
   const session = process.env.CLAUDE_CODE_SESSION_ID ?? "";
-  const card = apply({ id, repo, title, status: "running", session, updated: "", repos: ownRepos(repo), waits: "", body: blank }, o);
+  const card = apply({ id, repo, title, status: "running", session, updated: "", repos: ownRepos(repo), waits: "", since: "", body: blank }, o);
   writeFileSync(join(dir, `${id}.md`), format(card));
   // (the status last: the panel's log shows a line's last word as its figure)
   logCard(card, `${card.title}${card.waits ? ` (on ${card.waits})` : ""} added, ${card.status}`);
@@ -272,7 +292,7 @@ export function strangers(repos: string[]): string[] {
   });
 }
 
-/** Who holds each repository: every one some card names, or those asked. */
+/** Who holds each repository: every one some card names, or those asked; running cards first, the first to run first. */
 export function holders(list: Card[], only: string[] = []): { repo: string; card: Card; kind: "held" | "pending" }[] {
   const out: { repo: string; card: Card; kind: "held" | "pending" }[] = [];
   for (const c of list) {
@@ -280,13 +300,26 @@ export function holders(list: Card[], only: string[] = []): { repo: string; card
     if (!kind) continue;
     for (const repo of c.repos) if (!only.length || only.includes(repo)) out.push({ repo, card: c, kind });
   }
-  return out.sort((a, b) => a.repo.localeCompare(b.repo) || (a.kind === b.kind ? 0 : a.kind === "held" ? -1 : 1));
+  const rank = (h: (typeof out)[number]) => (h.kind === "held" ? 0 : 1);
+  return out.sort((a, b) => a.repo.localeCompare(b.repo) || rank(a) - rank(b) || (before(a.card, b.card) ? -1 : 1));
+}
+
+/**
+ * Whether `repo` is another session's to write now: a running card of
+ * another session there that ran before this session's own running card
+ * there (or any, when this session runs none there).
+ */
+export function isHeld(repo: string, list: Card[], session: string): boolean {
+  const running = list.filter((c) => HOLDS.includes(c.status) && c.repos.includes(repo));
+  const mine = running.filter((c) => session && c.session === session).sort((a, b) => (before(a, b) ? -1 : 1))[0];
+  return running.some((c) => !(session && c.session === session) && (!mine || before(c, mine)));
 }
 
 export function set(id: string, o: Opts): Card | string {
   const file = join(boardDir(), `${id}.md`);
   if (!existsSync(file)) return `no card ${id} (bun addon-kit/board.ts list --all)`;
   const was = parseCard(id, readFileSync(file, "utf8"));
+  if (o.on === id) return `${id} can't wait on itself`;
   const card = apply(was, o);
   writeFileSync(file, format(card));
   if (card.status !== was.status) logCard(card, `${card.title}${card.waits ? ` (on ${card.waits})` : ""} ${was.status} → ${card.status}`);
@@ -310,9 +343,8 @@ if (import.meta.main) {
     const list = cards();
     for (const r of strangers(card.repos)) console.error(`note: ${r} is no folder of the family's: it holds nothing`);
     for (const w of warnings(card, list)) console.error(w);
-    if (card.waits && !list.some((c) => c.id === card.waits)) console.error(`note: ${card.waits} is no open card: nothing to wait on`);
     if (card.status === "blocked" && !card.waits) console.error(`note: ${card.id} is blocked on nothing: name the card with --on <id>`);
-    if (card.status === "done") for (const c of waitingOn(card.id, list)) console.error(`frees ${c.id} (blocked on it, session ${c.session || "?"})`);
+    if (card.status !== "running") for (const c of waitingOn(card.id, list)) console.error(`frees ${c.id} (blocked on it, session ${c.session || "?"})`);
   };
   if (cmd === "add" && rest.length === 2) {
     const card = add(rest[0], rest[1], o);
@@ -330,8 +362,9 @@ if (import.meta.main) {
     const found = holders(cards(), rest);
     for (const h of found) console.log(`${h.repo.padEnd(18)} ${h.kind.padEnd(8)} ${h.card.status.padEnd(14)} ${h.card.id}${h.card.session === session && session ? " (this session)" : ""}`);
     if (!found.length) console.log(rest.length ? `${rest.join(", ")}: free` : "nothing held");
-    // Scriptable: named repositories another session holds fail.
-    if (rest.length && found.some((h) => h.kind === "held" && !(session && h.card.session === session))) process.exit(1);
+    // Scriptable: a named repository another session holds fails.
+    const list = cards();
+    if (rest.some((r) => isHeld(r, list, session))) process.exit(1);
   } else if (cmd === "list" && !rest.length) {
     const list = cards(o.all);
     if (o.json) console.log(JSON.stringify(list, null, 2));

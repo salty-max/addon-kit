@@ -161,16 +161,19 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   cards and each repository's check. The board is the lock of "two
   sessions never write the same repository at once": a card names every
   repository its task writes (`--repos`, else its repo; `repos:` is
-  written only when it differs) and holds them while it is running or
-  blocked. A card that comes to hold one another session's running or
-  blocked card holds is still written, with a `held:` line on stderr
-  saying to block it on the holder (`--on <id>`: status blocked, `waits:`
-  in the front matter, cleared when it leaves blocked). Cards waiting on
-  the user in the same repository are a `note:` (their commits go out
-  with the next push), a name that is no family folder another, and a
-  card moved to done names the blocked cards it frees. `held [repo…]`
-  lists the holders, exit 1 when another session's card holds one named,
-  so a session can check before it writes.
+  written only when it differs), and a running card holds them. Of two
+  running cards sharing one, the one running since earlier (`since:`,
+  set each time a card starts running; the id breaks a tie) holds it: the
+  later is still written, with a `held:` line on stderr saying to block it
+  on the holder (`--on <id>`: status blocked, `waits:` in the front matter,
+  cleared when it leaves blocked; never itself). A blocked or waiting card
+  holds nothing, so a waiter never locks out another or its holder; its
+  unpushed commits are a `note:` to a card in the same repository. A
+  blocked card's every `set` says `still held` or `free`, a card that
+  stops running names the blocked cards it frees, a name that is no family
+  folder is a note. `held [repo…]` lists the holders, exit 1 when another
+  session's card holds one named before this session's own, so a session
+  can check before it writes.
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
   directory, else up from the repository's main checkout (so a worktree
   anywhere finds `addon-kit/` and `wow-data/`). Each addon carries a copy in
