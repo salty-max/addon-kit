@@ -129,9 +129,12 @@ bun addon-kit/hooks.ts status                  # each repository's hooks and HEA
 bun addon-kit/hooks.ts install yonder          # (or --all); uninstall puts its own hooks back
 bun addon-kit/packet.ts yonder [a..b]          # the reviewer's packet: .cache/review/<sha>.md
 bun addon-kit/review.ts yonder "2 findings"    # the reviewer's verdict, recorded for HEAD
-bun addon-kit/board.ts add yonder "Eight riddles" --status waiting-test --try "…"
+bun addon-kit/board.ts add yonder "Eight riddles" --repos yonder,wow-data   # a session's first write: running
+bun addon-kit/board.ts set yonder-eight-riddles --status waiting-test --try "…"
+bun addon-kit/board.ts set yonder-eight-riddles --on wow-data-trainers     # blocked, waiting on that card
 bun addon-kit/board.ts set yonder-eight-riddles --status ready-to-push --committed "f4ab31a"
 bun addon-kit/board.ts list [--all]            # what waits on the user first
+bun addon-kit/board.ts held [yonder]           # who holds what; exit 1 when another session holds one named
 bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the same for Python)
 bun addon-kit/events.ts [n]                    # the harness's last n events, as the panel's log reads them
 ```
@@ -155,7 +158,19 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
 - **board.ts**: one card a task in `~/code/wow-addons/board/`, its
   front matter written only here. Its body is `## Try`, `## Committed`,
   `## Left` (`--try`, `--committed`, `--left`). `status.ts` shows the open
-  cards and each repository's check.
+  cards and each repository's check. The board is the lock of "two
+  sessions never write the same repository at once": a card names every
+  repository its task writes (`--repos`, else its repo; `repos:` is
+  written only when it differs) and holds them while it is running or
+  blocked. A card that comes to hold one another session's running or
+  blocked card holds is still written, with a `held:` line on stderr
+  saying to block it on the holder (`--on <id>`: status blocked, `waits:`
+  in the front matter, cleared when it leaves blocked). Cards waiting on
+  the user in the same repository are a `note:` (their commits go out
+  with the next push), a name that is no family folder another, and a
+  card moved to done names the blocked cards it frees. `held [repo…]`
+  lists the holders, exit 1 when another session's card holds one named,
+  so a session can check before it writes.
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
   directory, else up from the repository's main checkout (so a worktree
   anywhere finds `addon-kit/` and `wow-data/`). Each addon carries a copy in

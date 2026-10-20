@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { add, cards, format, lines, options, parseCard, set, setSection, slug } from "./board";
+import { add, cards, conflicts, format, holders, lines, options, parseCard, repoList, set, setSection, slug, strangers, waitingOn, warnings } from "./board";
 import { eventLine, eventsPath, logEvent, repoOf } from "./events";
 import { HOOKS } from "./hooks";
 import { changedLines, packet, riddles, subjectProblem, touched, trailerProblem } from "./packet";
@@ -450,7 +450,7 @@ describe("review", () => {
 
 describe("board", () => {
   test("a card's text round-trips", () => {
-    const card = { id: "yonder-x", repo: "yonder", title: "Eight riddles: the review's fixes", status: "waiting-test" as const, session: "", updated: "2026-10-20T09:00:00+02:00", body: "## Try\n\nFreewind\n" };
+    const card = { id: "yonder-x", repo: "yonder", title: "Eight riddles: the review's fixes", status: "waiting-test" as const, session: "", updated: "2026-10-20T09:00:00+02:00", repos: ["yonder"], waits: "", body: "## Try\n\nFreewind\n" };
     const text = format(card);
     expect(text).toContain('title: "Eight riddles: the review\'s fixes"');
     expect(text).toContain('updated: "2026-10-20T09:00:00+02:00"');
@@ -459,6 +459,44 @@ describe("board", () => {
     expect(parseCard("yonder-x", text)).toEqual(card);
     expect(format({ ...card, title: "true" })).toContain('title: "true"');
     expect(slug("Yonder: Kel'Theril, à nouveau")).toBe("yonder-keltheril-a-nouveau");
+    // A card's own repo is its repos, unwritten (every older card reads so); others and a wait are written.
+    expect(text).not.toContain("repos:");
+    const wide = { ...card, status: "blocked" as const, repos: ["wow-data", "mealbook", "yonder"], waits: "yonder-y" };
+    expect(format(wide)).toContain('repos: wow-data, mealbook, yonder\nwaits: yonder-y\n');
+    expect(parseCard("yonder-x", format(wide))).toEqual(wide);
+    expect(parseCard("x", "---\nrepo: every repo\n---\n").repos).toEqual([]);
+    expect(parseCard("x", "---\nrepo: root .claude\n---\n").repos).toEqual([]);
+    expect(repoList(" yonder,wow-data , yonder,")).toEqual(["yonder", "wow-data"]);
+  });
+
+  test("the board is the lock: another session's running or blocked card holds, a waiting one is a note", () => {
+    const at = "2026-10-20T21:00:00+02:00";
+    const card = (id: string, status: string, session: string, repos: string[]) => parseCard(id, `---\nrepo: ${repos[0]}\nstatus: ${status}\nsession: ${session}\nupdated: "${at}"\nrepos: "${repos.join(", ")}"\n---\n`);
+    const a = card("yonder-riddles", "running", "A", ["yonder"]);
+    const c = card("codex-german", "waiting-test", "C", ["lorekeepers-codex"]);
+    const old = card("yonder-older", "ready-to-push", "D", ["yonder"]);
+    const done = card("yonder-done", "done", "E", ["yonder"]);
+    const mine = card("wow-data-other", "running", "B", ["wow-data"]);
+    const b = card("mealbook-trainers", "running", "B", ["wow-data", "mealbook", "yonder", "lorekeepers-codex"]);
+    const list = [a, c, old, done, mine, b];
+    const found = conflicts(b, list);
+    expect(found.held.map((x) => x.id)).toEqual(["yonder-riddles"]);
+    expect(found.pending.map((x) => x.id)).toEqual(["codex-german", "yonder-older"]);
+    expect(warnings(b, list)).toEqual([
+      "held: yonder by yonder-riddles (running, session A): set mealbook-trainers --status blocked --on yonder-riddles and wait",
+      "note: lorekeepers-codex has codex-german (waiting-test) waiting on the user: its commits go out with the next push",
+      "note: yonder has yonder-older (ready-to-push) waiting on the user: its commits go out with the next push",
+    ]);
+    // A card waiting on the user warns nothing: it isn't writing.
+    expect(warnings(c, list)).toEqual([]);
+    const blocked = { ...b, status: "blocked" as const, waits: "yonder-riddles" };
+    expect(waitingOn("yonder-riddles", [a, blocked])).toEqual([blocked]);
+    expect(holders(list, ["yonder"]).map((h) => [h.card.id, h.kind])).toEqual([
+      ["yonder-riddles", "held"],
+      ["mealbook-trainers", "held"],
+      ["yonder-older", "pending"],
+    ]);
+    expect(lines([blocked], Date.parse(at))[0]).toBe("blocked        wow-data+mealbook+yonder+lorekeepers-codex  mealbook-trainers  mealbook-trainers (on yonder-riddles)  0m");
   });
 
   test("a section replaced in its place", () => {
@@ -487,6 +525,18 @@ describe("board", () => {
       expect(readdirSync(join(root, "board"))).toHaveLength(2);
       expect(options(["--status", "later"])).toBeString();
       expect(options(["--nope"])).toBeString();
+      expect(options(["--on", "x", "--status", "running"])).toBeString();
+      expect(options(["--repos", " , "])).toBeString();
+      // --on blocks a card on another; leaving blocked forgets it.
+      const c = set("yonder-eight-riddles", { on: "wow-data-x", repos: "yonder, wow-data" });
+      if (typeof c === "string") throw new Error(c);
+      expect([c.status, c.waits, c.repos]).toEqual(["blocked", "wow-data-x", ["yonder", "wow-data"]]);
+      const d = set("yonder-eight-riddles", { status: "running" });
+      if (typeof d === "string") throw new Error(d);
+      expect([d.status, d.waits]).toEqual(["running", ""]);
+      set("yonder-eight-riddles", { status: "ready-to-push" });
+      mkdirSync(join(root, "yonder"), { recursive: true });
+      expect(strangers(["yonder", "yondr"])).toEqual(["yondr"]);
       expect(existsSync(join(root, "board", "yonder-eight-riddles.md"))).toBe(true);
     } finally {
       delete process.env.WOW_ADDONS_ROOT;
