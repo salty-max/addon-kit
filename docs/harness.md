@@ -270,7 +270,7 @@ finds its docs and the skills.
   clone); wow-locker gained a `check` script instead. Hearthtale's and
   wow-locker's `prepare` run husky, then `hooks.ts install .` (quiet, and a
   no-op in CI): `bun install` keeps our hooks, husky's chained after.
-- **The maps.** Every CLAUDE.md is 400 to 660 words; the prose moved
+- **The maps.** Every CLAUDE.md is 360 to 770 words; the prose moved
   verbatim to `docs/` (architecture, data, writing, site, expeditions,
   sources, releases), every old line checked to have landed. In Hearthtale,
   Keyring, the Codex, Second Wind and Yonder `docs/` is in
