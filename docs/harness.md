@@ -216,7 +216,11 @@ coloured label, block-character bars, a colour per model, statuses green,
 amber, red) with a live log at the bottom: `addon-kit/events.ts` is the
 one-line log q.ts, review.ts, board.ts and the git hooks append to, and
 the helpers and the push or release prompts the user answered come from
-the transcripts. What it can't draw: `harness-view/README.md`.
+the transcripts. What it can't draw: `harness-view/README.md`. Made live
+and set in motion that evening (the user's ask): read every 2 seconds while
+shown, a line of the event log within a second, a pulse along the lines
+while work flows, rolling figures, gaps between the boxes (the README's
+"Motion" and "How it works").
 
 ### E. Every repository, one at a time — wave 2
 
