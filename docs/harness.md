@@ -209,6 +209,13 @@ Accept when: the panel shows real numbers from this machine, the board
 round-trips a card, and the status line stays one line. Note anything the
 platform can't draw.
 
+Restyled the same day to the mock-up's look (each section a box with a
+coloured label, block-character bars, a colour per model, statuses green,
+amber, red) with a live log at the bottom: `addon-kit/events.ts` is the
+one-line log q.ts, review.ts, board.ts and the git hooks append to, and
+the helpers and the push or release prompts the user answered come from
+the transcripts. What it can't draw: `harness-view/README.md`.
+
 ### E. Every repository, one at a time — wave 2
 
 For each of hearthtale (addon and site), lorekeepers-codex, yonder,
