@@ -272,10 +272,13 @@ finds its docs and the skills.
   no-op in CI): `bun install` keeps our hooks, husky's chained after.
 - **The maps.** Every CLAUDE.md is 360 to 770 words; the prose moved
   verbatim to `docs/` (architecture, data, writing, site, expeditions,
-  sources, releases), every old line checked to have landed. In Hearthtale,
-  Keyring, the Codex, Second Wind and Yonder `docs/` is in
-  `.git/info/exclude` (local review notes): the moved docs are
-  force-added, and the maps name tracked files only. addon-kit gained a
+  sources, releases), every old line checked to have landed. Keyring and
+  Second Wind exclude all of `docs/` (`.git/info/exclude`), Hearthtale, the
+  Codex and Yonder a few review notes there: the moved docs are tracked
+  (force-added where need be), and the maps name tracked files only. The
+  checks of Hearthtale, the Codex and Yonder gained `package.ts --check`
+  (release.sh's old block had it), and every kit-carrying addon's check
+  runs kit:check (the Codex's CI runs `check:ci`, the rest of it). addon-kit gained a
   CLAUDE.md, a map onto its README.
 - **The skills** (root `.claude/skills/`): `wow-riddles`,
   `wow-translating`, `wow-releasing`, `wow-store-pages`, `wow-data-audit`.

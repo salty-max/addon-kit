@@ -23,7 +23,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 
 ```bash
 bun run check                                  # stylua, luajit test.lua, bun test, the panel's tests and manifest
-bun ../addon-kit/q.ts check -- bun run check   # the same, quiet, stamping the tree (a push asks for the stamp)
+bun q.ts check -- bun run check               # the same, quiet, stamping the tree (a push asks for the stamp)
 luajit test.lua                                # the kit's Lua tests alone
 stylua Kit.lua                                 # format (the addons' stylua.toml)
 ```
