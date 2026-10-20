@@ -89,6 +89,19 @@ export function readToc(file: string, text: string): Toc {
   };
 }
 
+export type Pins = Partial<Record<Game, { build: string }>>;
+
+/**
+ * An unsuffixed TOC's interface's game (WowLocker.toc's "11509, 20506"): the
+ * pin on the same line (115xx classic, 160xx forever), so a stale number
+ * still finds its game and shows as wrong, else TBC's 2xxxx (no pin).
+ */
+export function gameOfInterface(i: string, pinned: Pins): Game | undefined {
+  const line = (n: string | undefined) => Math.floor(Number(n) / 100);
+  const pin = (Object.keys(pinned) as Game[]).find((g) => line(interfaceOf(pinned[g]!.build)) === line(i));
+  return pin ?? (/^2\d{4}$/.test(i) ? "tbc" : undefined);
+}
+
 /** A commit's place in the release notes, by its Conventional subject. */
 export function kindOf(subject: string): Kind {
   if (/^feat[(!:]/.test(subject)) return "feat";
@@ -128,6 +141,8 @@ export function pageProblems(text: string): string[] {
   else if (support > source) out.push("Support comes after Source");
   if (!page.summary) out.push("no Summary note");
   if (page.body.includes(";")) out.push("a semicolon in the page");
+  if (page.summary?.includes(";")) out.push("a semicolon in the summary");
+  if (page.github?.includes(";")) out.push("a semicolon in the GitHub note");
   return out;
 }
 
@@ -206,7 +221,6 @@ function wordsLine(dir: string, lang: string): string | undefined {
   return `${keys.filter((k) => typeof done[k] === "string" && done[k] !== "").length}/${keys.length} words${flagged ? ", flagged" : ""}`;
 }
 
-type Pins = Partial<Record<Game, { build: string }>>;
 const pins = (): Pins => JSON.parse(readFileSync(join(ROOT, "wow-data", "pins.json"), "utf8")).builds ?? {};
 
 type Sibling = { name: string; wago?: string; released: boolean };
@@ -267,8 +281,11 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
   const seen = new Map<string, Row>();
   for (const t of tocs) {
     for (const i of t.interfaces) {
-      const games = t.game ? [t.game] : (Object.keys(pinned) as Game[]).filter((g) => interfaceOf(pinned[g]!.build) === i);
-      const game = games[0] ?? "tbc";
+      const game = t.game ?? gameOfInterface(i, pinned);
+      if (!game) {
+        seen.set(`? ${i}`, { mark: "✗", label: "interface", text: `${i} in ${t.file}: no pinned game's line, nor TBC's` });
+        continue;
+      }
       const key = `${game} ${i}`;
       if (seen.has(key)) continue;
       const pin = pinned[game];
@@ -301,6 +318,9 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
     if (page.summary && t.notes.enUS !== page.summary) noteProblems.push(`${t.file}'s Notes aren't the page's summary`);
     const missing = notesWanted(langs).filter((l) => !t.notes[l]);
     if (missing.length) noteProblems.push(`${t.file} has no Notes-${missing.join(", Notes-")}`);
+  }
+  // (every TOC's: a helper's beside the addon shows its Notes in the game's list too)
+  for (const t of tocs) {
     const semi = Object.keys(t.notes).filter((l) => t.notes[l].includes(";"));
     if (semi.length) noteProblems.push(`a semicolon in ${t.file}'s Notes (${semi.join(", ")})`);
   }
@@ -311,7 +331,7 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
     noteProblems.length ? [...new Set(noteProblems)].join(", ") : `the page's summary${wanted.length ? `, and ${wanted.join(" ")}` : ""}`,
   );
   const problems = pageProblems(text);
-  add(problems.length ? "✗" : "✓", "page", problems.length ? problems.join(", ") : "Support (Ko-fi) before Source, the summary and GitHub notes, no semicolon");
+  add(problems.length ? "✗" : "✓", "page", problems.length ? problems.join(", ") : `Support (Ko-fi) before Source, a summary${page.github ? " and a GitHub note" : ""}, no semicolon`);
 
   const named = othersNamed(text);
   const byWago = new Map(family.filter((s) => s.wago).map((s) => [s.wago!, s]));
@@ -407,7 +427,8 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
     }
   }
 
-  const next = !siteTags && version ? (tag ? nextVersion(version, ships) : version) : undefined;
+  // (from the tag's version, not TOCs bumped ahead of it; none when nothing ships)
+  const next = siteTags || !version ? undefined : !tag ? version : ships.length ? nextVersion(tag.replace(/^v/, ""), ships) : undefined;
   return { name, tag, version, next, total, ships, rows };
 }
 
@@ -487,9 +508,12 @@ if (import.meta.main) {
     for (const p of reports) print(p);
     if (reports.length > 1) {
       const by = (f: (p: Preflight) => boolean) => reports.filter(f).map((p) => p.name);
-      const none = by((p) => !!p.tag && !p.ships.length);
-      const stopped = by((p) => !(p.tag && !p.ships.length) && p.rows.some((r) => r.mark === "✗"));
-      const ready = by((p) => !(p.tag && !p.ships.length) && !p.rows.some((r) => r.mark === "✗"));
+      // (an addon with nothing to ship but an ✗ is in the way too: it fails the run)
+      const stops = (p: Preflight) => p.rows.some((r) => r.mark === "✗");
+      const idle = (p: Preflight) => !!p.tag && !p.ships.length;
+      const stopped = by(stops);
+      const none = by((p) => idle(p) && !stops(p));
+      const ready = by((p) => !idle(p) && !stops(p));
       if (ready.length) console.log(`Ready: ${ready.join(", ")}`);
       if (stopped.length) console.log(`In the way: ${stopped.join(", ")}`);
       if (none.length) console.log(`Nothing ships: ${none.join(", ")}`);

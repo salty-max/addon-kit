@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   coverage,
   gameOf,
+  gameOfInterface,
   inTocs,
   interfaceOf,
   isAuthored,
@@ -44,6 +45,14 @@ describe("preflight", () => {
     expect(interfaceOf("1.60.1.70450")).toBe("16001");
     expect(interfaceOf("2.5.6")).toBe("20506");
     expect(interfaceOf("beta")).toBeUndefined();
+  });
+
+  test("an unsuffixed TOC's interface finds its game by its line", () => {
+    const pins = { classic: { build: "1.15.10.71000" }, forever: { build: "1.60.1.70450" } };
+    expect(gameOfInterface("11509", pins)).toBe("classic"); // (stale, so shown as wrong, not as TBC)
+    expect(gameOfInterface("16001", pins)).toBe("forever");
+    expect(gameOfInterface("20506", pins)).toBe("tbc");
+    expect(gameOfInterface("30403", pins)).toBeUndefined();
   });
 
   test("a TOC's game by its suffix", () => {
@@ -101,8 +110,10 @@ describe("preflight", () => {
     expect(pageProblems("# X\n\nNothing.\n")).toEqual(["no Support section", "no Source section", "no Summary note"]);
   });
 
-  test("a semicolon in a comment isn't the page's", () => {
-    expect(pageProblems(PAGE.replace("<!-- GitHub: Riddles. -->", "<!-- GitHub: Riddles; more. -->"))).toEqual([]);
+  test("a semicolon in a plain comment isn't the page's, in a note it is", () => {
+    expect(pageProblems(PAGE.replace("# Yonder", "<!-- a note to self; not shown -->\n# Yonder"))).toEqual([]);
+    expect(pageProblems(PAGE.replace("<!-- GitHub: Riddles. -->", "<!-- GitHub: Riddles; more. -->"))).toEqual(["a semicolon in the GitHub note"]);
+    expect(pageProblems(PAGE.replace("Summary: Solve riddles.", "Summary: Solve riddles; hunt."))).toEqual(["a semicolon in the summary"]);
   });
 
   test("the siblings Other addons names", () => {
