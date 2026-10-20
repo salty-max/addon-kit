@@ -1,1 +1,4 @@
 .cache/
+
+# a desktop-paint dump left behind by a killed run (harness-view/bin/desktop-paint.sh)
+harness-view/hooks/zz-*.test.tsx
