@@ -77,9 +77,9 @@ gossip line, broadcast texts).
 4. Translate (the `wow-translating` skill): French, German, Spanish, riddles
    veiled as the English; the answer that is the thing's own name comes
    from the data by id, never by hand.
-5. Read the changed riddles in context in English, French and German
-   (the `prose-reader` helper for French and German). Passing tests don't
-   check the writing.
+5. Read the changed riddles in context in English, French, German and
+   Spanish (the `prose-reader` helper for each translation). Passing tests
+   don't check the writing.
 6. A riddle the user must settle (a context to write, a riddle that may
    have to change) goes on a board card, not into the file on a guess.
 
