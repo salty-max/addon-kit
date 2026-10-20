@@ -142,9 +142,17 @@ package.json has one, else any command named check. addon-kit gained a
   merge (`gh pr merge`: main moves, Hearthtale's site deploys) and
   `--no-verify`.
 - The patterns are wide on purpose: `git -C * push *` asks for a commit
-  whose message holds " push ", `*scripts/release.sh*` for reading the
-  script with cat. `gh release list` asks only in its `-R` form.
-  `git *--no-verify*` asks too: it would skip both hooks.
+  whose message holds " push ". `*/scripts/release.sh *` wants arguments
+  after the script, so reading it (cat, a grep with the file last) doesn't
+  ask: a first `*scripts/release.sh*` prompted for a grep. `gh release
+  list` asks only in its `-R` form. `git *--no-verify*` asks too: it would
+  skip both hooks.
+- Tried live on 20 October (the desktop app, auto mode, a session at
+  ~/code/wow-addons): a `git -C <repo> push` stopped for the user's yes
+  (the transcript's `permissionDecision`: `user_temporary`), where the
+  classifier passed everything else. Not tried: whether a session whose
+  Bash `cd`s into a repository (the desktop app then moves its working
+  directory) keeps the root's rules. The user-level copy makes it moot.
 
 ### C. Yonder's riddle gates (yonder) — wave 1
 
