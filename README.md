@@ -152,8 +152,10 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
 The root `.claude/settings.json` asks before a push, a release
 (`scripts/release.sh`, `gh release`), `gh workflow run`, a Vercel deploy and
 `store.ts --apply` and a pull request's merge, in every permission mode, for a
-session opened at `~/code/wow-addons` (not one opened inside a repository);
-what holds and what doesn't is in `docs/harness.md`. Tests: `harness.test.ts`.
+session opened at `~/code/wow-addons`; the same list in
+`~/.claude/settings.json` covers every other session (a repository's, a
+worktree's). What holds and what doesn't is in `docs/harness.md`. Tests:
+`harness.test.ts`.
 
 ## The store page
 

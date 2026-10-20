@@ -140,7 +140,9 @@ session once the reviewer has reported, writes
   them**: project settings load from that folder's `.claude/`, with no
   parent fallback. A session opened in a repository or a worktree doesn't.
   For every session, the same list goes in `~/.claude/settings.json` (wave
-  2, the user's call). Settings reload mid-session.
+  2, the user's call: done in E, 20 October 2026; tried: a session inside
+  Keyring in bypass mode was refused a `git push --dry-run`). Settings
+  reload mid-session.
 - Beyond the six asked for: a push through `each.ts`, a pull request's
   merge (`gh pr merge`: main moves, Hearthtale's site deploys) and
   `--no-verify`.
