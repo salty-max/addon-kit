@@ -18,6 +18,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | The family's procedures as skills (riddles, translating, releasing, store pages, data audits) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
 | Store pages on CurseForge, Wago and GitHub | `README.md` "The store page"; `store.ts`, `store-ui.ts` |
 | Game names for translations (glossary, building areas) | `glossary.py`, `subzones.py` (their docstrings) |
+| Saved ids never dropped by a regeneration (each addon's `saved-ids.json`) | `README.md` "Saved ids"; `ids.ts` |
 | The Windows test-build installer | `windows/install.cmd`, `README.md` |
 
 ## Commands

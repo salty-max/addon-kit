@@ -50,8 +50,12 @@ For each addon, write down with a verdict:
 
 A table mapping ids a journal stores (places, flights, creatures, kinds,
 specs) never loses an id on regeneration: keep retired ids as aliases.
-Reviewing a data refresh (a daily `game-data.yml` pull request, or a local
-regeneration), diff the id sets of every such table, not just the names.
+Each addon lists those tables in `saved-ids.json`, and its check runs the
+kit's `ids.ts` against the fork point from origin/main (addon-kit's README,
+"Saved ids"), so a daily job that drops one fails before its pull request.
+A new table that decodes a saved id goes into `saved-ids.json` with its
+generator. An id leaves only with the user's go, under `removed` (why,
+approved). A past refresh: `ids.ts check --base <rev> --head <rev>`.
 
 ## Carrying a change through
 

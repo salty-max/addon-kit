@@ -83,6 +83,32 @@ project with `--vercel <dir>`; it checks the token's shape first
 prints the value. Their pure parts are tested in `tools.test.ts` (`bun
 test`).
 
+## Saved ids
+
+A table naming the ids a saved file keeps (a journal's creatures, quests,
+places, flights, a debrief's foes, a cook's recipes) never loses one when it
+is regenerated: a journal holding the id would show it bare. Each addon with
+such tables lists them in `saved-ids.json` at its root, and its check runs
+`ids.ts` (Hearthtale's `addon:check`, the others' `check`, all of them the
+daily game-data job's check):
+
+```bash
+bun scripts/root.ts --run addon-kit/ids.ts check    # the fork point from origin/main against the working directory
+bun scripts/root.ts --run addon-kit/ids.ts check --base ee96889^ --head ee96889   # a past change, audited
+bun scripts/root.ts --run addon-kit/ids.ts list     # every table's files and how many ids each
+```
+
+An id missing fails it, so the daily job stops before its pull request and
+the owner is told: the lost ids, file by file, in the run's summary and
+`.cache/logs/ids-missing.json`. The fix is upstream (wow-data's `left_out`
+keeps what its build leaves out by name, the kit's `subzones.py` keeps every
+old id). A removal on purpose takes the user's go first, then its ids under
+`removed` with `why` and `approved`. A table is read file by file (one
+language's or one game's loss isn't hidden by another's): a Lua file as the
+game loads it, in LuaJIT, its keys with those behind its `__index`; a JSON
+file at its key paths, together. The manifest's format is in `ids.ts`'s
+header, the tests in `ids.test.ts`.
+
 ## The harness
 
 The family's way of working (`docs/harness.md`): quiet output, gates git
