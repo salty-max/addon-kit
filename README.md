@@ -163,15 +163,19 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   repository its task writes (`--repos`, else its repo; `repos:` is
   written only when it differs), and a running card holds them, each in
   the order cards came to hold it (`since:`, a time per repository, set
-  when the card starts running and when `--repos` adds one; times compare
-  as times, the id breaks a tie). The later of two is still written, with
-  a `held:` line on stderr: drop that repository and go on, or block on
-  the holder and write nothing (`--on <id>`: status blocked, `waits:` in
-  the front matter, cleared when it leaves blocked; never itself). A
+  when the card starts running and when `--repos` adds one, to the
+  millisecond; times compare as times, the id breaks a tie). The later of
+  two is still written, with a `held:` line on stderr: drop that
+  repository and go on, or commit what it has, block on the holder and
+  write nothing (`--on <id>`: status blocked, `waits:` in the front matter,
+  cleared when it leaves blocked; never itself). A
   blocked or waiting card holds nothing and writes nothing, so a waiter
   never locks out another or its holder; its unpushed commits are a
   `note:` to a card in the same repository. add and set read the board
-  back 150 ms after writing, so two cards written at once see each other. A
+  back 150 ms after writing, so two cards written at once see each other
+  and agree which came first. A blocked card is free once nothing holds
+  its repositories (its holder stopped, or dropped them), the same test as
+  `held`, and its every `set` says so. A
   blocked card's every `set` says `still held` or `free`, a card that
   stops running names the blocked cards it frees, a name that is no family
   folder is a note. `held [repo…]` lists the holders, exit 1 when another

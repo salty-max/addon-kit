@@ -29,7 +29,8 @@
  * writes nothing. A blocked or waiting card holds nothing (a waiter never
  * locks out another, nor its holder), but its unpushed commits are a
  * `note:` to a card in the same repository: they go out with the next
- * push. A blocked card is told when its holder stops running. `held` lists who holds what (each repository named, or
+ * push. A blocked card is told whether anything still holds its
+ * repositories (its holder may drop one, another come to hold one). `held` lists who holds what (each repository named, or
  * all), exit 1 when another session's card holds one named before this
  * session's own. A card that stops running names the blocked cards it frees.
  *
@@ -170,10 +171,10 @@ export function slug(text: string): string {
     .replace(/-$/, "");
 }
 
-export function now(d = new Date()): string {
+export function now(d = new Date(), isPrecise = false): string {
   const off = -d.getTimezoneOffset();
   const pad = (n: number) => String(Math.abs(n)).padStart(2, "0");
-  const local = new Date(d.getTime() + off * 60_000).toISOString().slice(0, 19);
+  const local = new Date(d.getTime() + off * 60_000).toISOString().slice(0, isPrecise ? 23 : 19);
   return `${local}${off >= 0 ? "+" : "-"}${pad(Math.trunc(off / 60))}:${pad(off % 60)}`;
 }
 
@@ -242,13 +243,24 @@ export function conflicts(card: Pick<Card, "id" | "session" | "repos" | "since" 
   return out;
 }
 
-/** What a session reads after writing its card: whether it may write, whether its holder still runs, why. */
+/**
+ * The running cards of other sessions that hold `card`'s repositories, by
+ * repository: what a blocked card waits for (its holder may have dropped
+ * the repository, or another come to hold one). None: it is free.
+ */
+export function holding(card: Pick<Card, "session" | "repos">, list: Card[]): Near[] {
+  return list
+    .filter((c) => HOLDS.includes(c.status) && !(card.session && c.session === card.session))
+    .map((c) => ({ card: c, repos: c.repos.filter((r) => card.repos.includes(r)) }))
+    .filter((h) => h.repos.length > 0);
+}
+
+/** What a session reads after writing its card: whether it may write, whether what it waits for still holds, why. */
 export function warnings(card: Card, list: Card[]): string[] {
   if (card.status === "blocked") {
-    const on = list.find((c) => c.id === card.waits);
-    if (!on || !HOLDS.includes(on.status)) return [`free: ${card.waits || "its holder"} is ${on ? on.status : "no open card"}: set ${card.id} --status running (held again if another got there first)`];
-    const shared = on.repos.filter((r) => card.repos.includes(r)).join(", ");
-    return [`still held: ${shared || on.repo} by ${on.id} (running): write nothing until it's free`];
+    const still = holding(card, list);
+    if (!still.length) return [`free: nothing holds ${card.repos.join(", ") || "its repositories"}: set ${card.id} --status running (held again if another got there first)`];
+    return still.map((h) => `still held: ${h.repos.join(", ")} by ${h.card.id} (running): write nothing until it's free`);
   }
   if (!HOLDS.includes(card.status)) return [];
   const { held, later, pending } = conflicts(card, list);
@@ -256,7 +268,7 @@ export function warnings(card: Card, list: Card[]): string[] {
   const rest = card.repos.filter((r) => !taken.has(r));
   const out = held.map(({ card: c, repos }) => {
     const drop = rest.length ? `drop ${repos.join(", ")} (set ${card.id} --repos ${rest.join(",")}) and go on, or ` : "";
-    return `held: ${repos.join(", ")} by ${c.id} (there since ${clock(c, repos[0])}, session ${c.session || "?"}): ${drop}set ${card.id} --on ${c.id} and write nothing until it's free`;
+    return `held: ${repos.join(", ")} by ${c.id} (there since ${clock(c, repos[0])}, session ${c.session || "?"}): ${drop}commit what you have, set ${card.id} --on ${c.id} and write nothing until it's free`;
   });
   for (const { card: c, repos } of later) out.push(`note: ${repos.join(", ")} has ${c.id} running there since after this card: it was told to wait`);
   for (const { card: c, repos } of pending) out.push(`note: ${repos.join(", ")} has ${c.id} (${c.status}) with unpushed work: its commits go out with the next push`);
@@ -295,20 +307,23 @@ function apply(c: Card, o: Opts): Card {
   if (next.status !== "blocked") next.waits = "";
   // A running card's place in each repository's queue: kept while it runs, now for a repository --repos
   // adds or for all when it starts running (added, or again). Stopped, it holds nothing and keeps no place.
+  // (to the millisecond: of two cards written in the same second, the one stamped later must lose,
+  // so the read-back a moment after writing settles it)
+  const at = new Date();
   if (next.status === "running") {
     const isStart = c.status !== "running" || !c.updated;
-    const stamp = now();
+    const stamp = now(at, true);
     const since: Record<string, string> = {};
     // (a card of the first cut, running with no place: its last update, as it was read)
     for (const r of next.repos) since[r] = !isStart && (c.since[r] || (c.repos.includes(r) && c.updated)) ? c.since[r] || c.updated : stamp;
     next.since = since;
   } else next.since = {};
+  next.updated = now(at);
   if (o.body !== undefined) next.body = o.body;
   for (const [k, heading] of Object.entries(SECTIONS)) {
     const v = o[k as keyof typeof SECTIONS];
     if (v !== undefined) next.body = setSection(next.body, heading, v);
   }
-  next.updated = now();
   return next;
 }
 

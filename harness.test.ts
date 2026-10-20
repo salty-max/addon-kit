@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { add, before, cards, conflicts, format, holders, isHeld, lines, options, parseCard, repoList, set, setSection, slug, strangers, waitingOn, warnings } from "./board";
+import { add, before, cards, conflicts, format, holders, holding, isHeld, lines, options, parseCard, repoList, set, setSection, slug, strangers, waitingOn, warnings } from "./board";
 import { eventLine, eventsPath, logEvent, repoOf } from "./events";
 import { HOOKS } from "./hooks";
 import { changedLines, packet, riddles, subjectProblem, touched, trailerProblem } from "./packet";
@@ -483,7 +483,7 @@ describe("board", () => {
     expect(found.held.map((x) => [x.card.id, x.repos])).toEqual([["yonder-riddles", ["yonder"]]]);
     expect(found.pending.map((x) => x.card.id)).toEqual(["codex-german", "yonder-older"]);
     expect(warnings(b, list)).toEqual([
-      "held: yonder by yonder-riddles (there since 20:00, session A): drop yonder (set mealbook-trainers --repos wow-data,mealbook,lorekeepers-codex) and go on, or set mealbook-trainers --on yonder-riddles and write nothing until it's free",
+      "held: yonder by yonder-riddles (there since 20:00, session A): drop yonder (set mealbook-trainers --repos wow-data,mealbook,lorekeepers-codex) and go on, or commit what you have, set mealbook-trainers --on yonder-riddles and write nothing until it's free",
       "note: lorekeepers-codex has codex-german (waiting-test) with unpushed work: its commits go out with the next push",
       "note: yonder has yonder-older (ready-to-push) with unpushed work: its commits go out with the next push",
     ]);
@@ -506,14 +506,19 @@ describe("board", () => {
     const aStopped = { ...a, status: "waiting-test" as const, since: {} };
     const cBlocked = card("codex-yonder", "blocked", "C2", ["yonder"], "2026-10-20T21:05:00+02:00", "yonder-riddles");
     const freed = [aStopped, blocked, cBlocked];
-    expect(warnings(blocked, freed)).toEqual(["free: yonder-riddles is waiting-test: set mealbook-trainers --status running (held again if another got there first)"]);
+    expect(warnings(blocked, freed)).toEqual(["free: nothing holds wow-data, mealbook, yonder, lorekeepers-codex: set mealbook-trainers --status running (held again if another got there first)"]);
+    // Free too once the holder drops the repository and runs on; held again by another that comes to hold one.
+    const aDropped = { ...a, repos: ["keyring"], since: { keyring: a.since.yonder! } };
+    expect(warnings(blocked, [aDropped, blocked])[0]).toStartWith("free: nothing holds");
+    const other = card("codex-other", "running", "X", ["lorekeepers-codex"]);
+    expect(warnings(blocked, [aDropped, blocked, other])).toEqual(["still held: lorekeepers-codex by codex-other (running): write nothing until it's free"]);
     expect([isHeld("yonder", freed, "B"), isHeld("yonder", freed, "C2")]).toEqual([false, false]);
     const bRuns = { ...blocked, status: "running" as const, waits: "", since: { yonder: "2026-10-20T22:00:00+02:00" } };
     const cRuns = { ...cBlocked, status: "running" as const, waits: "", since: { yonder: "2026-10-20T22:00:05+02:00" } };
     expect(warnings(cRuns, [aStopped, bRuns, cRuns])[0]).toStartWith("held: yonder by mealbook-trainers");
     expect(warnings(bRuns, [aStopped, bRuns, cRuns]).some((w) => w.startsWith("held:"))).toBe(false);
     expect([isHeld("yonder", [aStopped, bRuns, cRuns], "B"), isHeld("yonder", [aStopped, bRuns, cRuns], "C2")]).toEqual([false, true]);
-    // Two adds in the same second: the id breaks the tie, one of them waits.
+    // The same millisecond: the id breaks the tie, one of them waits.
     const x = { ...cRuns, id: "x", since: bRuns.since };
     expect([before(bRuns, x, "yonder"), before(x, bRuns, "yonder")]).toEqual([true, false]);
 
@@ -571,8 +576,10 @@ describe("board", () => {
       expect(set("yonder-eight-riddles", { on: "yonder-eight-riddles" })).toContain("can't wait on itself");
       const d = set("yonder-eight-riddles", { status: "running" });
       if (typeof d === "string") throw new Error(d);
-      // Running again: its wait forgotten, its place in each queue taken now.
-      expect([d.status, d.waits, d.since]).toEqual(["running", "", { yonder: d.updated, "wow-data": d.updated }]);
+      // Running again: its wait forgotten, its place in each queue taken now, to the millisecond.
+      const ms = d.updated.slice(0, 19);
+      expect([d.status, d.waits, Object.keys(d.since)]).toEqual(["running", "", ["yonder", "wow-data"]]);
+      expect(Object.values(d.since).every((t) => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}[+-]\d\d:\d\d$/.test(t) && t.startsWith(ms))).toBe(true);
       const e = set("yonder-eight-riddles", { committed: "abc" });
       if (typeof e === "string") throw new Error(e);
       expect(e.since).toEqual(d.since);
@@ -580,7 +587,7 @@ describe("board", () => {
       Bun.sleepSync(1100);
       const f = set("yonder-eight-riddles", { repos: "yonder,wow-data,mealbook" });
       if (typeof f === "string") throw new Error(f);
-      expect([f.since.yonder, f.since["wow-data"], f.since.mealbook === f.updated, f.since.mealbook > d.updated]).toEqual([d.updated, d.updated, true, true]);
+      expect([f.since.yonder, f.since["wow-data"], f.since.mealbook!.startsWith(f.updated.slice(0, 19)), Date.parse(f.since.mealbook!) > Date.parse(d.since.yonder!)]).toEqual([d.since.yonder, d.since["wow-data"], true, true]);
       expect(parseCard(f.id, readFileSync(join(root, "board", `${f.id}.md`), "utf8")).since).toEqual(f.since);
       set("yonder-eight-riddles", { status: "ready-to-push" });
       mkdirSync(join(root, "yonder"), { recursive: true });
