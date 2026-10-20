@@ -282,12 +282,13 @@ finds its docs and the skills.
   (release.sh's old block had it), and every kit-carrying addon's check
   runs kit:check (the Codex's CI runs `check:ci`, the rest of it). addon-kit gained a
   CLAUDE.md, a map onto its README.
-- **The skills** (root `.claude/skills/`): `wow-riddles`,
-  `wow-translating`, `wow-releasing`, `wow-store-pages`, `wow-data-audit`.
-  A session opened inside a repository doesn't load the root's skills (as
-  with the helpers): each is linked into `~/.claude/skills/`, hence the
-  `wow-` prefix, so it appears in every session, worktrees included, once
-  at the root. Tried: a fresh session in each of the eleven repositories
+- **The skills**: `wow-riddles`, `wow-translating`, `wow-releasing`,
+  `wow-store-pages`, `wow-data-audit`, written in the root's
+  `.claude/skills/`, then moved into `addon-kit/skills/` the same day (the
+  user's ask, as D's mod: versioned). A session opened inside a repository
+  doesn't load the root's skills (as with the helpers): each is linked into
+  `~/.claude/skills/`, hence the `wow-` prefix, so it appears in every
+  session, worktrees included, once at the root. Tried: a fresh session in each of the eleven repositories
   names its `docs/architecture.md` and `wow-releasing`.
 - **D's mod** moved from the root's `.claude/mods/` to
   `addon-kit/harness-view`, the link repointed; its tests (`bin/`, `claude

@@ -15,6 +15,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | Every repository at once: status, one command each, secrets | `README.md` "Every repository at once"; `status.ts`, `each.ts`, `secret.ts` |
 | The harness: q, hooks, packet, review, board, root finders, ask rules, the event log | `README.md` "The harness"; the plan and what was built: `docs/harness.md`; `events.ts` |
 | The desktop panel and status line (piece D, a Claude Code mod) | `harness-view/README.md` |
+| The family's procedures as skills (riddles, translating, releasing, store pages, data audits) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
 | Store pages on CurseForge, Wago and GitHub | `README.md` "The store page"; `store.ts`, `store-ui.ts` |
 | Game names for translations (glossary, building areas) | `glossary.py`, `subzones.py` (their docstrings) |
 | The Windows test-build installer | `windows/install.cmd`, `README.md` |
@@ -52,6 +53,6 @@ add|set|list`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
 - Conventional Commits, lowercase subjects, no AI trailers (the
   commit-msg hook refuses them). Commit locally; ask before a push. The
   pre-push hook wants a passing check stamp on the tree.
-- `harness-view/` is loaded live by every new session through
-  `~/.claude/skills/harness-view`: a broken edit breaks the panel
-  everywhere. Its tests run in `bun run check`.
+- `harness-view/` and `skills/` are loaded live by every new session
+  through their links in `~/.claude/skills/`: a broken edit breaks the panel
+  or a skill everywhere. The panel's tests run in `bun run check`.

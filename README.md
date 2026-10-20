@@ -148,6 +148,11 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
 - **harness-view/**: piece D, the desktop app's live pane and status line (a
   Claude Code mod; `harness-view/README.md`), loaded through the link
   `~/.claude/skills/harness-view`. Its tests run in `bun run check`.
+- **skills/**: the family's procedures as Claude Code skills (`wow-riddles`,
+  `wow-translating`, `wow-releasing`, `wow-store-pages`, `wow-data-audit`),
+  each linked into `~/.claude/skills/` so every session finds them. A fresh
+  machine links them again:
+  `for s in ~/code/wow-addons/addon-kit/skills/*; do ln -sfn "$s" ~/.claude/skills/; done`
 
 The root `.claude/settings.json` asks before a push, a release
 (`scripts/release.sh`, `gh release`), `gh workflow run`, a Vercel deploy and
