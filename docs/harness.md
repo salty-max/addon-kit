@@ -228,16 +228,21 @@ the transcripts. What it can't draw: `harness-view/README.md`.
 
 The board as the lock (that evening, the decision above): a card's
 `repos` (every repository the task writes), `waits` (a blocked card's
-holder) and `since` (when it last started running) in its front matter,
+holder) and `since` (when it came to hold each repository) in its front matter,
 the `blocked` status, `held` warnings on stderr when a running card comes
-to share a repository with another session's card running since earlier
+to share a repository with another session's card that came to hold it first
 (written anyway, so the board shows it), notes for cards with unpushed
 work there, `board.ts held [repo…]` (exit 1 when another session holds
 one named), and a card that stops running naming the blocked cards it
 frees. The reviewer's first pass found the first cut deadlocking (blocked
 cards held too: a holder was told to block on its waiter, two waiters
 locked each other out once it was done): only a running card holds, in
-the order it came to run. The panel's Board box shows
+the order it came to run. Its second pass found the widening hole (a
+running card adding a repository kept its old place and jumped the queue)
+and a blocked card still writing its other repositories while holding
+nothing: the place is per repository (`since` a time each, a widened
+repository queued at the back), and a blocked card writes nothing (to go
+on with the rest, a card drops the held repository instead). The panel's Board box shows
 each card's repositories, a blocked card's holder or "free now", the
 counts running and blocked; the Repositories box a dot before each held
 name. Made live

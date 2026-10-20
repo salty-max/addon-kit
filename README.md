@@ -161,14 +161,17 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   cards and each repository's check. The board is the lock of "two
   sessions never write the same repository at once": a card names every
   repository its task writes (`--repos`, else its repo; `repos:` is
-  written only when it differs), and a running card holds them. Of two
-  running cards sharing one, the one running since earlier (`since:`,
-  set each time a card starts running; the id breaks a tie) holds it: the
-  later is still written, with a `held:` line on stderr saying to block it
-  on the holder (`--on <id>`: status blocked, `waits:` in the front matter,
-  cleared when it leaves blocked; never itself). A blocked or waiting card
-  holds nothing, so a waiter never locks out another or its holder; its
-  unpushed commits are a `note:` to a card in the same repository. A
+  written only when it differs), and a running card holds them, each in
+  the order cards came to hold it (`since:`, a time per repository, set
+  when the card starts running and when `--repos` adds one; times compare
+  as times, the id breaks a tie). The later of two is still written, with
+  a `held:` line on stderr: drop that repository and go on, or block on
+  the holder and write nothing (`--on <id>`: status blocked, `waits:` in
+  the front matter, cleared when it leaves blocked; never itself). A
+  blocked or waiting card holds nothing and writes nothing, so a waiter
+  never locks out another or its holder; its unpushed commits are a
+  `note:` to a card in the same repository. add and set read the board
+  back 150 ms after writing, so two cards written at once see each other. A
   blocked card's every `set` says `still held` or `free`, a card that
   stops running names the blocked cards it frees, a name that is no family
   folder is a note. `held [repo…]` lists the holders, exit 1 when another
