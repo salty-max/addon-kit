@@ -242,7 +242,17 @@ running card adding a repository kept its old place and jumped the queue)
 and a blocked card still writing its other repositories while holding
 nothing: the place is per repository (`since` a time each, a widened
 repository queued at the back), and a blocked card writes nothing (to go
-on with the rest, a card drops the held repository instead). The panel's Board box shows
+on with the rest, a card drops the held repository instead).
+
+Every session in view (the same night, the user's ask: "could the
+harness handle all sessions running in the folder?"): the panel's
+Sessions box lists each live session of the family folder from Claude
+Code's own registry (`~/.claude/sessions/<pid>.json`, an internal
+format), its status (busy, idle, waiting on the user and for what), its
+model and helpers from the transcripts, its card, and Open, which hands
+the desktop app the session's `claude://` link. The Board flags a running
+card whose session is gone. Found by it at once: a session waiting on a
+permission prompt for ten hours. The panel's Board box shows
 each card's repositories, a blocked card's holder or "free now", the
 counts running and blocked; the Repositories box a dot before each held
 name. Made live
