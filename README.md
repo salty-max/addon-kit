@@ -27,6 +27,8 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
   (`luajit test.lua`: the select, the banners, the board and its rings, the
   slot, a page's list of cards, the figures; the rest is tested by each
   addon's simulation), commit.
+- `bun run check` runs the three (stylua's check, `luajit test.lua`, `bun
+  test`); through q.ts it stamps the tree, which a push asks for.
 - In each addon: `bun run kit:sync`, then its own checks. `bun run kit:check`
   fails when the copy isn't the kit's (a copy edited by hand).
 - A visual change is checked first against the game's own textures and code
@@ -76,6 +78,56 @@ project with `--vercel <dir>`; it checks the token's shape first
 (CurseForge's is a UUID, Wago's isn't), asks before setting, and never
 prints the value. Their pure parts are tested in `tools.test.ts` (`bun
 test`).
+
+## The harness
+
+The family's way of working (`docs/harness.md`): quiet output, gates git
+keeps, a packet for each review, a board of tasks. From a repository:
+
+```bash
+bun ../addon-kit/q.ts check -- bun run check   # "check: ok (41s) · stamped 3f2a1b9", or FAILED and
+                                               # the lines that matter (20 at most); exit code kept,
+                                               # whole output in .cache/logs/check.log
+bun ../addon-kit/q.ts test -- bun test         # any name: the same, no stamp
+```
+
+From `~/code/wow-addons`:
+
+```bash
+bun addon-kit/hooks.ts status                  # each repository's hooks and HEAD's check stamp
+bun addon-kit/hooks.ts install yonder          # (or --all); uninstall puts its own hooks back
+bun addon-kit/packet.ts yonder [a..b]          # the reviewer's packet: .cache/review/<sha>.md
+bun addon-kit/board.ts add yonder "Eight riddles" --status waiting-test --try "…"
+bun addon-kit/board.ts set yonder-eight-riddles --status ready-to-push --committed "f4ab31a"
+bun addon-kit/board.ts list [--all]            # what waits on the user first
+bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the same for Python)
+```
+
+- **q.ts** stamps the tree a passing `check` ran on (in
+  `.git/harness/`, shared by worktrees). Never pipe a check into `tail`:
+  q prints the end that matters and keeps the exit code.
+- **githooks/** (`core.hooksPath`, set by `hooks.ts`): `commit-msg`
+  refuses an AI co-author or a "generated with" line, `pre-push` refuses a
+  branch or tag whose tree has no stamp and prints the command that makes
+  one. A check on uncommitted files counts for the commit holding exactly
+  them. A repository's own hooks (husky's) run after ours; husky's
+  `prepare` takes `core.hooksPath` back on `bun install` (status says so).
+- **packet.ts**: the commits, diff stat, files, uncommitted state, what
+  scripts already checked (the stamp, subjects, trailers) and, for Yonder's
+  riddle files, wow-data's cards of the subjects the change touches. The
+  reviewer helper reads it first.
+- **board.ts**: one card a task in `~/code/wow-addons/board/`, its
+  front matter written only here. Its body is `## Try`, `## Committed`,
+  `## Left` (`--try`, `--committed`, `--left`). `status.ts` shows the open
+  cards and each repository's check.
+- **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
+  directory, else up from the repository's main checkout (so a worktree
+  anywhere finds `addon-kit/` and `wow-data/`).
+
+The root `.claude/settings.json` asks before a push, a release
+(`scripts/release.sh`, `gh release`), `gh workflow run`, a Vercel deploy and
+`store.ts --apply`, in every permission mode; what holds and what doesn't is
+in `docs/harness.md`. Tests: `harness.test.ts`.
 
 ## The store page
 

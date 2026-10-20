@@ -105,6 +105,41 @@ hooks (a trailer refused, an unstamped push refused, a stamped one
 allowed) and the packet. addon-kit's CLAUDE.md or README says how to use
 each in a few lines.
 
+**Built (20 October 2026).** As above, with: q's log ends with the exit and
+time, a `.cache/` its repository forgot to ignore gets a `.gitignore` of its
+own, and a check that changes the files while it runs isn't stamped.
+`hooks.ts install` takes repositories or `--all`, never every repository by
+default; a hooks folder a repository had (husky's `.husky/_`) is kept in
+`harness.chain` and runs after ours, and `uninstall` puts it back. The
+packet's cards fall back to the `card.ts` commands to run while A hasn't
+landed. addon-kit gained a `package.json` for its `check`. Installed in
+addon-kit only.
+
+**What the "ask" rules hold** (Claude Code's permission docs, 20 October
+2026; the root `.claude/settings.json`):
+
+- Rules go deny, then ask, then allow; the first match wins, whatever the
+  scope. An ask prompts even when an allow rule matches, and "Yes, don't
+  ask again" never silences it (the allow it saves loses to the ask).
+- Every mode prompts: Manual, accept edits, plan, auto (the classifier
+  would let a push to the repository's branches through without the rule)
+  and bypass permissions (ask rules are among what no mode auto-approves).
+  `dontAsk` refuses them outright. A `claude -p` run can't prompt.
+- A compound command asks when any part matches (`cd yonder && git push`,
+  a subshell, a loop), and a leading `VAR=x` doesn't hide one. A program
+  called another way does: `sh -c 'git push'`, `/usr/bin/git push`, a push
+  inside a script. A guard, not a wall; the pre-push hook is the wall for
+  the check.
+- **Only a session whose working directory is ~/code/wow-addons gets
+  them**: project settings load from that folder's `.claude/`, with no
+  parent fallback. A session opened in a repository or a worktree doesn't.
+  For every session, the same list goes in `~/.claude/settings.json` (wave
+  2, the user's call). Settings reload mid-session.
+- The patterns are wide on purpose: `git -C * push *` asks for a commit
+  whose message holds " push ", `*scripts/release.sh*` for reading the
+  script with cat. `gh release list` asks only in its `-R` form.
+  `git *--no-verify*` asks too: it would skip both hooks.
+
 ### C. Yonder's riddle gates (yonder) — wave 1
 
 `scripts/expeditions.py` gains the two checks the review had to make by
