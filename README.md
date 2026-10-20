@@ -106,6 +106,7 @@ bun addon-kit/board.ts add yonder "Eight riddles" --status waiting-test --try "�
 bun addon-kit/board.ts set yonder-eight-riddles --status ready-to-push --committed "f4ab31a"
 bun addon-kit/board.ts list [--all]            # what waits on the user first
 bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the same for Python)
+bun addon-kit/events.ts [n]                    # the harness's last n events, as the panel's log reads them
 ```
 
 - **q.ts** stamps the tree a passing `check` ran on (in
@@ -137,6 +138,13 @@ bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the
   package.json script or a shell one runs `bun scripts/root.ts --run
   addon-kit/sync.ts …` (an error and a failing exit when there's no family
   folder: never `bun "$(…)"`, whose empty path bun runs as its usage, exit 0).
+- **events.ts**: the harness's event log
+  (`~/code/wow-addons/.cache/harness/events.log`, one tab-separated line
+  each: time, source, tone, repository, text). q.ts, review.ts, board.ts
+  (a card added or moved) and the hooks' refusals (`githooks/_event`)
+  append to it; the desktop panel's log reads it with the helpers and
+  answered prompts from the transcripts. `HARNESS_EVENTS` names another
+  file, `off` none (the tests use their own).
 - **harness-view/**: piece D, the desktop app's live pane and status line (a
   Claude Code mod; `harness-view/README.md`), loaded through the link
   `~/.claude/skills/harness-view`. Its tests run in `bun run check`.

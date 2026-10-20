@@ -11,10 +11,12 @@
  *
  * The file: <git common dir>/harness/review-<HEAD sha>, its first line
  * "verdict: <verdict>", then the head, its tree, when, and the packet
- * (packet.ts's .cache/review/<sha12>.md) when there is one.
+ * (packet.ts's .cache/review/<sha12>.md) when there is one. The harness's
+ * event log gets a line (events.ts).
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
+import { logEvent, repoOf } from "./events";
 import { stampDir } from "./q";
 import { familyRoot } from "./root";
 
@@ -54,6 +56,7 @@ export function record(dir: string, verdict: string): Review | string {
   mkdirSync(stamps, { recursive: true });
   const lines = [`verdict: ${r.verdict}`, `head: ${r.head}`, `tree: ${r.tree}`, `at: ${r.at}`, ...(r.packet ? [`packet: ${r.packet}`] : [])];
   writeFileSync(join(stamps, `review-${head}`), lines.join("\n") + "\n");
+  logEvent("review", "", repoOf(dir), `${head.slice(0, 7)} ${r.verdict}`);
   return r;
 }
 

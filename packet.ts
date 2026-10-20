@@ -62,13 +62,13 @@ export function subjectProblem(subject: string): string | undefined {
   return undefined;
 }
 
-// The commit-msg hook's own check (githooks/commit-msg, its chain left out).
+// The commit-msg hook's own check (githooks/commit-msg, its chain and its event line left out).
 export function trailerProblem(message: string): string | undefined {
   const tmp = mkdtempSync(join(tmpdir(), "packet-"));
   try {
     writeFileSync(join(tmp, "msg"), message);
     const p = Bun.spawnSync(["sh", join(import.meta.dir, "githooks", "commit-msg"), join(tmp, "msg")], {
-      env: { ...process.env, HARNESS_NO_CHAIN: "1" },
+      env: { ...process.env, HARNESS_NO_CHAIN: "1", HARNESS_EVENTS: "off" },
       stdout: "ignore",
       stderr: "pipe",
     });

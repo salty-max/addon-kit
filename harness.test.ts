@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { add, cards, format, lines, options, parseCard, set, setSection, slug } from "./board";
+import { eventLine, eventsPath, logEvent, repoOf } from "./events";
 import { HOOKS } from "./hooks";
 import { changedLines, packet, riddles, subjectProblem, touched, trailerProblem } from "./packet";
 import { clean, headTree, matters, parse, stampDir, stampOf, verdict, workTree } from "./q";
@@ -24,13 +25,25 @@ const GIT_ENV = {
 };
 const saved: Record<string, string | undefined> = {};
 let tmp: string;
+// Every tool's event line goes here, never into the family folder's log.
+let events: string;
 
 beforeAll(() => {
-  for (const k of [...Object.keys(GIT_ENV), "WOW_ADDONS_ROOT"]) saved[k] = process.env[k];
+  for (const k of [...Object.keys(GIT_ENV), "WOW_ADDONS_ROOT", "HARNESS_EVENTS"]) saved[k] = process.env[k];
   Object.assign(process.env, GIT_ENV);
   delete process.env.WOW_ADDONS_ROOT;
   tmp = realpathSync(mkdtempSync(join(tmpdir(), "harness-test-")));
+  events = join(tmp, "events.log");
+  process.env.HARNESS_EVENTS = events;
 });
+
+// The event lines written since the last call, as [source, tone, repo, text].
+function newEvents(): string[][] {
+  if (!existsSync(events)) return [];
+  const rows = readFileSync(events, "utf8").trimEnd().split("\n").filter(Boolean).map((l) => l.split("\t").slice(1));
+  rmSync(events);
+  return rows;
+}
 afterAll(() => {
   for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k];
   else process.env[k] = v;
@@ -147,6 +160,76 @@ describe("q", () => {
   });
 });
 
+describe("events", () => {
+  test("a line of five fields, no tab or line break inside one", () => {
+    const at = new Date("2026-10-20T12:00:00.000Z");
+    expect(eventLine("check", "ok", "yonder", "check: ok\t(41s)\n· stamped", at)).toBe("2026-10-20T12:00:00.000Z\tcheck\tok\tyonder\tcheck: ok (41s) · stamped\n");
+  });
+
+  test("the family folder's .cache by default, another file or none by HARNESS_EVENTS", () => {
+    const { root, repo } = family();
+    try {
+      delete process.env.HARNESS_EVENTS;
+      process.env.WOW_ADDONS_ROOT = root;
+      expect(eventsPath()).toBe(join(root, ".cache", "harness", "events.log"));
+      logEvent("board", "wait", "yonder", "a card");
+      expect(readFileSync(join(root, ".cache", "harness", "events.log"), "utf8")).toContain("\tboard\twait\tyonder\ta card\n");
+      process.env.HARNESS_EVENTS = "off";
+      expect(eventsPath()).toBeUndefined();
+      logEvent("board", "wait", "yonder", "nothing written");
+    } finally {
+      delete process.env.WOW_ADDONS_ROOT;
+      process.env.HARNESS_EVENTS = events;
+    }
+    expect(repoOf(repo)).toBe("repo");
+    // A worktree is its main checkout's repository.
+    const wt = join(tmp, `wt-${n}`);
+    git(repo, "worktree", "add", "-q", wt);
+    expect(repoOf(wt)).toBe("repo");
+  });
+
+  test("a long log keeps its last 500 lines", () => {
+    const file = join(tmp, "long.log");
+    process.env.HARNESS_EVENTS = file;
+    try {
+      for (let i = 0; i < 2200; i++) logEvent("check", "ok", "r", `run ${i} ${"x".repeat(100)}`);
+    } finally {
+      process.env.HARNESS_EVENTS = events;
+    }
+    const lines = readFileSync(file, "utf8").trimEnd().split("\n");
+    expect(lines.length).toBeLessThanOrEqual(2200);
+    expect(lines.length).toBeGreaterThanOrEqual(500);
+    expect(lines.at(-1)).toContain("run 2199");
+  });
+
+  test("q, review and board write theirs: a verdict, a stamp, a card added and moved", () => {
+    const { root, repo } = family();
+    newEvents();
+    q(repo, "check", "--", "true");
+    q(repo, "check", "--", "false");
+    q(repo, "test", "--", "true");
+    expect(newEvents().map((e) => [e[0], e[1], e[2], e[3]!.replace(/\(.*?\)/, "(t)")])).toEqual([
+      ["check", "ok", "repo", expect.stringMatching(/^check: ok \(t\) · stamped [0-9a-f]{7}$/)],
+      ["check", "fail", "repo", "check: FAILED (t) · .cache/logs/check.log"],
+      ["test", "ok", "repo", "test: ok (t)"],
+    ]);
+    record(repo, "2 findings");
+    expect(newEvents()).toEqual([["review", "", "repo", `${git(repo, "rev-parse", "--short=7", "HEAD").out.trim()} 2 findings`]]);
+    process.env.WOW_ADDONS_ROOT = root;
+    try {
+      const card = add("yonder", "Eight riddles", { status: "waiting-test" });
+      set(card.id, { try: "nothing moved" });
+      set(card.id, { status: "done" });
+    } finally {
+      delete process.env.WOW_ADDONS_ROOT;
+    }
+    expect(newEvents()).toEqual([
+      ["board", "wait", "yonder", "Eight riddles added, waiting-test"],
+      ["board", "ok", "yonder", "Eight riddles waiting-test → done"],
+    ]);
+  });
+});
+
 describe("git hooks", () => {
   function hooked() {
     const f = family();
@@ -173,12 +256,18 @@ describe("git hooks", () => {
     for (const line of ["Co-Authored-By: Claude", "Generated with Claude", "Generated-by: Claude Code", "Assisted-by: Claude Opus", "Co-authored-by: Cursor Agent <cursoragent@cursor.com>"])
       expect([line, commit(repo, `fix: y\n\n${line}`).code]).not.toEqual([line, 0]);
     expect(git(repo, "log", "--format=%s").out.trim()).toBe("chore: first");
+    const refused = newEvents();
+    expect(refused.length).toBeGreaterThanOrEqual(8);
+    expect(refused[0]).toEqual(["hook", "fail", "repo", "commit-msg refused an AI trailer: Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"]);
     // a person, a generated file: fine
     expect(commit(repo, "chore: Text_frFR generated with locales.ts").code).toBe(0);
     expect(commit(repo, "feat: z\n\nGenerated with scripts/build.ts, then read.\n\nCo-authored-by: Egypt Smith <e@example.com>").code).toBe(0);
     expect(commit(repo, "feat(pages): the codex's\ngenerated with locales.ts, the Codex's own pages\n- generated by the cursor helper").code).toBe(0);
+    newEvents();
+    // packet.ts asking the hook about old commits writes no refusal
     expect(trailerProblem("feat: a\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n")).toContain("Claude");
     expect(trailerProblem("feat: a\n")).toBeUndefined();
+    expect(newEvents()).toEqual([]);
   });
 
   test("pre-push refuses an unchecked tree and lets a checked one through", () => {
@@ -187,6 +276,7 @@ describe("git hooks", () => {
     expect(refused.code).not.toBe(0);
     expect(refused.err).toContain("pre-push: no passing check");
     expect(refused.err).toContain(`bun ${KIT}/q.ts check -- `);
+    expect(newEvents()).toEqual([["hook", "fail", "repo", expect.stringMatching(/^pre-push refused main \([0-9a-f]+\): no passing check$/)]]);
     expect(git(remote, "rev-parse", "-q", "--verify", "main").code).not.toBe(0);
     q(repo, "check", "--", "true");
     expect(git(repo, "push", "-q", "origin", "main").code).toBe(0);

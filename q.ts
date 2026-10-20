@@ -19,10 +19,12 @@
  * worktrees: a commit of exactly that state pushes. Only the repository's
  * own check stamps (harness.check, else `bun run check` where package.json
  * has one), and a failing check on a stamped tree takes the stamp back.
+ * The verdict line goes to the harness's event log too (events.ts).
  */
 import { closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join, relative } from "node:path";
+import { logEvent, repoOf } from "./events";
 
 export const MAX_LINES = 20;
 
@@ -192,6 +194,7 @@ export async function run(name: string, command: string[], cwd = process.cwd()):
     }
   }
   console.log(line);
+  logEvent(name, code !== 0 ? "fail" : line.includes("not stamped") ? "wait" : "ok", repoOf(cwd), line);
   if (code !== 0) {
     const out = clean(readFileSync(log, "utf8")).slice(1, -1);
     for (const l of matters(out)) console.log(`  ${l}`);

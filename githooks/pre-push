@@ -29,6 +29,7 @@ if [ -n "$missing" ]; then
     echo "  bun $kit/q.ts check -- $check"
     echo "(a check run on uncommitted files counts for the commit that holds exactly them)"
   } >&2
+  "$here/_event" fail "pre-push refused $(printf '%s' "$missing" | tr '\n' ' ' | sed 's/ *$//'): no passing check"
   exit 1
 fi
 "$here/_chain" pre-push "$@" <"$input"

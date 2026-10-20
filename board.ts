@@ -15,10 +15,12 @@
  *            leaves done out unless --all
  *   session  the session's name or id (add: $CLAUDE_CODE_SESSION_ID)
  *
- * add prints the card's id: <repo>-<a slug of the title>.
+ * add prints the card's id: <repo>-<a slug of the title>. A card added or
+ * moved to another status gets a line in the harness's event log (events.ts).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { logEvent, type Tone } from "./events";
 import { familyPath } from "./root";
 
 // (in the order the list shows them: what waits on the user first)
@@ -170,6 +172,12 @@ function apply(c: Card, o: Opts): Card {
   return next;
 }
 
+// A card added or moved, in the harness's event log: what waits on the user amber, done green.
+function logCard(c: Card, text: string) {
+  const tone: Tone = c.status === "done" ? "ok" : c.status === "running" ? "info" : "wait";
+  logEvent("board", tone, c.repo, text);
+}
+
 export function add(repo: string, title: string, o: Opts = {}): Card {
   const dir = boardDir();
   mkdirSync(dir, { recursive: true });
@@ -179,14 +187,17 @@ export function add(repo: string, title: string, o: Opts = {}): Card {
   const blank = Object.values(SECTIONS).map((h) => `## ${h}\n\n`).join("\n");
   const card = apply({ id, repo, title, status: "running", session: process.env.CLAUDE_CODE_SESSION_ID ?? "", updated: "", body: blank }, o);
   writeFileSync(join(dir, `${id}.md`), format(card));
+  logCard(card, `${card.title} added, ${card.status}`);
   return card;
 }
 
 export function set(id: string, o: Opts): Card | string {
   const file = join(boardDir(), `${id}.md`);
   if (!existsSync(file)) return `no card ${id} (bun addon-kit/board.ts list --all)`;
-  const card = apply(parseCard(id, readFileSync(file, "utf8")), o);
+  const was = parseCard(id, readFileSync(file, "utf8"));
+  const card = apply(was, o);
   writeFileSync(file, format(card));
+  if (card.status !== was.status) logCard(card, `${card.title} ${was.status} → ${card.status}`);
   return card;
 }
 

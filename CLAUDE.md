@@ -13,7 +13,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | The Lua kit (books' look, list, page, board, banners, settings, welcome) | `Kit.lua` (its header lists what it holds), `Media/` |
 | How the kit reaches the addons (copies, stamps, kit:sync) | `README.md`, `sync.ts` |
 | Every repository at once: status, one command each, secrets | `README.md` "Every repository at once"; `status.ts`, `each.ts`, `secret.ts` |
-| The harness: q, hooks, packet, review, board, root finders, ask rules | `README.md` "The harness"; the plan and what was built: `docs/harness.md` |
+| The harness: q, hooks, packet, review, board, root finders, ask rules, the event log | `README.md` "The harness"; the plan and what was built: `docs/harness.md`; `events.ts` |
 | The desktop panel and status line (piece D, a Claude Code mod) | `harness-view/README.md` |
 | Store pages on CurseForge, Wago and GitHub | `README.md` "The store page"; `store.ts`, `store-ui.ts` |
 | Game names for translations (glossary, building areas) | `glossary.py`, `subzones.py` (their docstrings) |
@@ -32,8 +32,8 @@ From `~/code/wow-addons`: `bun addon-kit/status.ts`, `bun addon-kit/each.ts
 [--kit|--all|--only a,b] -- <command>`, `bun addon-kit/hooks.ts
 status|install <repo>`, `bun addon-kit/packet.ts <repo> [range]`, `bun
 addon-kit/review.ts <repo> "<verdict>"`, `bun addon-kit/board.ts
-add|set|list`, `bun addon-kit/store.ts --all|--ui`. Usage of each in
-`README.md`.
+add|set|list`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
+--all|--ui`. Usage of each in `README.md`.
 
 ## Hard rules
 
