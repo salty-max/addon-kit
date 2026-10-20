@@ -1,6 +1,6 @@
 // status.ts's, each.ts's and secret.ts's pure parts, and sync.ts's copies (bun test).
-import { describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse, pick } from "./each";
@@ -101,11 +101,22 @@ describe("secret", () => {
 });
 
 describe("sync", () => {
-  const sync = (cwd: string, ...args: string[]) => Bun.spawnSync(["bun", join(import.meta.dir, "sync.ts"), ...args], { cwd, stdout: "pipe", stderr: "pipe" });
-  const repo = (python: boolean) => {
+  const made: string[] = [];
+  afterAll(() => {
+    for (const dir of made) rmSync(dir, { recursive: true, force: true });
+  });
+  const temp = () => {
     const dir = mkdtempSync(join(tmpdir(), "kit-sync-"));
+    made.push(dir);
+    return dir;
+  };
+  const env = { ...process.env, WOW_ADDONS_ROOT: "" };
+  delete env.WOW_ADDONS_ROOT;
+  const run = (cwd: string, cmd: string[]) => Bun.spawnSync(cmd, { cwd, env, stdout: "pipe", stderr: "pipe" });
+  const sync = (cwd: string, ...args: string[]) => run(cwd, ["bun", join(import.meta.dir, "sync.ts"), ...args]);
+  const repo = (python: boolean, dir = temp()) => {
     mkdirSync(join(dir, "addon", "X"), { recursive: true });
-    mkdirSync(join(dir, "scripts"));
+    mkdirSync(join(dir, "scripts"), { recursive: true });
     writeFileSync(join(dir, "scripts", "build.ts"), "");
     if (python) writeFileSync(join(dir, "scripts", "zones.py"), "");
     return dir;
@@ -125,16 +136,39 @@ describe("sync", () => {
     expect(r.stderr.toString()).toContain("scripts/root.ts: not the kit's");
   });
 
-  test("root.py only where a Python script is", () => {
+  test("root.py only where a Python script is, a stale one refused", () => {
     const dir = repo(false);
     expect(sync(dir, "addon/X").exitCode).toBe(0);
     expect(existsSync(join(dir, "scripts", "root.ts"))).toBe(true);
     expect(existsSync(join(dir, "scripts", "root.py"))).toBe(false);
     expect(sync(dir, "--check", "addon/X").exitCode).toBe(0);
+    writeFileSync(join(dir, "scripts", "root.py"), "");
+    const r = sync(dir, "--check", "addon/X");
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr.toString()).toContain("no Python script beside it");
   });
 
-  test("the copy finds the family folder from the copy's repository", () => {
-    const out = Bun.spawnSync(["bun", "-e", `import { familyRoot } from "${join(import.meta.dir, "root.ts")}"; console.log(familyRoot())`], { cwd: tmpdir(), stdout: "pipe" });
-    expect(out.stdout.toString().trim()).toBe(join(import.meta.dir, ".."));
+  test("a copy in a worktree outside the family folder finds it through git's common dir, and --run keeps exit codes", () => {
+    // a family folder of its own: addon-kit/ and wow-data/ beside an addon,
+    // the addon's worktree somewhere else
+    const family = temp();
+    mkdirSync(join(family, "addon-kit"));
+    mkdirSync(join(family, "wow-data"));
+    writeFileSync(join(family, "addon-kit", "exit3.ts"), "process.exit(3);\n");
+    const addon = repo(true, join(family, "addon"));
+    expect(sync(addon, "addon/X").exitCode).toBe(0);
+    for (const cmd of [["git", "init", "-q"], ["git", "add", "-A"], ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "t"]])
+      expect(run(addon, cmd).exitCode).toBe(0);
+    const tree = join(temp(), "wt");
+    expect(run(addon, ["git", "worktree", "add", "-q", "--detach", tree]).exitCode).toBe(0);
+    const found = run(tree, ["bun", "scripts/root.ts"]);
+    expect(found.stdout.toString().trim()).toBe(realpathSync(family));
+    expect(run(tree, ["bun", "scripts/root.ts", "--run", "addon-kit/exit3.ts"]).exitCode).toBe(3);
+    // no family folder at all: an error, never a silent success
+    const lost = repo(false);
+    expect(sync(lost, "addon/X").exitCode).toBe(0);
+    const none = run(lost, ["bun", "scripts/root.ts", "--run", "addon-kit/sync.ts", "--check", "addon/X"]);
+    expect(none.exitCode).toBe(1);
+    expect(none.stderr.toString()).toContain("no family folder");
   });
 });

@@ -16,8 +16,9 @@
  * The family folder's finders go into the repository's scripts/ the same
  * way: root.ts as scripts/root.ts, and root.py as scripts/root.py when a
  * Python script is there. The scripts reach addon-kit and wow-data through
- * them (`familyPath("wow-data", "src", "db.ts")`, `$(bun scripts/root.ts
- * addon-kit/sync.ts)`), so a worktree outside ~/code/wow-addons finds them.
+ * them (`familyPath("wow-data", "src", "db.ts")`, `bun scripts/root.ts --run
+ * addon-kit/sync.ts`), so a worktree outside ~/code/wow-addons finds them. A
+ * root.py left behind once the last Python script went fails the check.
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -74,6 +75,10 @@ for (const name of existsSync(media) ? readdirSync(media).filter((f) => !f.start
 const scripts = "scripts";
 const finders: [string, string][] = [["root.ts", "//"]];
 if (existsSync(scripts) && readdirSync(scripts).some((f) => f.endsWith(".py") && f !== "root.py")) finders.push(["root.py", "#"]);
+if (check && existsSync(join(scripts, "root.py")) && !finders.some(([n]) => n === "root.py")) {
+  console.error(`${join(scripts, "root.py")}: no Python script beside it any more (remove the copy)`);
+  process.exit(1);
+}
 for (const [name, mark] of existsSync(scripts) ? finders : []) {
   const from = readFileSync(join(KIT, name), "utf8");
   const to = join(scripts, name);

@@ -134,7 +134,9 @@ bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the
   `scripts/` (kit:sync): a TS script imports wow-data as `await
   import(familyPath("wow-data", "src", "db.ts"))` (its types from an `import
   type`), a Python one puts `family_path("wow-data", "py")` on `sys.path`, a
-  package.json script runs `bun "$(bun scripts/root.ts addon-kit/sync.ts)"`.
+  package.json script or a shell one runs `bun scripts/root.ts --run
+  addon-kit/sync.ts …` (an error and a failing exit when there's no family
+  folder: never `bun "$(…)"`, whose empty path bun runs as its usage, exit 0).
 - **harness-view/**: piece D, the desktop app's live pane and status line (a
   Claude Code mod; `harness-view/README.md`), loaded through the link
   `~/.claude/skills/harness-view`. Its tests run in `bun run check`.

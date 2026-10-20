@@ -10,6 +10,10 @@
  *
  *   bun addon-kit/root.ts            the family folder
  *   bun addon-kit/root.ts wow-data   a folder in it
+ *   bun scripts/root.ts --run addon-kit/sync.ts --check addon/X
+ *                                    a script of the family run with bun, its
+ *                                    exit code kept (an error, never a silent
+ *                                    `bun ""`, when there is no family folder)
  *
  *   import { familyPath } from "./root";   (an addon's scripts/root.ts, the kit's copy)
  *   familyPath("wow-data", "src")
@@ -58,8 +62,16 @@ export function familyRoot(from: string = process.cwd()): string {
 export const familyPath = (...parts: string[]) => join(familyRoot(), ...parts);
 
 if (import.meta.main) {
+  const args = process.argv.slice(2);
   try {
-    console.log(familyPath(...process.argv.slice(2)));
+    if (args[0] === "--run") {
+      const [script, ...rest] = args.slice(1);
+      if (!script) throw new Error("usage: root.ts --run <a script in the family folder> [args...]");
+      const path = familyPath(script);
+      if (!existsSync(path)) throw new Error(`${path}: no such script`);
+      process.exit(Bun.spawnSync([process.execPath, path, ...rest], { stdio: ["inherit", "inherit", "inherit"] }).exitCode ?? 1);
+    }
+    console.log(familyPath(...args));
   } catch (e) {
     console.error((e as Error).message);
     process.exit(1);
