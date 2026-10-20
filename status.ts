@@ -86,6 +86,15 @@ export function attention(r: Repo): string[] {
   return out;
 }
 
+// What ships, as git pathspecs: the addon's folders (not its store page or
+// its tests), Ravenpost's app (not its inbox, a site of its own, nor its
+// tests and docs). A test build is behind only where these changed.
+export function ships(name: string): string[] {
+  return name === "ravenpost"
+    ? [".", ":(exclude)inbox", ":(exclude)testdata", ":(exclude)*_test.go", ":(exclude)*.md"]
+    : ["addon", ":(exclude)addon/CURSEFORGE.md", ":(exclude)addon/test"];
+}
+
 // ── reading the repositories ────────────────────────────────────────────────
 async function run(cmd: string[], cwd: string): Promise<{ ok: boolean; out: string }> {
   const p = Bun.spawn(cmd, { cwd, stdout: "pipe", stderr: "pipe" });
@@ -128,14 +137,7 @@ async function build(dir: string, name: string): Promise<Build | undefined> {
     const toc = tocVersion(dir, pkg);
     return { file, version, state: toc && version.replace(/^v/, "") === toc ? "current" : "unknown" };
   }
-  // Behind only where what ships changed: the addon's folders (not its store
-  // page or its tests), Ravenpost's app (not its inbox, a site of its own,
-  // nor its tests and docs).
-  const ships =
-    name === "ravenpost"
-      ? [".", ":(exclude)inbox", ":(exclude)testdata", ":(exclude)*_test.go", ":(exclude)*.md"]
-      : ["addon", ":(exclude)addon/CURSEFORGE.md", ":(exclude)addon/test"];
-  const count = await git(dir, "rev-list", "--count", `${sha.out}..HEAD`, "--", ...ships);
+  const count = await git(dir, "rev-list", "--count", `${sha.out}..HEAD`, "--", ...ships(name));
   const behind = Number(count.out) || 0;
   return { file, version, state: behind ? "behind" : "current", behind };
 }
@@ -167,7 +169,7 @@ async function github(r: Repo) {
   if (prs.ok) r.prs = JSON.parse(prs.out || "[]");
 }
 
-async function read(name: string, fetch: boolean): Promise<Repo> {
+export async function read(name: string, fetch: boolean): Promise<Repo> {
   const dir = join(ROOT, name);
   if (fetch) await git(dir, "fetch", "-q", "origin");
   const [branch, upstream, dirty, head, remote] = await Promise.all([

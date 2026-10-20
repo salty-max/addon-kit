@@ -214,6 +214,40 @@ session opened at `~/code/wow-addons`; the same list in
 worktree's). What holds and what doesn't is in `docs/harness.md`. Tests:
 `harness.test.ts`.
 
+## Before a release
+
+`preflight.ts` says, before a release, everything a script can tell about
+an addon, and changes nothing:
+
+```bash
+bun addon-kit/preflight.ts                    # every addon with a store page
+bun addon-kit/preflight.ts yonder hearthtale  # those
+bun addon-kit/preflight.ts yonder --offline   # the live store pages left unread
+bun addon-kit/preflight.ts --no-fetch --json  # as the checkouts know it, as JSON
+```
+
+For each addon: git as `release.sh` wants it (main, clean, in sync); what
+ships since the last tag, grouped (feat, fix, data, kit, other: the release
+notes' material) with a version suggested (a feature a minor step, else a
+patch; a first release keeps the TOCs' with `--version`); the TOCs (one
+version, each game's interface against wow-data's pinned build, TBC by
+hand, the store ids, Notes in every translated language, esMX beside esES);
+the store page (Support with Ko-fi before Source, its summary the TOCs'
+Notes, no semicolon, Other addons naming tagged siblings by their Wago ids);
+the live pages through `store.ts`'s dry run (whether `--apply` is due);
+each language's coverage (locales.ts's own line, else the words counted;
+esMX borrowing esES's) and the languages whose authored text (words, pages,
+riddles, the files by hand, not the game's names) changed since the tag,
+each for a cold read by the prose-reader; CI on HEAD, the daily game data,
+open pull requests; the check stamp, the review on HEAD, the iCloud test
+build; the kit copy's commit on addon-kit's origin; the release workflow's
+secrets and HOLD_STORES.
+
+✗ is in the way (exit 1 while one stands), ! is to look at first, · is for
+the record. A script can't say whether the store page still says what
+ships, nor write the notes or read a translation cold: those stay a read.
+Its pure parts are tested in `preflight.test.ts`.
+
 ## The store page
 
 `store.ts` puts an addon's `addon/CURSEFORGE.md` on its CurseForge page, as

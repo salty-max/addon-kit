@@ -1,6 +1,6 @@
 ---
 name: wow-releasing
-description: Release an addon (or Ravenpost, or WoWLocker) or push its main: the reviewer first, the user's go, scripts/release.sh with or without --hold, the stores later by workflow_dispatch, watching the runs, the test zip in iCloud, batching several addons' hand steps. Use whenever a push of code, a tag, a release or a store upload is on the table.
+description: Release an addon (or Ravenpost, or WoWLocker) or push its main: preflight.ts and the reviewer first, the user's go, scripts/release.sh with or without --hold, the stores later by workflow_dispatch, watching the runs, the test zip in iCloud, batching several addons' hand steps. Use whenever a push of code, a tag, a release or a store upload is on the table.
 ---
 
 # Releasing and pushing
@@ -30,6 +30,22 @@ hook checks the stamp, not the user's go.
    `set <card id> …` for the task's card.
 
 ## The release
+
+First the preflight, from `~/code/wow-addons`: `bun addon-kit/preflight.ts
+<repo…>` (every addon without one), one table, nothing changed. Settle
+every ✗ (it exits 1 while one stands) and look at every !:
+
+- `live`: `store.ts --apply` due. The dry run (`bun addon-kit/store.ts
+  <repo>`), then `--apply` on the user's go, or `--ui`. Read the page against
+  what ships first: a count or a feature it names may have moved.
+- `cold read`: each language whose authored text changed since the tag
+  (French, German, Spanish: whichever it lists), read by the `prose-reader`
+  helper before the release.
+- `version`: a first release keeps the TOCs' with `--version X.Y.Z`
+  (release.sh's default is the patch after). The suggested version: a
+  feature a minor step, else a patch.
+- `what ships`: the release notes' material. Write them from it, what a
+  player notices.
 
 From the repository, main in sync with origin and clean:
 

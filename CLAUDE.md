@@ -16,6 +16,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | The harness: q, hooks, packet, review, board, root finders, ask rules, the event log | `README.md` "The harness"; the plan and what was built: `docs/harness.md`; `events.ts` |
 | The desktop panel and status line (piece D, a Claude Code mod) | `harness-view/README.md` |
 | The family's procedures as skills (riddles, translating, releasing, store pages, data audits) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
+| Before a release: everything a script can tell, nothing changed | `README.md` "Before a release"; `preflight.ts` |
 | Store pages on CurseForge, Wago and GitHub | `README.md` "The store page"; `store.ts`, `store-ui.ts` |
 | Game names for translations (glossary, building areas) | `glossary.py`, `subzones.py` (their docstrings) |
 | Saved ids never dropped by a regeneration (each addon's `saved-ids.json`) | `README.md` "Saved ids"; `ids.ts` |
@@ -35,7 +36,8 @@ From `~/code/wow-addons`: `bun addon-kit/status.ts`, `bun addon-kit/each.ts
 status|install <repo>`, `bun addon-kit/packet.ts <repo> [range]`, `bun
 addon-kit/review.ts <repo> "<verdict>"`, `bun addon-kit/board.ts
 add|set|list`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
---all|--ui`. Usage of each in `README.md`.
+--all|--ui`, `bun addon-kit/preflight.ts [repo…]`. Usage of each in
+`README.md`.
 
 ## Hard rules
 
