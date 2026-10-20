@@ -13,11 +13,13 @@
  *   bun addon-kit/events.ts [n]     the last n events (10), newest last
  *
  * The file: ~/code/wow-addons/.cache/harness/events.log (HARNESS_EVENTS:
- * another file, "off": none), trimmed to its last 500 lines past 256 KB.
- * Writing it never fails the tool that writes.
+ * another file, "off": none), trimmed to its last 500 lines past 256 KB
+ * (a line another tool appends while the trim rewrites the file is lost:
+ * rare, and only a line of the log). Writing it never fails the tool that
+ * writes.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname } from "node:path";
 import { familyPath } from "./root";
 
 export type Tone = "ok" | "wait" | "fail" | "info" | "";
