@@ -1,0 +1,18 @@
+#!/bin/sh
+# The family's rule, kept by git: no AI co-author and no "generated with"
+# line in a commit message. Then the repository's own commit-msg, if any
+# (HARNESS_NO_CHAIN=1: this check alone, as packet.ts runs it on commits).
+here=$(cd "$(dirname "$0")" && pwd)
+ai='(claude[[:space:]]*(<|opus|sonnet|haiku|fable|code|[0-9])|anthropic|openai|chatgpt|gpt-?[0-9]|copilot|gemini|codex|cursor|aider|codeium|windsurf|devin ai)'
+bad=$(grep -v '^#' "$1" | grep -iE \
+  -e "^[[:space:]]*co-authored-by:.*$ai" \
+  -e "^[^[:alnum:]]*generated (with|by)[^[:alnum:]].*($ai|[]][(]https?://)" \
+  -e '🤖')
+if [ -n "$bad" ]; then
+  echo "commit-msg: the family's rule, no AI co-author or \"generated with\" line:" >&2
+  printf '%s\n' "$bad" | sed 's/^/  /' >&2
+  echo "Take it out and commit again (the message is kept in .git/COMMIT_EDITMSG)." >&2
+  exit 1
+fi
+[ -n "$HARNESS_NO_CHAIN" ] && exit 0
+exec "$here/_chain" commit-msg "$@"

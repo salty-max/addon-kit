@@ -1,0 +1,7 @@
+{
+  "name": "addon-kit",
+  "private": true,
+  "scripts": {
+    "check": "stylua --check Kit.lua && luajit test.lua && bun test"
+  }
+}

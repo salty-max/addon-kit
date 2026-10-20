@@ -2,8 +2,9 @@
  * Every repository beside the kit (~/code/wow-addons) at a glance: where it
  * stands against GitHub, what's left uncommitted, each workflow's last run on
  * its branch, the pull requests open, and whether its test build in iCloud
- * (the addon's zip, Ravenpost's Windows exe) is its HEAD. What wants a hand
- * is listed last. A script, not a model: every answer here is mechanical.
+ * (the addon's zip, Ravenpost's Windows exe) is its HEAD, whether a check
+ * passed on HEAD's tree (q.ts's stamp), and the task board's open cards.
+ * What wants a hand is listed last. A script, not a model: every answer here is mechanical.
  *
  *   bun addon-kit/status.ts             fetch first, then the table
  *   bun addon-kit/status.ts --no-fetch  as the checkouts know it
@@ -15,6 +16,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { cards, lines } from "./board";
+import { headTree, stampOf } from "./q";
 
 const ROOT = join(import.meta.dir, "..");
 const ICLOUD = join(homedir(), "Library", "Mobile Documents", "com~apple~CloudDocs", "Hearthtale test");
@@ -33,6 +36,7 @@ export type Repo = {
   runs?: Run[];
   prs?: { number: number; title: string }[];
   build?: Build;
+  checked?: boolean;
   ghFailed?: boolean;
 };
 
@@ -70,6 +74,7 @@ export function attention(r: Repo): string[] {
   if (!r.upstream) out.push("no upstream (local only)");
   if (r.ahead) out.push(`${r.ahead} commit${r.ahead > 1 ? "s" : ""} to push`);
   if (r.behind) out.push(`${r.behind} commit${r.behind > 1 ? "s" : ""} to pull`);
+  if (r.ahead && r.checked === false) out.push("no passing check on HEAD's tree (bun ../addon-kit/q.ts check -- bun run check)");
   for (const run of r.runs ?? []) {
     if (run.status === "completed" && !["success", "skipped", "cancelled"].includes(run.conclusion))
       out.push(`${run.workflow}: ${run.conclusion} (${run.sha.slice(0, 7)})`);
@@ -189,6 +194,8 @@ async function read(name: string, fetch: boolean): Promise<Repo> {
   }
   await github(r);
   r.build = await build(dir, name);
+  const tree = headTree(dir);
+  if (tree) r.checked = !!stampOf(dir, tree);
   return r;
 }
 
@@ -197,13 +204,16 @@ function table(repos: Repo[]) {
   for (const r of repos) {
     const sync = !r.upstream ? "local" : r.ahead || r.behind ? `↑${r.ahead} ↓${r.behind}` : "=";
     const runs = (r.runs ?? []).map((x) => `${x.workflow} ${mark(x)}`).join("  ");
+    const check = r.checked === undefined ? "" : r.checked ? "check ✓" : "check –";
     const zip = r.build ? (r.build.state === "current" ? "zip ✓" : r.build.state === "behind" ? `zip −${r.build.behind}` : "zip ?") : "";
     console.log(
-      `${r.name.padEnd(w)}  ${sync.padEnd(7)} ${r.dirty ? `±${r.dirty}`.padEnd(4) : "    "} ${zip.padEnd(7)} ${runs}`,
+      `${r.name.padEnd(w)}  ${sync.padEnd(7)} ${r.dirty ? `±${r.dirty}`.padEnd(4) : "    "} ${check.padEnd(7)} ${zip.padEnd(7)} ${runs}`,
     );
   }
   const todo = repos.flatMap((r) => attention(r).map((a) => `${r.name}: ${a}`));
   console.log(todo.length ? `\nWants a hand:\n${todo.map((t) => `  - ${t}`).join("\n")}` : "\nNothing wants a hand.");
+  const board = cards();
+  console.log(board.length ? `\nBoard:\n${lines(board).map((l) => `  ${l}`).join("\n")}` : "\nThe board is empty.");
   const silent = repos.filter((r) => r.ghFailed).map((r) => r.name);
   if (silent.length) console.log(`\n(gh gave nothing for ${silent.join(", ")}: workflows and pull requests left out there. \`gh auth status\`)`);
 }
