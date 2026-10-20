@@ -27,10 +27,14 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
   (`luajit test.lua`: the select, the banners, the board and its rings, the
   slot, a page's list of cards, the figures; the rest is tested by each
   addon's simulation), commit.
-- `bun run check` runs the three (stylua's check, `luajit test.lua`, `bun
-  test`); through q.ts it stamps the tree, which a push asks for.
+- `bun run check` runs them all (stylua's check, `luajit test.lua`, `bun
+  test`, the panel's tests and manifest); through q.ts it stamps the tree,
+  which a push asks for.
 - In each addon: `bun run kit:sync`, then its own checks. `bun run kit:check`
-  fails when the copy isn't the kit's (a copy edited by hand).
+  fails when the copy isn't the kit's (a copy edited by hand). The sync also
+  copies `root.ts` (and `root.py`, beside Python scripts) into the addon's
+  `scripts/`, stamped the same way: its scripts find the kit and wow-data
+  through them, from a worktree too.
 - A visual change is checked first against the game's own textures and code
   (Gethe/wow-ui-textures and wow-ui-source), rendered at the sizes it's drawn.
 
@@ -126,7 +130,14 @@ bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the
   cards and each repository's check.
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
   directory, else up from the repository's main checkout (so a worktree
-  anywhere finds `addon-kit/` and `wow-data/`).
+  anywhere finds `addon-kit/` and `wow-data/`). Each addon carries a copy in
+  `scripts/` (kit:sync): a TS script imports wow-data as `await
+  import(familyPath("wow-data", "src", "db.ts"))` (its types from an `import
+  type`), a Python one puts `family_path("wow-data", "py")` on `sys.path`, a
+  package.json script runs `bun "$(bun scripts/root.ts addon-kit/sync.ts)"`.
+- **harness-view/**: piece D, the desktop app's live pane and status line (a
+  Claude Code mod; `harness-view/README.md`), loaded through the link
+  `~/.claude/skills/harness-view`. Its tests run in `bun run check`.
 
 The root `.claude/settings.json` asks before a push, a release
 (`scripts/release.sh`, `gh release`), `gh workflow run`, a Vercel deploy and
