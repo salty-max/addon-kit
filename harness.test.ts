@@ -9,7 +9,8 @@ import { join } from "node:path";
 import { add, cards, format, lines, options, parseCard, set, setSection, slug } from "./board";
 import { HOOKS } from "./hooks";
 import { changedLines, packet, riddles, subjectProblem, touched, trailerProblem } from "./packet";
-import { clean, headTree, matters, parse, stampOf, verdict, workTree } from "./q";
+import { clean, headTree, matters, parse, stampDir, stampOf, verdict, workTree } from "./q";
+import { parseReview, record, reviewOf } from "./review";
 import { familyRoot } from "./root";
 
 const KIT = import.meta.dir;
@@ -334,6 +335,26 @@ describe("packet", () => {
     expect(text).toContain("### z-pool: npc 763 (forever)");
     expect(res.summary).toContain("4 cards");
     expect(git(repo, "status", "--porcelain").out).toBe("?? new.txt\n");
+  });
+});
+
+describe("review", () => {
+  test("a verdict recorded for HEAD, first line first", () => {
+    const { repo } = family();
+    const head = git(repo, "rev-parse", "HEAD").out.trim();
+    expect(reviewOf(repo)).toBeUndefined();
+    expect(packet(repo)).not.toBeString();
+    const r = record(repo, "2 findings,\n fixed");
+    if (typeof r === "string") throw new Error(r);
+    const text = readFileSync(join(stampDir(repo)!, `review-${head}`), "utf8");
+    expect(text.split("\n")[0]).toBe("verdict: 2 findings, fixed");
+    expect(text).toContain(`packet: ${join(repo, ".cache", "review", `${head.slice(0, 12)}.md`)}`);
+    expect(reviewOf(repo)).toMatchObject({ verdict: "2 findings, fixed", head });
+    expect(run(repo, ["bun", join(KIT, "review.ts"), repo]).out).toStartWith("2 findings, fixed (");
+    expect(record(repo, "  ")).toBe("the verdict is empty");
+    expect(parseReview("verdict: clean\nhead: abc\n")).toEqual({ verdict: "clean", head: "abc", tree: undefined, at: undefined, packet: undefined });
+    git(repo, "commit", "-q", "--allow-empty", "-m", "chore: later");
+    expect(reviewOf(repo)).toBeUndefined();
   });
 });
 

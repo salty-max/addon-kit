@@ -97,6 +97,7 @@ From `~/code/wow-addons`:
 bun addon-kit/hooks.ts status                  # each repository's hooks and HEAD's check stamp
 bun addon-kit/hooks.ts install yonder          # (or --all); uninstall puts its own hooks back
 bun addon-kit/packet.ts yonder [a..b]          # the reviewer's packet: .cache/review/<sha>.md
+bun addon-kit/review.ts yonder "2 findings"    # the reviewer's verdict, recorded for HEAD
 bun addon-kit/board.ts add yonder "Eight riddles" --status waiting-test --try "…"
 bun addon-kit/board.ts set yonder-eight-riddles --status ready-to-push --committed "f4ab31a"
 bun addon-kit/board.ts list [--all]            # what waits on the user first
@@ -116,7 +117,9 @@ bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the
 - **packet.ts**: the commits, diff stat, files, uncommitted state, what
   scripts already checked (the stamp, subjects, trailers) and, for Yonder's
   riddle files, wow-data's cards of the subjects the change touches. The
-  reviewer helper reads it first.
+  reviewer helper reads it first, and ends with a verdict line the session
+  records with **review.ts** (`.git/harness/review-<HEAD sha>`, its first
+  line `verdict: …`), which the desktop panel shows.
 - **board.ts**: one card a task in `~/code/wow-addons/board/`, its
   front matter written only here. Its body is `## Try`, `## Committed`,
   `## Left` (`--try`, `--committed`, `--left`). `status.ts` shows the open

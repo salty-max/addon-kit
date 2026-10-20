@@ -116,7 +116,10 @@ landed, and draw each subject for each game its file is for (`client:
 both`: Classic and Forever). Only the repository's own check stamps:
 `harness.check` (git config) when set, else `bun run check` where
 package.json has one, else any command named check. addon-kit gained a
-`package.json` for its `check`. Installed in addon-kit only.
+`package.json` for its `check`. Installed in addon-kit only. Then, for D's
+panel (the user's choice): `review.ts <repo> "<verdict>"`, run by the
+session once the reviewer has reported, writes
+`<git common dir>/harness/review-<HEAD sha>`, its first line `verdict: …`.
 
 **What the "ask" rules hold** (Claude Code's permission docs, 20 October
 2026; the root `.claude/settings.json`):
