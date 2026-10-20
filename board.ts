@@ -31,9 +31,23 @@ const SECTIONS = { try: "Try", committed: "Committed", left: "Left" } as const;
 export const boardDir = () => familyPath("board");
 
 // ── the card's text, pure (harness.test.ts) ─────────────────────────────────
-// (bare where YAML reads it back as the same string, quoted elsewhere)
+// (bare where any YAML reads it back as the same string, quoted elsewhere:
+// a date or a number too, which YAML 1.1 would turn into one)
 const quote = (v: string) =>
-  /^[\w./][\w ./@+(),':-]*$/.test(v) && !/(: |:$| $)/.test(v) && !/^(true|false|null|yes|no|on|off|[\d.+-]+)$/i.test(v) ? v : JSON.stringify(v);
+  /^[\w./][\w ./@+(),':-]*$/.test(v) && !/(: |:$| $)/.test(v) && !/^(true|false|null|yes|no|on|off|[\d.+-]+)$/i.test(v) && !/^\d{4}-\d\d-\d\d/.test(v)
+    ? v
+    : JSON.stringify(v);
+
+// A value as written, quoted or not, a comment after a quoted one left out.
+function unquote(v: string): string {
+  if (!v.startsWith('"')) return v.replace(/^'(.*)'$/, "$1");
+  try {
+    return JSON.parse(v);
+  } catch {
+    const m = v.match(/^"((?:[^"\\]|\\.)*)"/);
+    return m ? JSON.parse(`"${m[1]}"`) : v;
+  }
+}
 
 export function format(c: Card): string {
   return `---\n${KEYS.map((k) => `${k}: ${quote(c[k])}`).join("\n")}\n---\n${c.body.replace(/^\n+/, "").trimEnd()}\n`;
@@ -46,7 +60,7 @@ export function parseCard(id: string, text: string): Card {
     const kv = line.match(/^(\w+):\s*(.*)$/);
     if (!kv) continue;
     const v = kv[2].trim();
-    fields[kv[1]] = v.startsWith('"') ? JSON.parse(v) : v.replace(/^'(.*)'$/, "$1");
+    fields[kv[1]] = unquote(v);
   }
   return {
     id,

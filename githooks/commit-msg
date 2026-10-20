@@ -3,10 +3,12 @@
 # line in a commit message. Then the repository's own commit-msg, if any
 # (HARNESS_NO_CHAIN=1: this check alone, as packet.ts runs it on commits).
 here=$(cd "$(dirname "$0")" && pwd)
-ai='(claude[[:space:]]*(<|opus|sonnet|haiku|fable|code|[0-9])|anthropic|openai|chatgpt|gpt-?[0-9]|copilot|gemini|codex|cursor|aider|codeium|windsurf|devin ai)'
+# (an AI's name as a word: a co-author called Claude is refused too, the
+# family has none; Cursor only as a co-author, the Codex is one of ours)
+ai='(^|[^[:alnum:]_])(claude|anthropic|openai|chatgpt|gpt-?[0-9][[:alnum:].]*|copilot|gemini|aider|codeium|windsurf|devin ai|openai codex|codex cli)([^[:alnum:]_]|$)'
 bad=$(grep -v '^#' "$1" | grep -iE \
-  -e "^[[:space:]]*co-authored-by:.*$ai" \
-  -e "^[^[:alnum:]]*generated (with|by)[^[:alnum:]].*($ai|[]][(]https?://)" \
+  -e "^[[:space:]]*(co-authored-by|assisted-by|generated-by|generated-with|made-with):.*($ai|cursor)" \
+  -e "^[^[:alnum:]]*generated[- ](with|by).*($ai|[]][(]https?://)" \
   -e '🤖')
 if [ -n "$bad" ]; then
   echo "commit-msg: the family's rule, no AI co-author or \"generated with\" line:" >&2

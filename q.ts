@@ -16,8 +16,9 @@
  * .gitignore of its own). The stamp: <git common dir>/harness/check-<tree>,
  * the tree of the working directory as the check found it (tracked and
  * untracked files, the ignored left out), shared by the repository's
- * worktrees: a commit of exactly that state pushes. A failing check on a
- * stamped tree takes the stamp back.
+ * worktrees: a commit of exactly that state pushes. Only the repository's
+ * own check stamps (harness.check, else `bun run check` where package.json
+ * has one), and a failing check on a stamped tree takes the stamp back.
  */
 import { closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
@@ -49,6 +50,18 @@ export function workTree(cwd: string): string | undefined {
     return git(top, ["write-tree"], env);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+// The repository's check: harness.check, else `bun run check` where
+// package.json has one (undefined: none known, any check stamps).
+export function checkCommand(top: string): string | undefined {
+  const set = git(top, ["config", "--get", "harness.check"]);
+  if (set) return set;
+  try {
+    return JSON.parse(readFileSync(join(top, "package.json"), "utf8")).scripts?.check ? "bun run check" : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -144,8 +157,9 @@ export function parse(argv: string[]): { name: string; command: string[] } | str
 }
 
 export async function run(name: string, command: string[], cwd = process.cwd()): Promise<number> {
-  const log = join(cacheDir(topLevel(cwd) ?? cwd, "logs"), `${name}.log`);
-  const checking = name === "check" && topLevel(cwd) !== undefined;
+  const top = topLevel(cwd);
+  const log = join(cacheDir(top ?? cwd, "logs"), `${name}.log`);
+  const checking = name === "check" && top !== undefined;
   const before = checking ? workTree(cwd) : undefined;
 
   const fd = openSync(log, "w");
@@ -168,7 +182,9 @@ export async function run(name: string, command: string[], cwd = process.cwd()):
   let line = verdict(name, code, ms, shown);
   if (checking && before) {
     const after = workTree(cwd);
+    const expected = checkCommand(top!);
     if (code !== 0) unstamp(cwd, before);
+    else if (expected && command.join(" ") !== expected) line += ` · not stamped: this repository's check is \`${expected}\``;
     else if (after !== before) line += " · not stamped: the files changed while it ran, run it again";
     else {
       stamp(cwd, { tree: before, head: git(cwd, ["rev-parse", "--verify", "-q", "HEAD"]), at: new Date().toISOString(), command: command.join(" "), seconds: Math.round(ms / 1000) });

@@ -104,7 +104,8 @@ bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the
 ```
 
 - **q.ts** stamps the tree a passing `check` ran on (in
-  `.git/harness/`, shared by worktrees). Never pipe a check into `tail`:
+  `.git/harness/`, shared by worktrees), when the command is the
+  repository's check: `harness.check` (git config), else `bun run check`. Never pipe a check into `tail`:
   q prints the end that matters and keeps the exit code.
 - **githooks/** (`core.hooksPath`, set by `hooks.ts`): `commit-msg`
   refuses an AI co-author or a "generated with" line, `pre-push` refuses a
@@ -126,8 +127,9 @@ bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the
 
 The root `.claude/settings.json` asks before a push, a release
 (`scripts/release.sh`, `gh release`), `gh workflow run`, a Vercel deploy and
-`store.ts --apply`, in every permission mode; what holds and what doesn't is
-in `docs/harness.md`. Tests: `harness.test.ts`.
+`store.ts --apply` and a pull request's merge, in every permission mode, for a
+session opened at `~/code/wow-addons` (not one opened inside a repository);
+what holds and what doesn't is in `docs/harness.md`. Tests: `harness.test.ts`.
 
 ## The store page
 

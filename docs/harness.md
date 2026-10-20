@@ -112,8 +112,11 @@ own, and a check that changes the files while it runs isn't stamped.
 default; a hooks folder a repository had (husky's `.husky/_`) is kept in
 `harness.chain` and runs after ours, and `uninstall` puts it back. The
 packet's cards fall back to the `card.ts` commands to run while A hasn't
-landed. addon-kit gained a `package.json` for its `check`. Installed in
-addon-kit only.
+landed, and draw each subject for each game its file is for (`client:
+both`: Classic and Forever). Only the repository's own check stamps:
+`harness.check` (git config) when set, else `bun run check` where
+package.json has one, else any command named check. addon-kit gained a
+`package.json` for its `check`. Installed in addon-kit only.
 
 **What the "ask" rules hold** (Claude Code's permission docs, 20 October
 2026; the root `.claude/settings.json`):
@@ -135,6 +138,9 @@ addon-kit only.
   parent fallback. A session opened in a repository or a worktree doesn't.
   For every session, the same list goes in `~/.claude/settings.json` (wave
   2, the user's call). Settings reload mid-session.
+- Beyond the six asked for: a push through `each.ts`, a pull request's
+  merge (`gh pr merge`: main moves, Hearthtale's site deploys) and
+  `--no-verify`.
 - The patterns are wide on purpose: `git -C * push *` asks for a commit
   whose message holds " push ", `*scripts/release.sh*` for reading the
   script with cat. `gh release list` asks only in its `-R` form.
@@ -198,7 +204,15 @@ For each of hearthtale (addon and site), lorekeepers-codex, yonder,
 second-wind, keyring, palaver, mealbook, addon-kit, wow-data, ravenpost,
 wow-locker:
 
-- install the hooks (B) and adopt `root.ts` paths so worktrees work;
+- install the hooks (B) and adopt `root.ts` paths so worktrees work.
+  First, in each repository: `scripts/release.sh` runs its check through
+  `q.ts check -- bun run check` after the version bump and before `git add
+  -A` (the bumped tree is the one pushed: without a stamp the push is
+  refused, leaving a release commit, a tag and HOLD_STORES behind);
+  `git config harness.check` where the check isn't `bun run check`
+  (Ravenpost's Go, wow-locker); hearthtale and wow-locker's husky `prepare`
+  takes `core.hooksPath` back on `bun install`, so install after it or drop
+  the prepare;
 - **slim CLAUDE.md to a map** (about 700 words: what it is, the commands,
   the hard rules, where each doc lives). The file-by-file prose moves to
   `docs/` (architecture, data, writing) with nothing lost. Today they run

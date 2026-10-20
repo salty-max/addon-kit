@@ -4,7 +4,7 @@
  * stat, the files, what's uncommitted, what scripts already checked (the
  * check's stamp, the commit subjects, the trailers) and, for Yonder's
  * riddle files, the lookup cards of the subjects of the riddles the change
- * touches (wow-data's bin/card.ts).
+ * touches (wow-data's bin/card.ts), for each game the riddle's file is for.
  *
  *   bun addon-kit/packet.ts <repo> [range]
  *
@@ -19,11 +19,11 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
-import { cacheDir, stampOf, workTree, type Stamp } from "./q";
+import { cacheDir, checkCommand, stampOf, workTree, type Stamp } from "./q";
 import { familyRoot } from "./root";
 
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
-const MAX_CARDS = 16;
+const MAX_CARDS = 24;
 const MAX_COMMITS = 100;
 
 function git(cwd: string, ...args: string[]): string | undefined {
@@ -40,14 +40,15 @@ export function range(dir: string, arg?: string): Range | string {
     const [a, b] = arg.includes("...") ? arg.split("...") : arg.includes("..") ? arg.split("..") : [`${arg}^`, arg];
     const tip = rev(b || "HEAD");
     if (!tip) return `no commit ${b || "HEAD"}`;
-    const base = arg.includes("...") ? git(dir, "merge-base", a, tip) : rev(a) ?? (arg.includes("..") ? undefined : EMPTY_TREE);
-    if (!base) return `no commit ${a}`;
+    const base = arg.includes("...") ? git(dir, "merge-base", a || "HEAD", tip) : rev(a || "HEAD") ?? (arg.includes("..") ? undefined : EMPTY_TREE);
+    if (!base) return arg.includes("...") ? `no common ancestor of ${a || "HEAD"} and ${b || "HEAD"}` : `no commit ${a}`;
     return { base, tip, label: arg, working: false };
   }
   const tip = rev("HEAD");
   if (!tip) return "no commit yet";
   const up = git(dir, "rev-parse", "--abbrev-ref", "@{u}");
-  if (up) return { base: git(dir, "merge-base", up, tip)!, tip, label: `${up}..HEAD and the uncommitted files`, working: true };
+  const mb = up && git(dir, "merge-base", up, tip);
+  if (mb) return { base: mb, tip, label: `${up}..HEAD and the uncommitted files`, working: true };
   return { base: rev("HEAD^") ?? EMPTY_TREE, tip, label: "the last commit (no upstream) and the uncommitted files", working: true };
 }
 
@@ -79,16 +80,17 @@ export function trailerProblem(message: string): string | undefined {
 }
 
 // ── Yonder's riddles, pure (harness.test.ts) ────────────────────────────────
+export type Game = "classic" | "forever";
 export type Subject = { kind: "npc" | "object" | "place"; arg: string };
 export type Riddle = { id: string; spans: [number, number][]; subjects: Subject[]; landmark?: string };
 
 // A riddle file's riddles: each one's lines (its front matter entry and its
 // prose section, 1-based, inclusive) and the subjects the cards are for.
-export function riddles(text: string): { game: "classic" | "forever"; list: Riddle[] } {
+export function riddles(text: string): { games: Game[]; list: Riddle[] } {
   const lines = text.split("\n");
   const byId = new Map<string, Riddle>();
   const get = (id: string) => byId.get(id) ?? byId.set(id, { id, spans: [], subjects: [] }).get(id)!;
-  let game: "classic" | "forever" = "classic";
+  let games: Game[] = ["classic"];
   let cur: Riddle | undefined;
   let start = 0;
   const close = (end: number) => {
@@ -103,7 +105,8 @@ export function riddles(text: string): { game: "classic" | "forever"; list: Ridd
     const n = i + 1;
     const l = lines[i];
     if (i <= fmEnd) {
-      if (/^client:\s*forever\b/.test(l)) game = "forever";
+      const client = l.match(/^client:\s*(\w+)/)?.[1];
+      if (client) games = client === "both" ? ["classic", "forever"] : client === "forever" ? ["forever"] : ["classic"];
       const riddle = l.match(/^\s{2}- id:\s*([\w-]+)/);
       if (riddle || /^\S/.test(l)) close(n - 1);
       if (riddle) [cur, start] = [get(riddle[1]), n];
@@ -127,7 +130,7 @@ export function riddles(text: string): { game: "classic" | "forever"; list: Ridd
     }
   }
   close(lines.length);
-  return { game, list: [...byId.values()] };
+  return { games, list: [...byId.values()] };
 }
 
 // The new side's changed lines of a -U0 diff (a deletion marks the lines
@@ -146,14 +149,6 @@ export function changedLines(diff: string): number[] {
 export const touched = (list: Riddle[], lines: number[]) =>
   list.filter((r) => r.spans.some(([a, b]) => lines.some((n) => n >= a && n <= b)));
 
-// The repository's check, as the pre-push hook names it.
-export function checkCommand(top: string): string {
-  const set = git(top, "config", "--get", "harness.check");
-  if (set) return set;
-  const pkg = join(top, "package.json");
-  return existsSync(pkg) && JSON.parse(readFileSync(pkg, "utf8")).scripts?.check ? "bun run check" : "<the repository's check>";
-}
-
 // ── the packet ──────────────────────────────────────────────────────────────
 const when = (s: Stamp) => s.at.replace("T", " ").slice(0, 16);
 const stampLine = (what: string, s: Stamp | undefined) =>
@@ -164,17 +159,19 @@ function cards(dir: string, r: Range, files: string[], out: string[]): number {
   if (!riddleFiles.length) return 0;
   const root = familyRoot(dir);
   const card = join(root, "wow-data", "bin", "card.ts");
-  const wanted: { riddle: string; game: string; s: Subject }[] = [];
+  const wanted: { riddle: string; game: Game; s: Subject }[] = [];
   const landmarks: string[] = [];
   for (const f of riddleFiles) {
     const text = r.working ? (existsSync(join(dir, f)) ? readFileSync(join(dir, f), "utf8") : undefined) : git(dir, "show", `${r.tip}:${f}`);
     if (text === undefined) continue;
     const diff = r.working ? git(dir, "diff", "-U0", r.base, "--", f) : git(dir, "diff", "-U0", r.base, r.tip, "--", f);
     const isNew = git(dir, "cat-file", "-e", `${r.base}:${f}`) === undefined;
-    const { game, list } = riddles(text);
+    const { games, list } = riddles(text);
     for (const rd of isNew ? list : touched(list, changedLines(diff ?? ""))) {
       if (rd.landmark) landmarks.push(`${rd.id}: landmark ${rd.landmark} (wow-data's landmark table, no card)`);
-      for (const s of rd.subjects) if (!wanted.some((w) => w.s.kind === s.kind && w.s.arg === s.arg && w.game === game)) wanted.push({ riddle: rd.id, game, s });
+      for (const s of rd.subjects)
+        for (const game of games)
+          if (!wanted.some((w) => w.s.kind === s.kind && w.s.arg === s.arg && w.game === game)) wanted.push({ riddle: rd.id, game, s });
     }
   }
   if (!wanted.length && !landmarks.length) return 0;
@@ -228,7 +225,7 @@ export function packet(dir: string, arg?: string): { file: string; summary: stri
     stampLine(r.working ? "HEAD's tree" : "the range's tip", stampOf(top, tipTree)),
     now ? stampLine("the working files as they are now", stampOf(top, now)) : undefined,
   ].filter(Boolean) as string[];
-  out.push(...(checks.length ? checks : [`- check: no passing check on ${r.working ? "HEAD's tree" : "the range's tip"}: run the repository's check once (\`bun ${join(import.meta.dir, "q.ts")} check -- ${checkCommand(top)}\`) and say what it printed.`]));
+  out.push(...(checks.length ? checks : [`- check: no passing check on ${r.working ? "HEAD's tree" : "the range's tip"}: run the repository's check once (\`bun ${join(import.meta.dir, "q.ts")} check -- ${checkCommand(top) ?? "<the repository's check>"}\`) and say what it printed.`]));
   if (r.working && dirty && !(now && stampOf(top, now))) out.push("- the uncommitted files have no passing check of their own.");
 
   const subjects: string[] = [];
