@@ -18,8 +18,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { cards, lines } from "./board";
 import { headTree, stampOf } from "./q";
+import { familyRoot } from "./root";
 
-const ROOT = join(import.meta.dir, "..");
+const ROOT = familyRoot(); // the family folder, from a worktree too (root.ts)
 const ICLOUD = join(homedir(), "Library", "Mobile Documents", "com~apple~CloudDocs", "Hearthtale test");
 
 export type Run = { workflow: string; status: string; conclusion: string; sha: string; at: string };

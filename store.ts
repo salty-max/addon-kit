@@ -42,6 +42,7 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { familyRoot } from "./root";
 
 const API = "https://authors.curseforge.com/_api";
 const MARKDOWN = 5;
@@ -257,7 +258,7 @@ async function applyWago(w: WagoReport, page: Page, say: Say) {
 }
 
 // ── one addon, every addon ──────────────────────────────────────────────────
-const ROOT = join(new URL(".", import.meta.url).pathname, "..");
+const ROOT = familyRoot(); // the family folder, from a worktree too (root.ts)
 
 /** The addons beside the kit with a store page: their repositories. */
 export function addons(): string[] {

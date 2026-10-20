@@ -11,11 +11,12 @@
  *   bun addon-kit/root.ts            the family folder
  *   bun addon-kit/root.ts wow-data   a folder in it
  *
- *   import { familyPath } from "../../addon-kit/root";
+ *   import { familyPath } from "./root";   (an addon's scripts/root.ts, the kit's copy)
  *   familyPath("wow-data", "src")
  *
  * root.py is its twin for the Python scripts (the same order, the same
- * answers).
+ * answers). kit:sync copies both into an addon's scripts/ (sync.ts): a
+ * worktree can't reach the kit before it knows where the family folder is.
  */
 import { existsSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";

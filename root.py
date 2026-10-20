@@ -9,6 +9,9 @@ wow-data/), found from anywhere: root.ts's twin, the same order and answers.
 
   python3 addon-kit/root.py            the family folder
   python3 addon-kit/root.py wow-data   a folder in it
+
+  from root import family_path   (an addon's scripts/root.py, the kit's copy: kit:sync)
+  sys.path.insert(0, family_path("wow-data", "py"))
 """
 import os
 import subprocess

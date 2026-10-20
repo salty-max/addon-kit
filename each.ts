@@ -20,8 +20,9 @@
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { familyRoot } from "./root";
 
-const ROOT = join(import.meta.dir, "..");
+const ROOT = familyRoot(); // the family folder, from a worktree too (root.ts)
 const TAIL = 30;
 
 export type Options = { which: "addons" | "kit" | "all"; only?: string[]; skip?: string[]; verbose: boolean; parallel: boolean; command: string };

@@ -37,7 +37,10 @@ import glob, json, os, re, sys
 
 ROOT = os.getcwd()  # (the addon's folder)
 KIT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(KIT, "..", "wow-data", "py"))
+sys.path.insert(0, KIT)
+from root import family_path  # noqa: E402  (the family folder, from a worktree too)
+
+sys.path.insert(0, family_path("wow-data", "py"))
 from wowdata import db  # noqa: E402  (wow-data's databases, read only)
 GAMES = ("forever", "classic")
 # the glossary's headings and the kinds of names under each (wow-data's

@@ -24,8 +24,9 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { familyRoot } from "./root";
 
-const ROOT = join(import.meta.dir, "..");
+const ROOT = familyRoot(); // the family folder, from a worktree too (root.ts)
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── pure (tools.test.ts) ─────────────────────────────────────────────────────

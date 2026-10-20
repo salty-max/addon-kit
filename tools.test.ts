@@ -1,5 +1,8 @@
-// status.ts's, each.ts's and secret.ts's pure parts (bun test).
+// status.ts's, each.ts's and secret.ts's pure parts, and sync.ts's copies (bun test).
 import { describe, expect, test } from "bun:test";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { parse, pick } from "./each";
 import { unfit, users } from "./secret";
 import { attention, buildVersion, latestPerWorkflow, slugOf, type Repo, type Run } from "./status";
@@ -94,5 +97,44 @@ describe("secret", () => {
     // (wow-data's addon-data.yml, beside the kit, reads INBOX_EVENTS_TOKEN)
     expect(users("INBOX_EVENTS_TOKEN", workflows)).toEqual(["palaver"]);
     expect(users("NOTHING_READS_THIS", workflows)).toEqual([]);
+  });
+});
+
+describe("sync", () => {
+  const sync = (cwd: string, ...args: string[]) => Bun.spawnSync(["bun", join(import.meta.dir, "sync.ts"), ...args], { cwd, stdout: "pipe", stderr: "pipe" });
+  const repo = (python: boolean) => {
+    const dir = mkdtempSync(join(tmpdir(), "kit-sync-"));
+    mkdirSync(join(dir, "addon", "X"), { recursive: true });
+    mkdirSync(join(dir, "scripts"));
+    writeFileSync(join(dir, "scripts", "build.ts"), "");
+    if (python) writeFileSync(join(dir, "scripts", "zones.py"), "");
+    return dir;
+  };
+
+  test("the family's finders copied beside the scripts, stamped, and checked", () => {
+    const dir = repo(true);
+    expect(sync(dir, "addon/X").exitCode).toBe(0);
+    const ts = readFileSync(join(dir, "scripts", "root.ts"), "utf8");
+    expect(ts.split("\n")[0]).toMatch(/^\/\/ addon-kit \S+: a copy \(kit:sync\); edit the addon-kit repository's root\.ts instead$/);
+    expect(ts.slice(ts.indexOf("\n") + 1)).toBe(readFileSync(join(import.meta.dir, "root.ts"), "utf8"));
+    expect(readFileSync(join(dir, "scripts", "root.py"), "utf8").split("\n")[0]).toMatch(/^# addon-kit \S+: a copy/);
+    expect(sync(dir, "--check", "addon/X").exitCode).toBe(0);
+    writeFileSync(join(dir, "scripts", "root.ts"), `${ts}// edited\n`);
+    const r = sync(dir, "--check", "addon/X");
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr.toString()).toContain("scripts/root.ts: not the kit's");
+  });
+
+  test("root.py only where a Python script is", () => {
+    const dir = repo(false);
+    expect(sync(dir, "addon/X").exitCode).toBe(0);
+    expect(existsSync(join(dir, "scripts", "root.ts"))).toBe(true);
+    expect(existsSync(join(dir, "scripts", "root.py"))).toBe(false);
+    expect(sync(dir, "--check", "addon/X").exitCode).toBe(0);
+  });
+
+  test("the copy finds the family folder from the copy's repository", () => {
+    const out = Bun.spawnSync(["bun", "-e", `import { familyRoot } from "${join(import.meta.dir, "root.ts")}"; console.log(familyRoot())`], { cwd: tmpdir(), stdout: "pipe" });
+    expect(out.stdout.toString().trim()).toBe(join(import.meta.dir, ".."));
   });
 });
