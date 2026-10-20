@@ -248,6 +248,55 @@ Accept when: every repository's check passes, the hooks are installed
 everywhere, each CLAUDE.md is a map, and a fresh session in each repository
 finds its docs and the skills.
 
+**Built (20 October 2026).** As above, with:
+
+- **Worktrees.** kit:sync copies `root.ts` into an addon's `scripts/` (and
+  `root.py` beside Python scripts), stamped and checked like Kit.lua; a
+  stale `root.py` fails the check. TS scripts keep an `import type` for the
+  editor and load wow-data with `await import(familyPath("wow-data", "src",
+  "db.ts"))`; Python puts `family_path("wow-data", "py")` on `sys.path`
+  (tolerant of no family folder where CI's tests import the module).
+  package.json and shell scripts run `bun scripts/root.ts --run <script>`:
+  a missing family folder is an error, where `bun "$(…)"` ran bun's usage
+  and exited 0 (the reviewer's find). Keyring, Ravenpost and wow-locker,
+  with no kit copy, reach q.ts through git's common dir. The addons' daily
+  job checks out `addon-kit/` beside wow-data (all six callers set `kit:
+  true`), so the finder works in CI. Tried: Mealbook's whole check in a
+  worktree outside the family folder; Yonder's and the Codex's CI steps in
+  a plain copy with no family folder.
+- **The checks.** Every `release.sh` runs the whole check through q after
+  the version bump. Ravenpost's check is `scripts/check.sh` (CI's steps,
+  the inbox's too), set as `harness.check` (local git config, once per
+  clone); wow-locker gained a `check` script instead. Hearthtale's and
+  wow-locker's `prepare` run husky, then `hooks.ts install .` (quiet, and a
+  no-op in CI): `bun install` keeps our hooks, husky's chained after.
+- **The maps.** Every CLAUDE.md is 400 to 660 words; the prose moved
+  verbatim to `docs/` (architecture, data, writing, site, expeditions,
+  sources, releases), every old line checked to have landed. In Hearthtale,
+  Keyring, the Codex, Second Wind and Yonder `docs/` is in
+  `.git/info/exclude` (local review notes): the moved docs are
+  force-added, and the maps name tracked files only. addon-kit gained a
+  CLAUDE.md, a map onto its README.
+- **The skills** (root `.claude/skills/`): `wow-riddles`,
+  `wow-translating`, `wow-releasing`, `wow-store-pages`, `wow-data-audit`.
+  A session opened inside a repository doesn't load the root's skills (as
+  with the helpers): each is linked into `~/.claude/skills/`, hence the
+  `wow-` prefix, so it appears in every session, worktrees included, once
+  at the root. Tried: a fresh session in each of the eleven repositories
+  names its `docs/architecture.md` and `wow-releasing`.
+- **D's mod** moved from the root's `.claude/mods/` to
+  `addon-kit/harness-view`, the link repointed; its tests (`bin/`, `claude
+  plugin test` and `validate`) run in addon-kit's check, `hooks/` left out
+  of `bun test` (it needs Claude Code's runtime).
+- **MEMORY.md** lost 27 pointers whose rule the family CLAUDE.md, a map, a
+  doc or a skill now carries; the files moved to
+  `memory/pruned-2026-10-20/` for F to settle.
+- Season of Discovery's cut (wow-data 33bfb02, pushed at the start) was
+  carried through: Mealbook (seven Forever dishes kept their learning skill
+  from the client's recipe items), Palaver, Second Wind, Yonder, the Codex;
+  Hearthtale's, Yonder's and the Codex's daily jobs had merged the same
+  data first.
+
 ### F. Spring cleanup — wave 2, after E
 
 Every folder of the family and the root: stale build output, old logs and
