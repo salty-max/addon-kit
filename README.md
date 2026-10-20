@@ -106,8 +106,9 @@ old id). A removal on purpose takes the user's go first, then its ids under
 `removed` with `why` and `approved`. A table is read file by file (one
 language's or one game's loss isn't hidden by another's): a Lua file as the
 game loads it, in LuaJIT, its keys with those behind its `__index`; a JSON
-file at its key paths, together. The manifest's format is in `ids.ts`'s
-header, the tests in `ids.test.ts`.
+file at its key paths, together. The manifest stays out of the release
+(`.pkgmeta`'s `ignore`, which the check asks for). Its format is in
+`ids.ts`'s header, the tests in `ids.test.ts`.
 
 ## The harness
 

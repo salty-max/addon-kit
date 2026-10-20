@@ -3,7 +3,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { jsonIds, luaIds, missing, parseManifest, type Ids } from "./ids";
+import { jsonIds, luaIds, missing, parseManifest, shipped, type Ids } from "./ids";
 
 const made: string[] = [];
 afterAll(() => {
@@ -93,6 +93,20 @@ describe("ids, pure", () => {
     expect(missing(before, after, removed)).toEqual([{ table: "c", file: "a.json", ids: ["3"] }]);
   });
 
+  test("the manifest kept out of the release by .pkgmeta", () => {
+    const pkg = (ignore: string) => `package-as: X\n\nmove-folders:\n  X/addon/X: X\n\nignore:\n${ignore}\nmanual-changelog:\n  filename: .release-notes.md\n`;
+    expect(shipped(undefined)).toBe(false);
+    expect(shipped(pkg("  - package.json\n  - saved-ids.json\n"))).toBe(false);
+    expect(shipped(pkg("  # the root's files\n  - \"saved-ids.json\"\n"))).toBe(false);
+    expect(shipped(pkg("  - package.json\n"))).toBe(true);
+    // (a list not indented, a comment on the key, Windows' line ends)
+    expect(shipped("ignore:\n- docs\n- saved-ids.json\nmanual-changelog: x\n")).toBe(false);
+    expect(shipped("ignore: # the root's files\n  - saved-ids.json\n")).toBe(false);
+    expect(shipped("ignore:\r\n  - docs\r\n  - saved-ids.json\r\n")).toBe(false);
+    expect(shipped("ignore:\n- docs\nmanual-changelog:\n  - saved-ids.json\n")).toBe(true);
+    expect(shipped("ignore:\n  - docs\nother:\n  - saved-ids.json\n")).toBe(true);
+  });
+
   test("a manifest's removal needs why and approved", () => {
     const m = (removed: unknown[]) => JSON.stringify({ tables: { c: { json: "x.json" } }, removed });
     expect(() => parseManifest(m([{ table: "c", ids: [1], why: "cut" }]), "m")).toThrow(/needs "why" and "approved"/);
@@ -170,6 +184,16 @@ describe("ids, the check", () => {
     expect(ids(dir).out).toContain("1 missing (3)");
   });
 
+  test("a manifest .pkgmeta would ship fails", () => {
+    const dir = repo();
+    write(dir, ".pkgmeta", "package-as: X\n\nignore:\n  - docs\n");
+    const r = ids(dir);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain(".pkgmeta doesn't ignore saved-ids.json");
+    write(dir, ".pkgmeta", "package-as: X\n\nignore:\n  - docs\n  - saved-ids.json\n");
+    expect(ids(dir)).toMatchObject({ code: 0 });
+  });
+
   test("a manifest naming what isn't there fails", () => {
     const dir = repo();
     write(dir, "saved-ids.json", JSON.stringify({ tables: { ...MANIFEST.tables, quests: { lua: "addon/X/English_*.lua", at: "englishNames().quests" }, places: { json: "nowhere/*.json" } } }));
@@ -215,7 +239,7 @@ describe("ids, the check", () => {
     // (a past head without a manifest: today's tables, one not made yet no error)
     write(dir, "saved-ids.json", JSON.stringify({ tables: { ...MANIFEST.tables, quests: { lua: "addon/X/English_*.lua", at: "englishNames().quests" } } }));
     commit(dir);
-    expect(ids(dir, ["--base", a, "--head", b]).out).not.toContain("names what isn't there");
+    expect(ids(dir, ["--base", a, "--head", b]).out).not.toContain("nothing at englishNames().quests");
     expect(ids(dir).out).toContain('"quests": nothing at englishNames().quests');
   });
 });

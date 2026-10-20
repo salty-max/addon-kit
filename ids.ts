@@ -250,6 +250,13 @@ export function missing(before: Ids, after: Ids, removed: Removal[] = []): Missi
   return out;
 }
 
+/** The manifest kept out of the release: the BigWigs packager ships every root file .pkgmeta doesn't ignore. */
+export function shipped(pkgmeta: string | undefined): boolean {
+  if (pkgmeta === undefined) return false;
+  const ignore = pkgmeta.match(/^ignore:[ \t]*(?:#.*)?\r?\n((?:[ \t]*-.*\r?\n?|\s*#.*\n?|\s*\n)*)/m)?.[1] ?? "";
+  return !ignore.split("\n").some((l) => l.replace(/#.*/, "").trim().replace(/^-\s*/, "").replace(/^["']|["']$/g, "") === MANIFEST);
+}
+
 /** A manifest path that finds nothing in any of its table's files: stale. */
 export function stale(manifest: Manifest, after: Ids): string[] {
   const out: string[] = [];
@@ -306,8 +313,9 @@ export function main(args: string[], cwd = process.cwd()): number {
   if (command !== "check") throw new Error("usage: ids.ts check [--base REV] [--head REV] | list [--head REV]");
 
   const problems = own ? stale(manifest, after) : [];
+  if (head.rev === undefined && shipped(head.read(".pkgmeta"))) problems.push(`.pkgmeta doesn't ignore ${MANIFEST}: the release would ship it`);
   if (problems.length) {
-    console.log(`ids: FAILED, ${MANIFEST} names what isn't there (${head.name}):`);
+    console.log(`ids: FAILED, ${MANIFEST} wrong (${head.name}):`);
     for (const p of problems) console.log(`  ${p}`);
     return 1;
   }
