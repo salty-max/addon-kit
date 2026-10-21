@@ -10,8 +10,9 @@
  *
  *   repo   a folder of the family (yonder) or a path
  *   range  a..b, a...b, or one commit; by default everything not on GitHub
- *          yet: @{u}..HEAD and the uncommitted files (with no upstream, the
- *          last commit and the uncommitted files)
+ *          yet: @{u}..HEAD and the uncommitted files (with no upstream,
+ *          everything no remote has, from where it left the remotes'
+ *          history; with no remote either, the last commit)
  *
  * Writes <repo>/.cache/review/<sha>.md (<sha>: the range's tip) and prints
  * its path and one line. Under its title, `<!-- range: <base> <tip> -->`:
@@ -58,6 +59,10 @@ export function range(dir: string, arg?: string): Range | string {
   const up = git(dir, "rev-parse", "--abbrev-ref", "@{u}");
   const mb = up && git(dir, "merge-base", up, tip);
   if (mb) return { base: mb, tip, label: `${up}..HEAD and the uncommitted files`, working: true };
+  // A branch never pushed: what the panel counts as waiting, all of it.
+  const remotes = (git(dir, "for-each-ref", "--format=%(objectname)", "refs/remotes") ?? "").split("\n").filter(Boolean);
+  if (remotes.length && git(dir, "rev-list", "--count", tip, "--not", "--remotes") !== "0")
+    return { base: git(dir, "merge-base", tip, ...remotes) ?? EMPTY_TREE, tip, label: "everything no remote has (no upstream) and the uncommitted files", working: true };
   return { base: rev("HEAD^") ?? EMPTY_TREE, tip, label: "the last commit (no upstream) and the uncommitted files", working: true };
 }
 

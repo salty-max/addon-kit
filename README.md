@@ -157,9 +157,11 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   line `verdict: …`), which the desktop panel shows. The packet writes its
   range under its title (`<!-- range: <base> <tip> -->`) and the verdict
   keeps it (`base:`, `tip:`, from HEAD's packet, else the newest one HEAD is
-  built on: the commit that fixed its findings): the panel counts a review
-  only when its base is already on the upstream, so the default range
-  (everything not on GitHub yet) is the one that counts.
+  built on and not pushed yet: the commit that fixed its findings): the
+  panel counts a review only when its base is already on the upstream and
+  its tip isn't, so the default range (everything not on GitHub yet: past
+  the upstream, or on a branch never pushed all no remote has) is the one
+  that counts.
 - **board.ts**: one card a task in `~/code/wow-addons/board/`, its
   front matter written only here. Its body is `## Try`, `## Committed`,
   `## Left` (`--try`, `--committed`, `--left`). `status.ts` shows the open

@@ -13,9 +13,10 @@
  * "verdict: <verdict>", then the head, its tree, when, and the packet the
  * reviewer read with its range's base and tip: HEAD's own packet
  * (packet.ts's .cache/review/<sha12>.md), else the newest one whose tip HEAD
- * is built on (a verdict recorded on the commit that fixed its findings).
- * The panel counts a review only when that base is already on the upstream:
- * the review reached all a push sends. The harness's event log gets a line
+ * is built on and isn't pushed yet (a verdict recorded on the commit that
+ * fixed its findings). The panel counts a review only when that base is
+ * already on the upstream and that tip isn't: the review reached all a push
+ * sends. The harness's event log gets a line
  * (events.ts).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -44,17 +45,21 @@ export function parseReview(text: string): Review | undefined {
 }
 
 // The packet the reviewer read: HEAD's own, else the newest whose tip HEAD is
-// built on; none when no packet's range was written down (an older packet).
+// built on and isn't pushed yet (one from an earlier push read none of what
+// this one sends); none when no packet's range was written down (an older packet).
 export function packetFor(top: string, head: string): { path: string; base: string; tip: string } | undefined {
   const dir = join(top, ".cache", "review");
   if (!existsSync(dir)) return undefined;
+  const sent = git(top, "rev-parse", "--verify", "-q", "@{u}") ? ["@{u}"] : git(top, "remote") ? ["--remotes"] : null;
+  const isPushed = (sha: string) => sent !== null && git(top, "rev-list", "--count", sha, "--not", ...sent) === "0";
   const files = readdirSync(dir)
     .filter((f) => /^[0-9a-f]{12}\.md$/.test(f))
     .map((f) => ({ path: join(dir, f), at: statSync(join(dir, f)).mtimeMs, isHead: f === `${head.slice(0, 12)}.md` }))
     .sort((a, b) => Number(b.isHead) - Number(a.isHead) || b.at - a.at);
   for (const f of files) {
     const r = packetRange(readFileSync(f.path, "utf8"));
-    if (r && (r.tip === head || Bun.spawnSync(["git", "merge-base", "--is-ancestor", r.tip, head], { cwd: top, stderr: "ignore" }).exitCode === 0)) return { path: f.path, ...r };
+    if (!r || isPushed(r.tip)) continue;
+    if (r.tip === head || Bun.spawnSync(["git", "merge-base", "--is-ancestor", r.tip, head], { cwd: top, stderr: "ignore" }).exitCode === 0) return { path: f.path, ...r };
   }
   return undefined;
 }

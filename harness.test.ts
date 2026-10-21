@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { add, before, cards, conflicts, format, holders, holding, isHeld, lines, options, parseCard, repoList, set, setSection, slug, strangers, waitingOn, warnings } from "./board";
 import { eventLine, eventsPath, logEvent, repoOf } from "./events";
 import { HOOKS } from "./hooks";
-import { changedLines, packet, packetRange, riddles, subjectProblem, touched, trailerProblem } from "./packet";
+import { changedLines, packet, packetRange, range, riddles, subjectProblem, touched, trailerProblem } from "./packet";
 import { clean, headTree, matters, parse, stampDir, stampOf, verdict, workTree } from "./q";
 import { parseReview, record, reviewOf } from "./review";
 import { familyRoot } from "./root";
@@ -447,6 +447,24 @@ describe("packet", () => {
     expect(git(repo, "status", "--porcelain").out).toBe("?? new.txt\n");
     expect(packetRange("# Review packet\n\nno range here\n")).toBeUndefined();
   });
+
+  test("by default, everything a push would send: past the upstream, else all no remote has", () => {
+    const { repo } = family();
+    const sha = (rev: string) => git(repo, "rev-parse", rev).out.trim();
+    const remote = join(tmp, `remote-${++n}.git`);
+    git(tmp, "init", "-q", "--bare", remote);
+    git(repo, "remote", "add", "origin", remote);
+    git(repo, "push", "-q", "origin", "main");
+    const pushed = sha("HEAD");
+    // A branch never pushed, three commits on: all three, though it has no upstream.
+    git(repo, "checkout", "-q", "-b", "side");
+    for (const s of ["one", "two", "three"]) git(repo, "commit", "-q", "--allow-empty", "-m", `feat: ${s}`);
+    expect(range(repo)).toMatchObject({ base: pushed, tip: sha("HEAD"), label: "everything no remote has (no upstream) and the uncommitted files" });
+    // Its upstream set: past it.
+    git(repo, "push", "-q", "-u", "origin", "side");
+    git(repo, "commit", "-q", "--allow-empty", "-m", "feat: four");
+    expect(range(repo)).toMatchObject({ base: sha("HEAD~1"), label: "origin/side..HEAD and the uncommitted files" });
+  });
 });
 
 describe("review", () => {
@@ -492,6 +510,16 @@ describe("review", () => {
     const own = record(repo, "clean");
     if (typeof own === "string") throw new Error(own);
     expect(own.tip).toBe(sha("HEAD"));
+    // Pushed: next week's commit, its verdict recorded with no new packet, isn't
+    // covered by this one (its tip went out with the last push).
+    const remote = join(tmp, `remote-${++n}.git`);
+    git(tmp, "init", "-q", "--bare", remote);
+    git(repo, "remote", "add", "origin", remote);
+    git(repo, "push", "-q", "-u", "origin", "main");
+    commit("feat: next week");
+    const later = record(repo, "clean");
+    if (typeof later === "string") throw new Error(later);
+    expect([later.packet, later.base]).toEqual([undefined, undefined]);
     // No packet at all: no range, the verdict still kept.
     const bare = family().repo;
     const none = record(bare, "clean");
