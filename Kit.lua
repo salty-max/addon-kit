@@ -441,13 +441,13 @@ local function setTile(t, strip, i, w, fig)
   end
   t:Show()
 end
--- The figures as tiles on a strip, from tiles[first] on (made as needed):
--- returns the strip's height.
-local function layTiles(strip, tiles, first, figures, width)
+-- The figures as tiles on a strip, from tiles[first] on (made as needed, in
+-- parent, else the strip): returns the strip's height.
+local function layTiles(strip, tiles, first, figures, width, parent)
   local w = math.floor((width - (#figures - 1) * TILE_GAP) / #figures)
   strip:SetSize(width, TILE_H)
   for i, fig in ipairs(figures) do
-    local t = tiles[first + i - 1] or tile(strip)
+    local t = tiles[first + i - 1] or tile(parent or strip)
     tiles[first + i - 1] = t
     setTile(t, strip, i, w, fig)
   end
@@ -582,7 +582,7 @@ function K.page(parent, name, o)
   local p = extend(K.scrollArea(parent, width, name), Page)
   p.width, p.labelWidth, p.pairs, p.headings = width, o.labelWidth or 110, o.pairs or {}, {}
   p.cards, p.paragraphs, p.tiles, p.itemPool, p.chipPool = {}, {}, {}, {}, {}
-  p.texts, p.asides = {}, {}
+  p.texts, p.asides, p.boxes = {}, {}, {}
   p:SetPoint("TOPLEFT", parent, "TOPLEFT", 26, -22)
   p:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -22, 14)
   p.portrait = K.roundIcon(p.child, 64, true)
@@ -615,6 +615,7 @@ function Page:start(title, sub, setPicture, seal, ring)
     self.chipPool,
     self.texts,
     self.asides,
+    self.boxes,
   }) do
     for _, x in ipairs(pool) do
       x:Hide()
@@ -642,7 +643,7 @@ function Page:start(title, sub, setPicture, seal, ring)
   K.setBadge(self.portrait.badge, pictured and seal or nil)
   K.ringColour(self.portrait, ring and ring[1], ring and ring[2])
   self.y, self.hi, self.pi, self.ci, self.qi, self.ti, self.ii, self.chi = K.PAGE_HEADER_H + 2, 0, 0, 0, 0, 0, 0, 0
-  self.xi, self.ai, self.lastCard = 0, 0, nil
+  self.xi, self.ai, self.bi, self.lastCard = 0, 0, 0, nil
 end
 
 -- A block at the page's next place (a frame or a font string), so tall. (Any
@@ -653,6 +654,21 @@ function Page:place(block, height)
   block:SetPoint("TOPLEFT", self.child, "TOPLEFT", 0, -self.y)
   block:Show()
   self.y = self.y + height
+end
+
+-- The page's next box: where a strip of figures, a row of items or a set of
+-- names is laid, each its own (one box a kind went to the place of its last
+-- block, the earlier blocks' slots with it, all on the same spot). What is
+-- laid in it is the page's, anchored in it: a slot reused in another box
+-- isn't hidden with the box it was made in.
+function Page:box()
+  self.bi = self.bi + 1
+  local box = self.boxes[self.bi]
+  if not box then
+    box = CreateFrame("Frame", nil, self.child)
+    self.boxes[self.bi] = box
+  end
+  return box
 end
 
 -- The note at the head of a page: its paragraphs, each a string, or an aside,
@@ -919,12 +935,8 @@ end
 
 -- A strip of figures side by side: { { value, label }, ... }, the value large.
 function Page:stats(figures)
-  local strip = self.tiles.strip
-  if not strip then
-    strip = CreateFrame("Frame", nil, self.child)
-    self.tiles.strip = strip
-  end
-  local h = layTiles(strip, self.tiles, self.ti + 1, figures, self.width)
+  local strip = self:box()
+  local h = layTiles(strip, self.tiles, self.ti + 1, figures, self.width, self.child)
   self.ti = self.ti + #figures
   self:place(strip, h + 14)
 end
@@ -982,17 +994,13 @@ local ITEM = K.SLOT
 function Page:items(list)
   local per = math.floor((self.width + 6) / (ITEM + 6))
   local rows = math.ceil(#list / per)
-  local box = self.itemPool.box
-  if not box then
-    box = CreateFrame("Frame", nil, self.child)
-    self.itemPool.box = box
-  end
+  local box = self:box()
   box:SetSize(self.width, rows * (ITEM + 6))
   for i, it in ipairs(list) do
     self.ii = self.ii + 1
     local b = self.itemPool[self.ii]
     if not b then
-      b = K.slot(box, ITEM)
+      b = K.slot(self.child, ITEM)
       b:SetScript("OnEnter", function(bb)
         GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
         if bb.faded then
@@ -1022,18 +1030,14 @@ end
 local CHIP_H = 20
 function Page:chips(list)
   local rows = math.ceil(#list / 2)
-  local box = self.chipPool.box
-  if not box then
-    box = CreateFrame("Frame", nil, self.child)
-    self.chipPool.box = box
-  end
+  local box = self:box()
   box:SetSize(self.width, rows * CHIP_H)
   local w = math.floor((self.width - 10) / 2)
   for i, ch in ipairs(list) do
     self.chi = self.chi + 1
     local b = self.chipPool[self.chi]
     if not b then
-      b = CreateFrame("Button", nil, box)
+      b = CreateFrame("Button", nil, self.child)
       b.text = K.label(b, K.BODY_FONT, 12, T.text)
       b.text:SetPoint("LEFT", 6, 0)
       b.text:SetPoint("RIGHT", -4, 0)

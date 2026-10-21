@@ -376,6 +376,40 @@ local second = pg:card("Two", "", K.icon("Icon"), nil, nil, K.RINGS.gold)
 pg:section("After them")
 check(first.line.shown and not second.line.shown, "page: a rule between two cards, none under the last")
 
+-- Two rows of items on a page, two strips of figures, two sets of names:
+-- each in a box of its own at its own place, none on top of another; a slot
+-- of the first row's box on one page, of the second's on the next, shown.
+do
+  local function anchor(b) return b.point[2], b.point[5] end
+  pg:start("Dish", "")
+  pg:stats({ { "1", "one" } })
+  pg:items({ { 769, nil, false, 1 } })
+  pg:section("It makes")
+  pg:items({ { 2681, nil, false, 1 } })
+  pg:chips({ { "A" } })
+  pg:chips({ { "B" } })
+  pg:stats({ { "2", "two" } })
+  local s1, s2 = pg.itemPool[1], pg.itemPool[2]
+  local c1, c2 = pg.chipPool[1], pg.chipPool[2]
+  local t1, t2 = pg.tiles[1], pg.tiles[2]
+  local box1, box2 = anchor(s1), anchor(s2)
+  check(
+    box1 ~= box2 and box1.point[5] > box2.point[5] and s1.itemId == 769 and s2.itemId == 2681,
+    "page: two rows of items, each in its own box, the second below the first"
+  )
+  check(
+    anchor(c1) ~= anchor(c2) and anchor(t1) ~= anchor(t2),
+    "page: two sets of names, two strips of figures, each in its own box"
+  )
+  pg:start("Another", "")
+  pg:stats({ { "3", "three" } })
+  pg:items({ { 1, nil, false, 1 }, { 2, nil, false, 1 } })
+  check(
+    s2.shown and anchor(s2) == pg.boxes[2] and pg.boxes[2].shown and not pg.boxes[3].shown,
+    "page: a slot reused in another box shown there, the boxes not used hidden"
+  )
+end
+
 -- A figure's label: its own size when it fits, a little smaller when it
 -- wouldn't, on its one line, never cut short.
 do
