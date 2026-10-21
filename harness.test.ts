@@ -188,6 +188,24 @@ describe("events", () => {
     expect(repoOf(wt)).toBe("repo");
   });
 
+  test("a q run has a file of its own beside the log while it runs, gone by its verdict; a dead run's file swept", () => {
+    const { repo } = family();
+    const dir = join(tmp, "running");
+    // A run killed before its end left its file: a pid that lives no more.
+    const dead = Bun.spawnSync(["true"]).pid;
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${dead}.json`), "{}\n");
+    expect(q(repo, "demo", "--", "sh", "-c", `cat "${dir}"/*.json`).code).toBe(0);
+    const seen = readFileSync(join(repo, ".cache", "logs", "demo.log"), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("{"))
+      .map((l) => JSON.parse(l));
+    expect(seen).toEqual([{ pid: expect.any(Number), name: "demo", repo: "repo", at: expect.any(Number) }]);
+    expect(seen[0].pid).not.toBe(dead);
+    expect(readdirSync(dir)).toEqual([]);
+    newEvents();
+  });
+
   test("a long log keeps its last 500 lines", () => {
     const file = join(tmp, "long.log");
     process.env.HARNESS_EVENTS = file;

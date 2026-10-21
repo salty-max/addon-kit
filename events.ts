@@ -17,9 +17,16 @@
  * (a line another tool appends while the trim rewrites the file is lost:
  * rare, and only a line of the log). Writing it never fails the tool that
  * writes.
+ *
+ * Beside it, the gates at work: a q.ts run going on has a file of its own,
+ * running/<pid>.json ({ pid, name, repo, at }), written as it starts and
+ * removed before its verdict reaches the log. The panel lights its gates
+ * only while one is there and its process lives. A run killed before its
+ * end leaves its file: the next run's start sweeps those whose process is
+ * gone.
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { familyPath } from "./root";
 
 export type Tone = "ok" | "wait" | "fail" | "info" | "";
@@ -56,6 +63,44 @@ export function logEvent(source: string, tone: Tone, repo: string, text: string)
       writeFileSync(file, `${lines.slice(-KEEP_LINES).join("\n")}\n`);
     }
   } catch {}
+}
+
+// The runs going on: the log's folder's running/ (none when the log is off).
+export function runsDir(): string | undefined {
+  const file = eventsPath();
+  return file ? join(dirname(file), "running") : undefined;
+}
+
+const isAlive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
+
+// A run starts: its file written (the dead ones' swept first); the function
+// it returns removes it. Neither ever fails the run.
+export function startRun(name: string, repo: string): () => void {
+  const dir = runsDir();
+  if (!dir) return () => {};
+  const file = join(dir, `${process.pid}.json`);
+  try {
+    mkdirSync(dir, { recursive: true });
+    for (const f of readdirSync(dir)) {
+      const pid = Number(/^(\d+)\.json$/.exec(f)?.[1]);
+      if (pid && !isAlive(pid)) rmSync(join(dir, f), { force: true });
+    }
+    const tmp = join(dir, `.${process.pid}.tmp`);
+    writeFileSync(tmp, `${JSON.stringify({ pid: process.pid, name: field(name), repo: field(repo), at: Date.now() })}\n`);
+    renameSync(tmp, file);
+  } catch {}
+  return () => {
+    try {
+      rmSync(file, { force: true });
+    } catch {}
+  };
 }
 
 // A repository by its main checkout's folder name, a worktree's too.

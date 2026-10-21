@@ -196,7 +196,10 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   (a card added or moved) and the hooks' refusals (`githooks/_event`)
   append to it; the desktop panel's log reads it with the helpers and
   answered prompts from the transcripts. `HARNESS_EVENTS` names another
-  file, `off` none (the tests use their own).
+  file, `off` none (the tests use their own). Beside it, `running/`: a
+  file for each q.ts run going on, written as it starts and removed
+  before its verdict is logged (a killed run's is swept by the next), so
+  the panel lights its gates only while one runs.
 - **harness-view/**: piece D, the desktop app's live pane and status line (a
   Claude Code mod; `harness-view/README.md`), loaded through the link
   `~/.claude/skills/harness-view`. Its tests run in `bun run check`.

@@ -19,12 +19,13 @@
  * worktrees: a commit of exactly that state pushes. Only the repository's
  * own check stamps (harness.check, else `bun run check` where package.json
  * has one), and a failing check on a stamped tree takes the stamp back.
- * The verdict line goes to the harness's event log too (events.ts).
+ * The verdict line goes to the harness's event log too (events.ts), and while
+ * it runs a file of its own says so beside it (the panel's gates lit).
  */
 import { closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { logEvent, repoOf } from "./events";
+import { logEvent, repoOf, startRun } from "./events";
 
 export const MAX_LINES = 20;
 
@@ -160,6 +161,10 @@ export function parse(argv: string[]): { name: string; command: string[] } | str
 
 export async function run(name: string, command: string[], cwd = process.cwd()): Promise<number> {
   const top = topLevel(cwd);
+  const repo = repoOf(cwd);
+  // The gates at work (the panel's) until just before the verdict reaches the
+  // log. A run that throws leaves its file to a dead pid: the panel skips it.
+  const done = startRun(name, repo);
   const log = join(cacheDir(top ?? cwd, "logs"), `${name}.log`);
   const checking = name === "check" && top !== undefined;
   const before = checking ? workTree(cwd) : undefined;
@@ -193,8 +198,9 @@ export async function run(name: string, command: string[], cwd = process.cwd()):
       line += ` · stamped ${before.slice(0, 7)}`;
     }
   }
+  done();
   console.log(line);
-  logEvent(name, code !== 0 ? "fail" : line.includes("not stamped") ? "wait" : "ok", repoOf(cwd), line);
+  logEvent(name, code !== 0 ? "fail" : line.includes("not stamped") ? "wait" : "ok", repo, line);
   if (code !== 0) {
     const out = clean(readFileSync(log, "utf8")).slice(1, -1);
     for (const l of matters(out)) console.log(`  ${l}`);
