@@ -127,7 +127,9 @@ package.json has one, else any command named check. addon-kit gained a
 `package.json` for its `check`. Installed in addon-kit only. Then, for D's
 panel (the user's choice): `review.ts <repo> "<verdict>"`, run by the
 session once the reviewer has reported, writes
-`<git common dir>/harness/review-<HEAD sha>`, its first line `verdict: …`.
+`<git common dir>/harness/review-<HEAD sha>`, its first line `verdict: …`,
+and the range of the packet the reviewer read (`base:`, `tip:`; 21 October
+2026): the panel counts it only when that range reaches the upstream.
 
 **What the "ask" rules hold** (Claude Code's permission docs, 20 October
 2026; the root `.claude/settings.json`):

@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { add, before, cards, conflicts, format, holders, holding, isHeld, lines, options, parseCard, repoList, set, setSection, slug, strangers, waitingOn, warnings } from "./board";
 import { eventLine, eventsPath, logEvent, repoOf } from "./events";
 import { HOOKS } from "./hooks";
-import { changedLines, packet, riddles, subjectProblem, touched, trailerProblem } from "./packet";
+import { changedLines, packet, packetRange, riddles, subjectProblem, touched, trailerProblem } from "./packet";
 import { clean, headTree, matters, parse, stampDir, stampOf, verdict, workTree } from "./q";
 import { parseReview, record, reviewOf } from "./review";
 import { familyRoot } from "./root";
@@ -415,6 +415,8 @@ describe("packet", () => {
     let text = readFileSync(res.file, "utf8");
     expect(res.file).toBe(join(repo, ".cache", "review", `${git(repo, "rev-parse", "HEAD").out.slice(0, 12)}.md`));
     expect(text).toContain("Range: the last commit (no upstream) and the uncommitted files.");
+    // Its range written for review.ts, whole.
+    expect(packetRange(text)).toEqual({ base: git(repo, "rev-parse", "HEAD~1").out.trim(), tip: git(repo, "rev-parse", "HEAD").out.trim() });
     expect(text).toContain("- check: passed on HEAD's tree");
     expect(text).toContain("- the uncommitted files have no passing check of their own.");
     expect(text).toContain("feat(expeditions): the pool rewritten");
@@ -443,6 +445,7 @@ describe("packet", () => {
     expect(text).toContain("### z-pool: npc 763 (forever)");
     expect(res.summary).toContain("4 cards");
     expect(git(repo, "status", "--porcelain").out).toBe("?? new.txt\n");
+    expect(packetRange("# Review packet\n\nno range here\n")).toBeUndefined();
   });
 });
 
@@ -463,6 +466,37 @@ describe("review", () => {
     expect(parseReview("verdict: clean\nhead: abc\n")).toEqual({ verdict: "clean", head: "abc", tree: undefined, at: undefined, packet: undefined });
     git(repo, "commit", "-q", "--allow-empty", "-m", "chore: later");
     expect(reviewOf(repo)).toBeUndefined();
+  });
+
+  test("the verdict keeps the range its reviewer read: HEAD's packet, else the newest HEAD is built on", () => {
+    const { repo } = family();
+    const sha = (rev: string) => git(repo, "rev-parse", rev).out.trim();
+    const commit = (subject: string) => git(repo, "commit", "-q", "--allow-empty", "-m", subject);
+    commit("feat: two");
+    // The reviewer reads HEAD~1..HEAD; its findings are fixed in a commit on top, the verdict recorded there.
+    expect(packet(repo, "HEAD~1..HEAD")).not.toBeString();
+    const reviewed = sha("HEAD");
+    commit("fix: the findings");
+    // A packet made since on another line of work isn't the one read.
+    git(repo, "checkout", "-q", "-b", "side", "HEAD~2");
+    commit("feat: elsewhere");
+    expect(packet(repo, "HEAD~1..HEAD")).not.toBeString();
+    git(repo, "checkout", "-q", "main");
+    const r = record(repo, "clean (1 finding fixed)");
+    if (typeof r === "string") throw new Error(r);
+    expect([r.base, r.tip]).toEqual([sha(`${reviewed}~1`), reviewed]);
+    expect(reviewOf(repo)).toMatchObject({ verdict: "clean (1 finding fixed)", base: sha(`${reviewed}~1`), tip: reviewed });
+    expect(readFileSync(join(stampDir(repo)!, `review-${sha("HEAD")}`), "utf8")).toContain(`\nbase: ${sha(`${reviewed}~1`)}\ntip: ${reviewed}\n`);
+    // HEAD's own packet first, though an older one would do.
+    expect(packet(repo)).not.toBeString();
+    const own = record(repo, "clean");
+    if (typeof own === "string") throw new Error(own);
+    expect(own.tip).toBe(sha("HEAD"));
+    // No packet at all: no range, the verdict still kept.
+    const bare = family().repo;
+    const none = record(bare, "clean");
+    if (typeof none === "string") throw new Error(none);
+    expect([none.packet, none.base]).toEqual([undefined, undefined]);
   });
 });
 

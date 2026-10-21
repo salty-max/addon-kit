@@ -22,7 +22,10 @@ hook checks the stamp, not the user's go.
 2. The packet and the reviewer: `bun addon-kit/packet.ts <repo>
    [origin/main..HEAD]`, then the `reviewer` helper on it. Check its
    findings before acting on them, fix what holds, then record the verdict:
-   `bun addon-kit/review.ts <repo> "<verdict>"`.
+   `bun addon-kit/review.ts <repo> "<verdict>"` (on the fix commit is fine:
+   it keeps the packet's range). The panel counts the review only when the
+   packet's range starts on the upstream: a narrower one (`HEAD~1..HEAD`
+   with more unpushed) shows `partial`.
 3. A kit change goes out first: addon-kit pushed before the addons whose
    copies carry its stamp. wow-data before the addons that read its new data.
 4. A board card says what is ready: `bun addon-kit/board.ts add <repo>

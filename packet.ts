@@ -14,7 +14,9 @@
  *          last commit and the uncommitted files)
  *
  * Writes <repo>/.cache/review/<sha>.md (<sha>: the range's tip) and prints
- * its path and one line.
+ * its path and one line. Under its title, `<!-- range: <base> <tip> -->`:
+ * review.ts records it with the verdict, so the panel knows whether the
+ * review reached all a push sends.
  */
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -33,6 +35,13 @@ function git(cwd: string, ...args: string[]): string | undefined {
 
 // ── the range ───────────────────────────────────────────────────────────────
 export type Range = { base: string; tip: string; label: string; working: boolean };
+
+// A packet's range as it wrote it under its title (the base the empty tree
+// when the range starts at the first commit).
+export function packetRange(text: string): { base: string; tip: string } | undefined {
+  const m = /^<!-- range: ([0-9a-f]{40}) ([0-9a-f]{40}) -->$/m.exec(text);
+  return m ? { base: m[1]!, tip: m[2]! } : undefined;
+}
 
 export function range(dir: string, arg?: string): Range | string {
   const rev = (r: string) => git(dir, "rev-parse", "--verify", "-q", `${r}^{commit}`);
@@ -210,6 +219,7 @@ export function packet(dir: string, arg?: string): { file: string; summary: stri
 
   const out = [
     `# Review packet: ${name} ${r.tip.slice(0, 12)}`,
+    `<!-- range: ${r.base} ${r.tip} -->`,
     "",
     `Made ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC by addon-kit/packet.ts. Range: ${r.label}.`,
     `The change: \`git -C ${top} diff ${r.base === EMPTY_TREE ? r.base : r.base.slice(0, 12)}${r.working ? "" : ` ${r.tip.slice(0, 12)}`}\`${r.working ? " (the working files against the base)" : ""}.`,
