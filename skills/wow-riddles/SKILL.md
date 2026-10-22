@@ -23,8 +23,12 @@ re-derive it by hand. Use full Opus for the writing.
 - A spot the data pins, never an estimate: an object's spawns, a still or
   walking creature, a trigger, a sub-area, or a reviewed landmark
   (`landmark:` in wow-data, never a borrowed spawn or an invented object).
-- Never a kill. Never the same discovery twice in a zone for one reader
-  (one arrival, one reading, one speaking; no gesture token shared).
+- Never a kill. Never the same discovery twice in a zone: each riddle its
+  own subject and its own observation. Riddles at different places may
+  share an action (an arrival, a reading, a conversation, a gesture), so
+  never invent an emote only because another riddle has the natural one.
+  The resolver refuses a reused subject (a group's companions included) and
+  overlapping arrival footprints (yonder's PLAN, After the first test).
 - Not a quest's target, giver, ender or story. A quest place only for a
   distinct experience (a gesture, an overlooked detail), recorded as
   `quest_overlap` + `quest_context`; never a copied objective or a quest
