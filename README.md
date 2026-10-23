@@ -107,6 +107,18 @@ bun scripts/root.ts --run addon-kit/ids.ts check --base ee96889^ --head ee96889 
 bun scripts/root.ts --run addon-kit/ids.ts list     # every table's files and how many ids each
 ```
 
+A table's `before` lists files loaded first in the same `ns` (Hearthtale's
+`Forever.lua` adds to `Knowledge.lua`'s tables), and a path may hold `*`
+(every child) and end on a value (`data.expeditions.*.quarry.id`: the
+quarries' creature ids). Every generated table holding ids is listed or
+excused: a tracked Lua file whose head says it's generated and that keys
+ten or more entries by number, or such a JSON file under `i18n/` or
+`data/`, is one of the manifest's tables or one of its `unlisted` (`{ glob:
+why }`: its ids decode nothing saved, a build input say); one neither fails
+the check locally (CI says it and goes on). `--base` that doesn't resolve
+is an error, never a pass, and `--last-release` compares against the newest
+release tag (what the players have: release.sh runs it).
+
 An id missing fails it, so the daily job stops before its pull request and
 the owner is told: the lost ids, file by file, in the run's summary and
 `.cache/logs/ids-missing.json`. The fix is upstream (wow-data's `left_out`

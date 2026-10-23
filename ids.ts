@@ -7,7 +7,7 @@
  * working directory. An id gone fails the check, so a daily game-data job
  * stops before its pull request and tells the owner.
  *
- *   bun ../addon-kit/ids.ts check [--base REV] [--head REV]
+ *   bun ../addon-kit/ids.ts check [--base REV | --last-release] [--head REV]
  *   bun ../addon-kit/ids.ts list [--head REV]
  *   (from an addon: bun scripts/root.ts --run addon-kit/ids.ts check)
  *
@@ -15,8 +15,18 @@
  *   ids: FAILED, 245 ids a saved file may hold missing against 7f41c74 …
  *     creatures addon/Hearthtale/English_Forever.lua: 217 missing (202093, …)
  *
- * --base: the revision before (the fork point by default), --head: a revision
+ * --base: the revision before (the fork point by default; one that doesn't
+ * resolve is an error, never a pass), --last-release: the newest release tag
+ * HEAD holds (what the players have: release.sh's), --head: a revision
  * instead of the working directory (an audit of a past change).
+ *
+ * Every generated table holding ids is listed or excused: a tracked Lua
+ * file whose head says it's generated and that keys ten or more entries by
+ * number, or a JSON file under i18n/ or data/ keyed so, is a table of the
+ * manifest's or one of its "unlisted" ({ glob: why }: its ids decode
+ * nothing a saved file keeps). One neither fails the check (locally: CI
+ * says it and goes on, so a kit ahead of an addon's manifest never stops a
+ * daily job).
  *
  * saved-ids.json:
  *
@@ -28,12 +38,16 @@
  *         "why": "…", "approved": "2026-10-21, the user's go" } ] }
  *
  *   lua: a glob of generated Lua files, each run in LuaJIT as the game loads
- *   it (`local _, ns = ...`); at: a path from ns, "()" calling a function on
- *   the way. The ids are the table's keys and its __index chain's (a name
- *   behind the table, found by id alone, still decodes).
+ *   it (`local _, ns = ...`), after the files of "before" (globs, in that
+ *   order, in the same ns: a file that adds to another's tables); at: a path
+ *   from ns, "()" calling a function on the way. The ids are the table's
+ *   keys and its __index chain's (a name behind the table, found by id
+ *   alone, still decodes).
  *   json: a glob of JSON files; at: a key path ("" the file itself), or
  *   several, their ids together (an id moved from one to another stays). An
  *   object's keys are the ids, an array's items.
+ *   Either: "*" in a path is every child ("data.expeditions.*.quarry.id"),
+ *   and a path ending on a number or a string has that value as its id.
  *   removed: an id leaving on purpose, only with the user's go: the table,
  *   the file (a glob; every file when left out), the ids ("*": all), why,
  *   and when the user approved it. Both are required.
@@ -51,9 +65,9 @@ import { cacheDir, topLevel } from "./q";
 
 export const MANIFEST = "saved-ids.json";
 
-export type Table = { lua?: string; json?: string; at?: string | string[] };
+export type Table = { lua?: string; json?: string; at?: string | string[]; before?: string[] };
 export type Removal = { table: string; file?: string; ids: (string | number)[] | "*"; why: string; approved: string };
-export type Manifest = { tables: Record<string, Table>; removed?: Removal[] };
+export type Manifest = { tables: Record<string, Table>; removed?: Removal[]; unlisted?: Record<string, string> };
 /** One revision's ids: table -> file -> ids (undefined: nothing at any path). */
 export type Ids = Map<string, Map<string, Set<string> | undefined>>;
 export type Missing = { table: string; file: string; ids: string[] };
@@ -80,6 +94,7 @@ export class Side {
   constructor(
     readonly top: string,
     readonly rev?: string,
+    readonly label?: string,
   ) {}
   files(pattern: string): string[] {
     const glob = new Bun.Glob(pattern);
@@ -92,7 +107,7 @@ export class Side {
     return git(this.top, ["show", `${this.rev}:${file}`]);
   }
   get name(): string {
-    return this.rev === undefined ? "the working directory" : this.rev.slice(0, 7);
+    return this.rev === undefined ? "the working directory" : this.label ? `${this.label} (${this.rev.slice(0, 7)})` : this.rev.slice(0, 7);
   }
 }
 
@@ -104,6 +119,8 @@ export function parseManifest(text: string, where: string): Manifest {
     if (!t.lua === !t.json) throw new Error(`${where}: table "${name}" needs one of "lua" or "json"`);
     if (t.lua && !t.at) throw new Error(`${where}: table "${name}" (lua) needs "at"`);
   }
+  for (const [glob, why] of Object.entries(m.unlisted ?? {}))
+    if (typeof why !== "string" || !why.trim()) throw new Error(`${where}: unlisted "${glob}" needs why its ids decode nothing saved`);
   for (const r of m.removed ?? []) {
     if (typeof r.table !== "string" || !r.table) throw new Error(`${where}: a removal without its table`);
     if (!r.why?.trim() || !r.approved?.trim())
@@ -122,12 +139,19 @@ export function jsonIds(text: string, at: string[]): Set<string> | undefined {
   let found = false;
   const ids = new Set<string>();
   for (const path of at) {
-    let v: unknown = doc;
-    for (const seg of path ? path.split(".") : []) v = v && typeof v === "object" ? (v as Record<string, unknown>)[seg] : undefined;
-    if (v === undefined || v === null || typeof v !== "object") continue;
-    found = true;
-    if (Array.isArray(v)) for (const x of v) ids.add(String(x));
-    else for (const k of Object.keys(v)) ids.add(k);
+    let here: unknown[] = [doc];
+    for (const seg of path ? path.split(".") : [])
+      here = here.flatMap((v) => (!v || typeof v !== "object" ? [] : seg === "*" ? Object.values(v as object) : [(v as Record<string, unknown>)[seg]]));
+    for (const v of here) {
+      if (typeof v === "number" || typeof v === "string") {
+        found = true;
+        ids.add(String(v));
+      } else if (v && typeof v === "object") {
+        found = true;
+        if (Array.isArray(v)) for (const x of v) ids.add(String(x));
+        else for (const k of Object.keys(v)) ids.add(k);
+      }
+    }
   }
   return found ? ids : undefined;
 }
@@ -136,31 +160,53 @@ export function jsonIds(text: string, at: string[]): Set<string> | undefined {
 // "@missing" for each path, then its ids, each "=" first)
 const LUA = String.raw`
 local src = io.read("*a")
-local chunk, err = loadstring(src, "=" .. (os.getenv("IDS_FILE") or "?"))
-if not chunk then io.stderr:write(err, "\n") os.exit(2) end
 local ns = {}
-local ok, e = pcall(chunk, "Addon", ns)
-if not ok then io.stderr:write(tostring(e), "\n") os.exit(2) end
+-- (the files of "before" first, then the file, NUL between them, one ns)
+local start, n = 1, 0
+while true do
+  local stop = src:find("\0", start, true)
+  local part = src:sub(start, (stop or 0) - 1)
+  n = n + 1
+  local chunk, err = loadstring(part, "=" .. (os.getenv("IDS_FILE") or "?") .. (stop and (" (before " .. n .. ")") or ""))
+  if not chunk then io.stderr:write(err, "\n") os.exit(2) end
+  local ok, e = pcall(chunk, "Addon", ns)
+  if not ok then io.stderr:write(tostring(e), "\n") os.exit(2) end
+  if not stop then break end
+  start = stop + 1
+end
 local memo = {}
-local function at(path)
-  local v, sofar = ns, ""
-  for seg in path:gmatch("[^.]+") do
-    local name, call = seg:match("^(.-)(%(%))$")
-    name = name or seg
-    sofar = sofar .. "." .. seg
-    if type(v) ~= "table" then return nil end
-    if call then
-      if memo[sofar] == nil then
-        local f = v[name]
-        if type(f) ~= "function" then return nil end
-        memo[sofar] = f()
-      end
-      v = memo[sofar]
-    else
-      v = v[name]
-    end
+-- every value at the path: "*" each child, "()" a function called (once)
+local function walk(v, segs, i, sofar, out)
+  if i > #segs then
+    if v ~= nil then out[#out + 1] = v end
+    return
   end
-  return v
+  if type(v) ~= "table" then return end
+  local seg = segs[i]
+  if seg == "*" then
+    for _, child in pairs(v) do walk(child, segs, i + 1, sofar .. ".*", out) end
+    return
+  end
+  local name, call = seg:match("^(.-)(%(%))$")
+  name = name or seg
+  local here = sofar .. "." .. seg
+  if call then
+    if memo[here] == nil then
+      local f = v[name]
+      if type(f) ~= "function" then return end
+      memo[here] = f()
+    end
+    walk(memo[here], segs, i + 1, here, out)
+  else
+    walk(v[name], segs, i + 1, here, out)
+  end
+end
+local function at(path)
+  local segs = {}
+  for seg in path:gmatch("[^.]+") do segs[#segs + 1] = seg end
+  local out = {}
+  walk(ns, segs, 1, "", out)
+  return out
 end
 local function key(k)
   if type(k) == "number" and k == math.floor(k) then return string.format("%.0f", k) end
@@ -170,30 +216,36 @@ local function key(k)
 end
 local out = {}
 for path in (os.getenv("IDS_AT") or ""):gmatch("[^\n]+") do
-  local t = at(path)
-  if type(t) ~= "table" then
-    out[#out + 1] = "@missing"
-  else
-    out[#out + 1] = "@ok"
-    local seen, depth = {}, 0
-    while type(t) == "table" and depth < 16 do
-      for k in pairs(t) do
-        local s = key(k)
-        if not seen[s] then seen[s] = true out[#out + 1] = "=" .. s end
+  local found, seen, lines = false, {}, {}
+  local function add(k)
+    local s = key(k)
+    if not seen[s] then seen[s] = true lines[#lines + 1] = "=" .. s end
+  end
+  for _, t in ipairs(at(path)) do
+    if type(t) == "number" or type(t) == "string" then
+      found = true
+      add(t)
+    elseif type(t) == "table" then
+      found = true
+      local depth = 0
+      while type(t) == "table" and depth < 16 do
+        for k in pairs(t) do add(k) end
+        local mt = getmetatable(t)
+        t = mt and type(mt.__index) == "table" and mt.__index or nil
+        depth = depth + 1
       end
-      local mt = getmetatable(t)
-      t = mt and type(mt.__index) == "table" and mt.__index or nil
-      depth = depth + 1
     end
   end
+  out[#out + 1] = found and "@ok" or "@missing"
+  for _, l in ipairs(lines) do out[#out + 1] = l end
 end
 io.write(table.concat(out, "\n"), "\n")
 `;
 
-/** A generated Lua file's ids at each path, as the game loads it. */
-export function luaIds(text: string, at: string[], file = "?"): (Set<string> | undefined)[] {
+/** A generated Lua file's ids at each path, as the game loads it (the texts of "before" run first). */
+export function luaIds(text: string, at: string[], file = "?", before: string[] = []): (Set<string> | undefined)[] {
   const p = Bun.spawnSync(["luajit", "-e", LUA], {
-    stdin: new TextEncoder().encode(text),
+    stdin: new TextEncoder().encode([...before, text].join("\0")),
     env: { ...process.env, IDS_AT: at.join("\n"), IDS_FILE: file },
   });
   if (p.exitCode !== 0) throw new Error(`${file}: luajit couldn't load it: ${p.stderr.toString().trim()}`);
@@ -219,7 +271,8 @@ export function readIds(side: Side, manifest: Manifest): Ids {
         if (t.json) files.set(file, jsonIds(text, paths(t)));
         else {
           // (one run a file: its paths together, a union like a json table's)
-          const sets = luaIds(text, paths(t), `${side.name}:${file}`);
+          const before = (t.before ?? []).flatMap((g) => side.files(g)).map((f) => side.read(f) ?? "");
+          const sets = luaIds(text, paths(t), `${side.name}:${file}`, before);
           const found = sets.filter((s): s is Set<string> => s !== undefined);
           files.set(file, found.length ? new Set(found.flatMap((s) => [...s])) : undefined);
         }
@@ -268,6 +321,41 @@ export function stale(manifest: Manifest, after: Ids): string[] {
   return out;
 }
 
+// ── tables nobody listed ─────────────────────────────────────────────────────
+const NUMERIC_KEYS = 10;
+/** Whether a generated Lua file keys tables by number (ten entries or more). */
+export function luaKeyedById(text: string): boolean {
+  const head = text.split("\n", 5).join("\n");
+  if (!/generated|do not edit/i.test(head)) return false;
+  return (text.match(/\[\d+\]\s*=/g)?.length ?? 0) >= NUMERIC_KEYS;
+}
+/** Whether a JSON file keys an object by number (ten keys or more), at its top or one level down. */
+export function jsonKeyedById(text: string): boolean {
+  let v: unknown;
+  try {
+    v = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  const keyed = (o: unknown) => !!o && typeof o === "object" && !Array.isArray(o) && Object.keys(o).filter((k) => /^\d+$/.test(k)).length >= NUMERIC_KEYS;
+  return keyed(v) || (!!v && typeof v === "object" && Object.values(v as object).some(keyed));
+}
+/** The generated tables holding ids that no table of the manifest and no "unlisted" glob covers. */
+export function unlisted(top: string, manifest: Manifest): string[] {
+  const tracked = (git(top, ["ls-files", "-z", "--", "*.lua", "*.json"]) ?? "").split("\0").filter(Boolean);
+  const globs = [...Object.values(manifest.tables).map((t) => t.lua ?? t.json ?? ""), ...Object.keys(manifest.unlisted ?? {})].map((g) => new Bun.Glob(g));
+  const out: string[] = [];
+  for (const f of tracked) {
+    if (/(^|\/)(Kit|Text_\w+)\.lua$|(^|\/)(package|saved-ids|tsconfig)\.json$|(^|\/)(node_modules|dist|\.cache)\//.test(f)) continue;
+    if (globs.some((g) => g.match(f))) continue;
+    const isJson = f.endsWith(".json");
+    if (isJson && !/(^|\/)(i18n|data)\//.test(f)) continue;
+    const text = existsSync(join(top, f)) ? readFileSync(join(top, f), "utf8") : "";
+    if (isJson ? jsonKeyedById(text) : luaKeyedById(text)) out.push(f);
+  }
+  return out;
+}
+
 const count = (ids: Ids) => [...ids.values()].reduce((n, files) => n + [...files.values()].reduce((m, s) => m + (s?.size ?? 0), 0), 0);
 const fileCount = (ids: Ids) => new Set([...ids.values()].flatMap((files) => [...files.keys()])).size;
 const shown = (ids: string[], max = 8) => ids.slice(0, max).join(", ") + (ids.length > max ? `, … +${ids.length - max}` : "");
@@ -297,8 +385,14 @@ export function main(args: string[], cwd = process.cwd()): number {
   const [command = "check"] = args;
   const top = topLevel(cwd);
   if (!top) throw new Error(`${cwd}: not in a git repository`);
+  // (a revision asked for that doesn't resolve is an error: never compared against nothing)
+  const resolve = (rev: string, flag: string) => {
+    const sha = git(top, ["rev-parse", "--verify", "-q", `${rev}^{commit}`])?.trim();
+    if (!sha) throw new Error(`${flag} ${rev}: no such revision here`);
+    return sha;
+  };
   const headRev = option(args, "--head");
-  const head = new Side(top, headRev && (git(top, ["rev-parse", "--verify", "-q", `${headRev}^{commit}`])?.trim() ?? headRev));
+  const head = new Side(top, headRev && resolve(headRev, "--head"));
   // (a past revision without one: today's, its tables maybe not made yet)
   const own = manifestOf(head);
   const manifest = own ?? (head.rev === undefined ? undefined : manifestOf(new Side(top)));
@@ -310,21 +404,34 @@ export function main(args: string[], cwd = process.cwd()): number {
       for (const [file, ids] of files) console.log(`${table}\t${file}\t${ids === undefined ? "nothing at its paths" : ids.size}`);
     return 0;
   }
-  if (command !== "check") throw new Error("usage: ids.ts check [--base REV] [--head REV] | list [--head REV]");
+  if (command !== "check") throw new Error("usage: ids.ts check [--base REV | --last-release] [--head REV] | list [--head REV]");
 
   const problems = own ? stale(manifest, after) : [];
+  if (own && head.rev === undefined) {
+    const strays = unlisted(top, manifest).map((f) => `${f} holds ids no table lists: add it to "tables", or to "unlisted" with why its ids decode nothing saved`);
+    if (process.env.CI) for (const s of strays) console.log(`ids: note, ${s}`);
+    else problems.push(...strays);
+  }
   if (head.rev === undefined && shipped(head.read(".pkgmeta"))) problems.push(`.pkgmeta doesn't ignore ${MANIFEST}: the release would ship it`);
   if (problems.length) {
     console.log(`ids: FAILED, ${MANIFEST} wrong (${head.name}):`);
     for (const p of problems) console.log(`  ${p}`);
     return 1;
   }
-  const baseRev = option(args, "--base") ?? forkPoint(top);
+  const asked = option(args, "--base");
+  let baseRev: string | undefined;
+  if (args.includes("--last-release")) {
+    baseRev = git(top, ["describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", "HEAD"])?.trim();
+    if (!baseRev) {
+      console.log(`ids: ok, ${count(after).toLocaleString("en")} ids in ${fileCount(after)} files, no release before them`);
+      return 0;
+    }
+  } else baseRev = asked !== undefined ? resolve(asked, "--base") : forkPoint(top);
   if (!baseRev) {
     console.log(`ids: ok, ${count(after).toLocaleString("en")} ids in ${fileCount(after)} files, nothing before them (no commit yet)`);
     return 0;
   }
-  const base = new Side(top, git(top, ["rev-parse", "--verify", "-q", `${baseRev}^{commit}`])?.trim() ?? baseRev);
+  const base = new Side(top, git(top, ["rev-parse", "--verify", "-q", `${baseRev}^{commit}`])?.trim() ?? baseRev, args.includes("--last-release") ? baseRev : undefined);
   // (the base's own tables, and the head's new ones: a table added with a
   // regeneration that drops ids from it is compared too)
   const old = manifestOf(base);
