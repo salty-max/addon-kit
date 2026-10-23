@@ -399,8 +399,10 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
 
   const main = store[0] ?? tocs[0]; // (the addon's own folder, not a helper's beside it)
   const kitCopy = main ? join(dir, "addon", main.file.split("/")[0], "Kit.lua") : "";
-  const stamp = kitCopy && existsSync(kitCopy) ? readFileSync(kitCopy, "utf8").match(/^-- addon-kit (\w+)/)?.[1] : undefined;
-  if (stamp) {
+  const stamp = kitCopy && existsSync(kitCopy) ? readFileSync(kitCopy, "utf8").match(/^-- addon-kit ([0-9a-f]+\+?|\w+)/)?.[1] : undefined;
+  // (a trial copy of uncommitted kit code: never shipped)
+  if (stamp?.endsWith("+")) add("✗", "kit", `copy of ${stamp}, uncommitted kit code: commit the kit, kit:sync, commit`);
+  else if (stamp) {
     const kit = join(ROOT, "addon-kit");
     const pushed = (await run(["git", "merge-base", "--is-ancestor", stamp, "origin/main"], kit)).ok;
     add(pushed ? "✓" : "✗", "kit", pushed ? `copy of ${stamp}, on addon-kit's origin` : `copy of ${stamp}, not on addon-kit's origin/main: the kit goes out first`);

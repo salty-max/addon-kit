@@ -1,5 +1,7 @@
--- The kit shared by Hearthtale, Lorekeeper's Codex, Yonder and
--- Second Wind: the books' look and the pieces their windows are made of
+-- The kit every addon of the family carries but Keyring (Hearthtale,
+-- Lorekeeper's Codex, Yonder, Second Wind, Palaver, Mealbook, Goodwill, Yours
+-- Truly): which game this is and the addon's events, its words, the books'
+-- look and the pieces their windows are made of
 -- (the list on the left, the page on the right and every part of a page, a
 -- board of achievements, a strip of figures), the banners that tell of a deed
 -- done (the game's achievement alert for an achievement earned), each
@@ -7,8 +9,11 @@
 -- welcome page that offers them, and the opt-in that shares what the game
 -- tells of the world with the addons' database (K.collect). Its source is the addon-kit repository
 -- (Kit.lua), beside the addons' own in ~/code/wow-addons; each addon keeps a
--- copy, loaded into its own namespace (ns.kit: no global, no clash between
--- them), made by its kit:sync. Edit the kit, then sync: never the copy.
+-- copy, loaded into its own namespace (ns.kit, and ns.forever and ns.tbc),
+-- made by its kit:sync. Edit the kit, then sync: never the copy. Its globals,
+-- shared on purpose by every copy: SaltyMaxCollector (who collects, K.collect),
+-- SaltyMaxWelcomes (the welcomes' turn, K.welcomeOnce) and
+-- AchievementShield_OnLoad (the achievement alert's, where the client lacks it).
 --
 -- The look is one family: light text and gold titles on dark panels (on
 -- Forever, its Professions cards; on Classic, the game's insets and the quest
@@ -19,6 +24,98 @@
 local addonName, ns = ...
 local K = {}
 ns.kit = K
+
+-- ── which game ───────────────────────────────────────────────────────────────
+-- World of Warcraft: Forever (the original world on the modern client,
+-- interface 16xxx), TBC Anniversary (2xxxx), else Classic Era. The kit says
+-- it once for the addon too (ns.forever, ns.tbc): no addon tests the number.
+K.toc = GetBuildInfo and select(4, GetBuildInfo()) or 0
+K.forever = K.toc >= 16000 and K.toc < 20000
+K.tbc = K.toc >= 20000 and K.toc < 30000
+K.classic = not K.forever and not K.tbc
+K.GAME = K.forever and "forever" or K.tbc and "tbc" or "classic"
+ns.forever, ns.tbc = K.forever, K.tbc
+-- Forever hides some values from addons ("secret values", in combat or
+-- instances): never compare or print one.
+K.secret = issecretvalue or function() return false end
+
+-- ── events ───────────────────────────────────────────────────────────────────
+-- The addon's events, one frame: every listener behind its own pcall (one's
+-- error is reported, the others still hear the event), an event the client
+-- doesn't know never heard (registering one throws), nothing heard before
+-- the login nor while ready() says no (a book not loaded, a closed one).
+--   E = K.events({ login = fn (run first at PLAYER_LOGIN, protected),
+--                  ready = fn (true: heard; none: always, after the login) })
+--   E.on(event, fn)            heard while ready
+--   E.onUnit(event, unit, fn)  one unit's (UNIT_HEALTH fires for every unit in sight): a frame a unit
+--   E.always(event, fn)        heard after the login whatever ready says, after the others
+--   E.knows(event)             whether this client has it (K.knows)
+--   E.run(fn, ...)             fn behind the same pcall
+local probe
+function K.knows(event)
+  probe = probe or CreateFrame("Frame")
+  local ok = pcall(probe.RegisterEvent, probe, event)
+  if ok then probe:UnregisterEvent(event) end
+  return ok
+end
+local function protected(fn, ...)
+  local ok, err = pcall(fn, ...)
+  if not ok then geterrorhandler()(err) end
+end
+function K.events(o)
+  o = o or {}
+  local E = { run = protected, knows = K.knows }
+  local frame = CreateFrame("Frame")
+  local listeners, always = {}, {}
+  local loggedIn = false
+  local function ready() return loggedIn and (not o.ready or o.ready()) end
+  frame:SetScript("OnEvent", function(_, event, ...)
+    if event == "PLAYER_LOGIN" then
+      loggedIn = true
+      if o.login then protected(o.login) end
+    end
+    if ready() then
+      for _, fn in ipairs(listeners[event] or {}) do
+        protected(fn, ...)
+      end
+    end
+    if loggedIn then
+      for _, fn in ipairs(always[event] or {}) do
+        protected(fn, ...)
+      end
+    end
+  end)
+  frame:RegisterEvent("PLAYER_LOGIN")
+  local function add(list, event, fn)
+    if not listeners[event] and not always[event] then pcall(frame.RegisterEvent, frame, event) end
+    list[event] = list[event] or {}
+    table.insert(list[event], fn)
+  end
+  function E.on(event, fn) add(listeners, event, fn) end
+  function E.always(event, fn) add(always, event, fn) end
+  local units = {}
+  function E.onUnit(event, unit, fn)
+    local f = units[unit]
+    if not f then
+      f = CreateFrame("Frame")
+      f.listeners = {}
+      f:SetScript("OnEvent", function(_, e, ...)
+        if not ready() then return end
+        for _, listener in ipairs(f.listeners[e] or {}) do
+          protected(listener, ...)
+        end
+      end)
+      units[unit] = f
+    end
+    if not f.listeners[event] then
+      f.listeners[event] = {}
+      pcall(f.RegisterUnitEvent, f, event, unit)
+    end
+    table.insert(f.listeners[event], fn)
+  end
+  E.frame = frame -- (for the tests)
+  return E
+end
 
 -- ── the theme ────────────────────────────────────────────────────────────────
 -- T: the colours every piece reads when it is made (one table, changed in
@@ -68,6 +165,49 @@ local L = setmetatable({}, { __index = function(_, k) return k end })
 K.L = L
 function K.isOne(n) return n == 1 end
 function K.plural(n, one, many) return K.isOne(n) and L[one] or L[many] end
+
+-- Lowercase in the clients' alphabets (string.lower knows ASCII alone):
+-- Latin-1's capitals (É, Ü, Ñ), Œ and Ÿ, and Cyrillic's (Я, Ё).
+local LOWER = {}
+for b = 0x80, 0x9E do
+  if b ~= 0x97 then LOWER["\195" .. string.char(b)] = "\195" .. string.char(b + 32) end -- (not ×)
+end
+for b = 0x80, 0x8F do
+  LOWER["\208" .. string.char(b)] = "\209" .. string.char(b + 16) -- Ѐ..Џ
+end
+for b = 0x90, 0x9F do
+  LOWER["\208" .. string.char(b)] = "\208" .. string.char(b + 32) -- А..П
+end
+for b = 0xA0, 0xAF do
+  LOWER["\208" .. string.char(b)] = "\209" .. string.char(b - 32) -- Р..Я
+end
+LOWER["\197\146"], LOWER["\197\184"] = "\197\147", "\195\191" -- Œ, Ÿ
+function K.lower(s) return (s:lower():gsub("[\195\197\208][\128-\191]", LOWER)) end
+
+-- A text as a search compares it: lowercase, its accents and the curly
+-- apostrophes aside (a French name's ’ found by a typed '), ё as е.
+local FOLD = { ["\226\128\152"] = "'", ["\226\128\153"] = "'", ["\209\145"] = "\208\181", ["\197\147"] = "oe" }
+for letter, bytes in pairs({
+  a = { 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5 },
+  c = { 0xA7 },
+  e = { 0xA8, 0xA9, 0xAA, 0xAB },
+  i = { 0xAC, 0xAD, 0xAE, 0xAF },
+  n = { 0xB1 },
+  o = { 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB8 },
+  u = { 0xB9, 0xBA, 0xBB, 0xBC },
+  y = { 0xBD, 0xBF },
+}) do
+  for _, b in ipairs(bytes) do
+    FOLD["\195" .. string.char(b)] = letter
+  end
+end
+function K.plain(s)
+  if type(s) ~= "string" then return "" end
+  return (K.lower(s):gsub("\226\128[\152\153]", FOLD):gsub("[\195\197\209][\128-\191]", FOLD))
+end
+-- A search box's words, as K.plain makes them; whether a text holds them.
+function K.query(box) return K.plain(strtrim(box and box:GetText() or "")) end
+function K.finds(text, query) return query == "" or K.plain(text):find(query, 1, true) ~= nil end
 
 -- ── type ─────────────────────────────────────────────────────────────────────
 -- Titles in the game's own display face where the client's letters have it
@@ -1116,12 +1256,17 @@ function K.board(o)
     r.picture:SetPoint("LEFT", 8, 0)
     r.title = K.label(r, K.TITLE_FONT, 15, T.gold)
     r.title:SetPoint("TOPLEFT", 54, -7)
+    -- (its right edge short of the status: a long title, a long translation, cut rather than over it)
+    r.title:SetWidth(width - 54 - 190)
+    r.title:SetWordWrap(false)
     r.text = K.label(r, K.BODY_FONT, 11, T.soft)
     r.text:SetPoint("TOPLEFT", r.title, "BOTTOMLEFT", 0, -5)
     r.text:SetWidth(width - 200)
     r.status = K.label(r, K.BODY_FONT, 11, T.soft)
     r.status:SetPoint("TOPRIGHT", -12, -8)
     r.status:SetJustifyH("RIGHT")
+    r.status:SetWidth(175)
+    r.status:SetWordWrap(false)
     r.bar = K.bar(r)
     r.bar:SetSize(150, 5)
     r.bar:SetPoint("TOPRIGHT", r.status, "BOTTOMRIGHT", 0, -7)
@@ -1136,6 +1281,8 @@ function K.board(o)
     h:SetSize(width, 26)
     h.text = K.label(h, K.TITLE_FONT, 17, T.gold)
     h.text:SetPoint("BOTTOMLEFT", 2, 5)
+    h.text:SetWidth(width - 110)
+    h.text:SetWordWrap(false)
     h.count = K.label(h, K.BODY_FONT, 12, T.soft)
     h.count:SetPoint("BOTTOMRIGHT", -4, 6)
     h.line = K.rule(h)
@@ -1166,10 +1313,19 @@ function K.board(o)
     if earned then
       r.title:SetTextColor(unpack(T.gold))
       r.text:SetTextColor(unpack(T.text))
-      r.status:SetText(L["Level %d, %s"]:format(earned.level or 0, K.day(earned.at)))
+      -- (an achievement earned before its day was kept: its level alone, else nothing)
+      r.status:SetText(
+        earned.at and L["Level %d, %s"]:format(earned.level or 0, K.day(earned.at))
+          or earned.level and L["Level %d"]:format(earned.level)
+          or ""
+      )
       r.bar:Hide()
     else
-      local done, need = a.progress()
+      local done, need
+      if a.progress then
+        done, need = a.progress()
+      end
+      done, need = tonumber(done) or 0, tonumber(need) or 1
       r.title:SetTextColor(unpack(T.dim))
       r.text:SetTextColor(unpack(T.soft))
       if a.unit then
@@ -1543,9 +1699,11 @@ function K.achievements(o)
 end
 
 -- ── choosing ─────────────────────────────────────────────────────────────────
--- A select: the game's own dropdown (the menu system's, where the client has
--- it: Forever; else the older UIDropDownMenu: Classic), in a box the caller
--- places; the kit's own where the client has neither (the test games).
+-- A select: the game's own dropdown, in a box the caller places: the menu
+-- system's (WowStyle1DropdownTemplate), which every client the family ships
+-- for has (Classic Era 1.15.9 and Forever alike); the older UIDropDownMenu
+-- kept for a client without it, the kit's own where there's neither (the
+-- test games).
 --   s = K.select(parent, width, placeholder)   (s.placeholder: shown without a choice)
 --   s:SetOptions({ { value = v, text = "..." }, ... }), s:SetValue(v), s:GetValue()
 --   s.onChange = function(value) end   (a choice made by the player)
@@ -1814,7 +1972,8 @@ end
 --   P:load(seed)   at login; seed(profile, saved) fills a character's new one
 --   P:get(k), P:set(k, v), P:key(), P:others(), P:copy(other) and
 --   P:import(code) (false: no such character, not such a code), P:export()
---   P.onTake: after a copy or an import (the welcome page refreshes)
+--   P:onTaken(fn): fn() after a copy or an import (the welcome page, the
+--   Options page refresh: every listener, P.onTake too for older callers)
 -- A code: "HT1:c1:t1:h0:a200", booleans as 1 and 0; a part of an unknown
 -- letter is left out (a later version's), a code without a known one refused.
 function K.profiles(o)
@@ -1853,9 +2012,14 @@ function K.profiles(o)
     table.sort(out)
     return out
   end
+  local taken = {}
+  function P:onTaken(fn) table.insert(taken, fn) end
   local function take(from)
     for _, k in ipairs(o.shared) do
       P:set(k, from[k])
+    end
+    for _, fn in ipairs(taken) do
+      fn()
     end
     if P.onTake then P.onTake() end
   end
@@ -1916,9 +2080,15 @@ end
 -- Ravenpost sends to the addons' database (wow-data): the game's own words in
 -- the player's language, so the addons know new content without waiting for
 -- others. Classic Era's world and Forever's only (not TBC's, nor the Season of
--- Discovery's). Never the player's own: their name, class and race in a text become
--- the game's tokens ($N, $C, $R); no player, no chat of players.
--- One collector a session among the addons: the first that may claims it.
+-- Discovery's). Never the player's own: their name in a text becomes the game's
+-- token ($N, a whole word only: Storm never takes Stormwind's letters), and a
+-- word that is their class or race is marked with it ($C{Hunter}, $c{hunter},
+-- $R{Night Elf}): the game may have written its token there, or the word may
+-- be a name's (Hunter's Hill), which only many players' texts and the
+-- database's names can tell (wow-data's players' facts resolve it). No player,
+-- no chat of players.
+-- One collector a session among the addons: the first that may claims it (the
+-- global SaltyMaxCollector), and gives it up when its player says no.
 --   C = K.collect({ saved = function() return MyAddonCollect end, prefix = ns.PREFIX })
 --   (prefix: the addon's chat prefix, for the line a yes prints: Ravenpost's address)
 --   C:on(), C:set(on) (the player's choice: the welcome page's, the options'),
@@ -1930,12 +2100,23 @@ end
 --   { [text] = true } }, loot = { ["npc:id" | "object:id"] = { looted = n,
 --   items = { [item id] = n } } } }, saved().game ("classic" | "forever").
 local COLLECT_CAP = 40000 -- (facts kept at most: a saved file stays small)
+-- (the units whose players a text may name: made once)
+local OTHERS = { "target", "focus" }
+for i = 1, 4 do
+  OTHERS[#OTHERS + 1] = "party" .. i
+end
+for i = 1, 40 do
+  OTHERS[#OTHERS + 1] = "raid" .. i
+end
+-- A word as a whole word: its edges where no letter goes on (the bytes of a
+-- letter beyond ASCII, é, ü, я, count as letters).
+local function wholeWord(word) return "%f[%w\128-\255]" .. (word:gsub("%p", "%%%0")) .. "%f[^%w\128-\255]" end
 local RAVENPOST = "github.com/salty-max/ravenpost" -- (where the opt-in sends a player for Ravenpost)
 local function plainText(s) return type(s) == "string" and not (issecretvalue and issecretvalue(s)) and s ~= "" end
 
 function K.collect(o)
   local C = {}
-  local facts, count, me
+  local facts, count, me, frame
   local function saved()
     local t = o.saved()
     t.facts = t.facts or {}
@@ -1956,32 +2137,36 @@ function K.collect(o)
       end
       C:start()
     else
-      saved().facts = {} -- (a no forgets what was kept)
+      -- (a no stops it: what was kept stays on this computer, and Ravenpost
+      -- sends nothing while the answer is no. Said in chat, as the game's
+      -- "Defaults" on its Options page can say no for every addon at once.)
       facts = nil
+      if frame then frame:UnregisterAllEvents() end
+      if SaltyMaxCollector == o.saved then SaltyMaxCollector = nil end
+      if was and o.prefix then
+        print(o.prefix .. L["Sharing what you see is off now. The addon's Options can turn it back on."])
+      end
     end
   end
 
-  -- (the player's own name, wherever it is, and their class and race as
-  -- words: the game's tokens; a text naming another player is not kept)
+  -- (the player's own name as the game's token, their class and race marked
+  -- with the word; a text naming another player is not kept)
   local function others(s)
-    local units = { "target", "focus" }
-    for i = 1, 4 do
-      table.insert(units, "party" .. i)
-    end
-    for i = 1, 40 do
-      table.insert(units, "raid" .. i)
-    end
-    for _, u in ipairs(units) do
+    for _, u in ipairs(OTHERS) do
       local name = UnitExists(u) and UnitIsPlayer(u) and UnitName(u)
       if plainText(name) and name ~= me["$N"] and s:find(name, 1, true) then return true end
     end
   end
   local function tokens(s)
     if not plainText(s) then return nil end
-    if me["$N"] ~= "" then s = s:gsub((me["$N"]:gsub("%p", "%%%0")), "$N") end
+    if me["$N"] ~= "" then s = s:gsub(wholeWord(me["$N"]), "$N") end
     for _, token in ipairs({ "$C", "$R" }) do
       local word = me[token]
-      if word ~= "" then s = s:gsub("%f[%w]" .. (word:gsub("%p", "%%%0")) .. "%f[%W]", token) end
+      if word ~= "" then
+        s = s:gsub(wholeWord(word), token .. "{" .. word .. "}")
+        local lower = K.lower(word)
+        if lower ~= word then s = s:gsub(wholeWord(lower), token:lower() .. "{" .. lower .. "}") end
+      end
     end
     if others(s) then return nil end
     return s
@@ -2150,19 +2335,34 @@ function K.collect(o)
     end
   end
 
-  local frame
+  local function heard(event, ...)
+    if event:find("^QUEST_") then
+      quest(event)
+    elseif event == "PLAYER_TARGET_CHANGED" then
+      unit("target")
+    elseif event == "UPDATE_MOUSEOVER_UNIT" then
+      unit("mouseover")
+    elseif event == "GOSSIP_SHOW" then
+      gossip()
+    elseif event == "LOOT_OPENED" then
+      loot()
+    else
+      local text, _, _, _, _, _, _, _, _, _, _, guid = ...
+      said(event:match("CHAT_MSG_MONSTER_(%a+)"):lower(), text, guid)
+    end
+  end
+
   function C:start()
     if not C:on() then return end
     -- (the world of Classic Era and of Forever only: not TBC's, nor the
     -- Season of Discovery's, whose quests and creatures are its own)
-    local toc = select(4, GetBuildInfo())
     local season = C_Seasons and C_Seasons.GetActiveSeason and C_Seasons.GetActiveSeason()
     local discovery = Enum and Enum.SeasonID and Enum.SeasonID.SeasonOfDiscovery or 2
-    if toc >= 20000 or (toc < 16000 and season == discovery) then return end
+    if not (K.forever or (K.classic and season ~= discovery)) then return end
     if SaltyMaxCollector and SaltyMaxCollector ~= o.saved then return end -- (another of the addons collects)
     SaltyMaxCollector = o.saved
     local t = saved()
-    t.game = toc >= 16000 and "forever" or "classic"
+    t.game = K.forever and "forever" or "classic"
     local locale = GetLocale()
     t.facts[locale] = t.facts[locale] or {}
     -- Older collectors kept summons as NPCs. Re-observe NPCs with the new
@@ -2182,8 +2382,7 @@ function K.collect(o)
       end
     end
     me = { ["$N"] = UnitName("player") or "", ["$C"] = UnitClass("player") or "", ["$R"] = UnitRace("player") or "" }
-    if frame then return end
-    frame = CreateFrame("Frame")
+    frame = frame or CreateFrame("Frame")
     for _, e in ipairs({
       "QUEST_DETAIL",
       "QUEST_PROGRESS",
@@ -2201,22 +2400,7 @@ function K.collect(o)
     end
     frame:SetScript("OnEvent", function(_, event, ...)
       if not C:on() or not facts then return end -- (said no since: nothing more)
-      pcall(function(...)
-        if event:find("^QUEST_") then
-          quest(event)
-        elseif event == "PLAYER_TARGET_CHANGED" then
-          unit("target")
-        elseif event == "UPDATE_MOUSEOVER_UNIT" then
-          unit("mouseover")
-        elseif event == "GOSSIP_SHOW" then
-          gossip()
-        elseif event == "LOOT_OPENED" then
-          loot()
-        else
-          local text, _, _, _, _, _, _, _, _, _, _, guid = ...
-          said(event:match("CHAT_MSG_MONSTER_(%a+)"):lower(), text, guid)
-        end
-      end, ...)
+      pcall(heard, event, ...)
     end)
   end
   C.tokens = function(_, s) return tokens(s) end -- (for the tests)
@@ -2299,7 +2483,8 @@ end
 -- The window's tabs under its bottom edge, in the style of the character
 -- sheet's (the shared panel tabs where that template doesn't exist: Forever),
 -- named <window's name>Tab<n> (a window of K.gameWindow or K.dialog);
--- clicked(n) when one is chosen.
+-- clicked(n) when one is chosen, the tab shown chosen first (K.selectTab: the
+-- same from the addon's code, a tab opened by a command).
 local function hasTemplate(name)
   if not (C_XMLUtil and C_XMLUtil.GetTemplateInfo) then return name == "CharacterFrameTabButtonTemplate" end
   return C_XMLUtil.GetTemplateInfo(name) ~= nil
@@ -2318,6 +2503,7 @@ function K.tabs(window, titles, clicked)
       tab:SetPoint("LEFT", prefix .. (n - 1), "RIGHT", -14, 0)
     end
     tab:SetScript("OnClick", function(self)
+      K.selectTab(window, self:GetID())
       clicked(self:GetID())
       if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB) end
     end)
@@ -2328,13 +2514,22 @@ function K.tabs(window, titles, clicked)
   end
   if PanelTemplates_SetNumTabs then PanelTemplates_SetNumTabs(window, #titles) end
 end
+function K.selectTab(window, n)
+  if PanelTemplates_SetTab then PanelTemplates_SetTab(window, n) end
+end
 
 -- A window that can be moved, kept on screen, above the game's panels, and
 -- closed by Escape (by its name: a window of K.gameWindow or K.dialog); left
 -- hidden, as a new frame is shown: its first Show is then a showing (OnShow).
-function K.movable(window, width, height)
+-- place: a saved table to keep where it was left ({ point, x, y }), else the
+-- screen's centre each time.
+function K.movable(window, width, height, place)
   window:SetSize(width, height)
-  window:SetPoint("CENTER")
+  if place and place.point then
+    window:SetPoint(place.point, UIParent, place.point, place.x or 0, place.y or 0)
+  else
+    window:SetPoint("CENTER")
+  end
   window:SetFrameStrata("HIGH")
   window:SetToplevel(true)
   window:SetMovable(true)
@@ -2342,7 +2537,13 @@ function K.movable(window, width, height)
   window:SetClampedToScreen(true)
   window:RegisterForDrag("LeftButton")
   window:SetScript("OnDragStart", window.StartMoving)
-  window:SetScript("OnDragStop", window.StopMovingOrSizing)
+  window:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    if place then
+      local point, _, _, x, y = self:GetPoint()
+      place.point, place.x, place.y = point, x and math.floor(x + 0.5), y and math.floor(y + 0.5)
+    end
+  end)
   table.insert(UISpecialFrames, window.kitName)
   window:Hide()
 end
@@ -2416,6 +2617,7 @@ function K.welcome(o)
     row.get, row.kind = c.get, c.options and "select" or "check"
     if c.options then
       name:SetPoint("TOPLEFT", 0, -3)
+      name:SetWidth(WELCOME_TEXT - 190)
       note:SetWidth(WELCOME_TEXT - 190)
       row.select = K.select(row, 170, "")
       row.select:SetPoint("TOPRIGHT", 0, 0)
@@ -2423,6 +2625,7 @@ function K.welcome(o)
       row.select.onChange = c.set
     else
       name:SetPoint("TOPLEFT", 28, -3)
+      name:SetWidth(WELCOME_TEXT - 30)
       note:SetWidth(WELCOME_TEXT - 30)
       row.box = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
       row.box:SetSize(26, 26)
@@ -2456,9 +2659,9 @@ function K.welcome(o)
     picker.select:SetOptions(options)
     picker.copy:SetEnabled(picker.select:GetValue() ~= nil)
   end
-  P.onTake = function()
+  P:onTaken(function()
     if frame and frame:IsShown() then refresh() end
-  end
+  end)
 
   -- Another character of this game, chosen in a select; Copy.
   local function buildPicker(parent, anchor)
@@ -2630,13 +2833,33 @@ function K.welcome(o)
 end
 
 -- The welcome once per character, a few seconds after its first login, out
--- of combat (ready(): the addon has loaded the character, its profile).
+-- of combat (ready(): the addon has loaded the character, its profile). The
+-- family's welcomes take turns (SaltyMaxWelcomes, shared by every copy): a
+-- new character with every addon meets them one after another, never seven
+-- stacked at once, the next when one is closed.
+local function welcomes()
+  SaltyMaxWelcomes = SaltyMaxWelcomes or { waiting = {} }
+  return SaltyMaxWelcomes
+end
 function K.welcomeOnce(W, P, ready)
   local events = CreateFrame("Frame")
+  local hooked
   local function show()
     if P:get("welcomed") or (ready and not ready()) then return end
     if InCombatLockdown() then return events:RegisterEvent("PLAYER_REGEN_ENABLED") end
+    local turn = welcomes()
+    if turn.showing and turn.showing ~= W then return table.insert(turn.waiting, show) end
+    turn.showing = W
     W:Show()
+    if not hooked and W.frame then
+      hooked = true
+      W.frame:HookScript("OnHide", function()
+        if turn.showing ~= W then return end
+        turn.showing = nil
+        local nextOne = table.remove(turn.waiting, 1)
+        if nextOne then C_Timer.After(0.5, nextOne) end
+      end)
+    end
   end
   events:SetScript("OnEvent", function(self, event, initial)
     if event == "PLAYER_REGEN_ENABLED" then

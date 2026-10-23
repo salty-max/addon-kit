@@ -1,6 +1,6 @@
 // status.ts's, each.ts's and secret.ts's pure parts, and sync.ts's copies (bun test).
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { argvOf, parse, pick, unknown } from "./each";
@@ -117,8 +117,23 @@ describe("sync", () => {
   };
   const env = { ...process.env, WOW_ADDONS_ROOT: "" };
   delete env.WOW_ADDONS_ROOT;
-  const run = (cwd: string, cmd: string[]) => Bun.spawnSync(cmd, { cwd, env, stdout: "pipe", stderr: "pipe" });
-  const sync = (cwd: string, ...args: string[]) => run(cwd, ["bun", join(import.meta.dir, "sync.ts"), ...args]);
+  const run = (cwd: string, cmd: string[], more: Record<string, string> = {}) => Bun.spawnSync(cmd, { cwd, env: { ...env, CI: "", ...more }, stdout: "pipe", stderr: "pipe" });
+  const commitAll = (dir: string, msg = "t") => {
+    for (const cmd of [["git", "add", "-A"], ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", msg]])
+      expect(run(dir, cmd).exitCode).toBe(0);
+  };
+  // A kit of its own, committed: the tests never depend on the real kit's state.
+  const kit = () => {
+    const dir = temp();
+    for (const f of ["sync.ts", "Kit.lua", "root.ts", "root.py"]) copyFileSync(join(import.meta.dir, f), join(dir, f));
+    mkdirSync(join(dir, "Media"));
+    writeFileSync(join(dir, "Media", "Ring.tga"), "ring");
+    expect(run(dir, ["git", "init", "-q", "-b", "main"]).exitCode).toBe(0);
+    commitAll(dir);
+    return dir;
+  };
+  let KIT_DIR = "";
+  const sync = (cwd: string, ...args: string[]) => run(cwd, ["bun", join((KIT_DIR ||= kit()), "sync.ts"), ...args]);
   const repo = (python: boolean, dir = temp()) => {
     mkdirSync(join(dir, "addon", "X"), { recursive: true });
     mkdirSync(join(dir, "scripts"), { recursive: true });
@@ -132,13 +147,53 @@ describe("sync", () => {
     expect(sync(dir, "addon/X").exitCode).toBe(0);
     const ts = readFileSync(join(dir, "scripts", "root.ts"), "utf8");
     expect(ts.split("\n")[0]).toMatch(/^\/\/ addon-kit \S+: a copy \(kit:sync\); edit the addon-kit repository's root\.ts instead$/);
-    expect(ts.slice(ts.indexOf("\n") + 1)).toBe(readFileSync(join(import.meta.dir, "root.ts"), "utf8"));
+    expect(ts.slice(ts.indexOf("\n") + 1)).toBe(readFileSync(join(KIT_DIR, "root.ts"), "utf8"));
     expect(readFileSync(join(dir, "scripts", "root.py"), "utf8").split("\n")[0]).toMatch(/^# addon-kit \S+: a copy/);
     expect(sync(dir, "--check", "addon/X").exitCode).toBe(0);
     writeFileSync(join(dir, "scripts", "root.ts"), `${ts}// edited\n`);
     const r = sync(dir, "--check", "addon/X");
     expect(r.exitCode).toBe(1);
     expect(r.stderr.toString()).toContain("scripts/root.ts: not the kit's");
+  });
+
+  test("a copy is the kit's at its stamp: a hand edit or a made-up stamp fails, a stale one fails but in CI", () => {
+    const k = kit();
+    const go = (cwd: string, ...args: string[]) => run(cwd, ["bun", join(k, "sync.ts"), ...args]);
+    const dir = repo(false);
+    expect(go(dir, "addon/X").exitCode).toBe(0);
+    const copy = readFileSync(join(dir, "addon", "X", "Kit.lua"), "utf8");
+    const stamp = copy.match(/^-- addon-kit ([0-9a-f]+):/)![1];
+    expect(go(dir, "--check", "addon/X").exitCode).toBe(0);
+    writeFileSync(join(dir, "addon", "X", "Kit.lua"), `${copy}-- edited\n`);
+    expect(go(dir, "--check", "addon/X").stderr.toString()).toContain(`not the kit's at ${stamp}`);
+    writeFileSync(join(dir, "addon", "X", "Kit.lua"), copy.replace(stamp, "0000000"));
+    expect(go(dir, "--check", "addon/X").exitCode).toBe(1);
+    writeFileSync(join(dir, "addon", "X", "Kit.lua"), copy);
+    // a harness commit moves no stamp; a commit to the kit makes the copy stale
+    writeFileSync(join(k, "q.ts"), "// the harness\n");
+    commitAll(k, "harness");
+    expect(go(dir, "--check", "addon/X").exitCode).toBe(0);
+    writeFileSync(join(k, "Kit.lua"), `${readFileSync(join(k, "Kit.lua"), "utf8")}-- more\n`);
+    // uncommitted: the sync refuses, but a trial; the check refuses the trial's copy
+    expect(go(dir, "addon/X").stderr.toString()).toContain("uncommitted changes");
+    const finder = readFileSync(join(dir, "scripts", "root.ts"), "utf8");
+    expect(go(dir, "--dirty", "addon/X").exitCode).toBe(0);
+    expect(go(dir, "--check", "addon/X").stderr.toString()).toContain("a trial copy");
+    writeFileSync(join(dir, "addon", "X", "Kit.lua"), copy);
+    writeFileSync(join(dir, "scripts", "root.ts"), finder);
+    commitAll(k, "kit");
+    const stale = go(dir, "--check", "addon/X");
+    expect([stale.exitCode, stale.stderr.toString().includes("stale")]).toEqual([1, true]);
+    const ci = run(dir, ["bun", join(k, "sync.ts"), "--check", "addon/X"], { CI: "true" });
+    expect([ci.exitCode, ci.stdout.toString().includes("note:"), ci.stderr.toString()]).toEqual([0, true, ""]);
+    // a picture the kit dropped leaves the addon's folder at the next sync
+    expect(go(dir, "addon/X").exitCode).toBe(0);
+    expect(existsSync(join(dir, "addon", "X", "Media", "Ring.tga"))).toBe(true);
+    rmSync(join(k, "Media", "Ring.tga"));
+    writeFileSync(join(k, "Media", "Other.tga"), "other");
+    commitAll(k, "pictures");
+    expect(go(dir, "addon/X").exitCode).toBe(0);
+    expect([existsSync(join(dir, "addon", "X", "Media", "Ring.tga")), existsSync(join(dir, "addon", "X", "Media", "Other.tga"))]).toEqual([false, true]);
   });
 
   test("root.py only where a Python script is, a stale one refused", () => {
@@ -162,8 +217,8 @@ describe("sync", () => {
     writeFileSync(join(family, "addon-kit", "exit3.ts"), "process.exit(3);\n");
     const addon = repo(true, join(family, "addon"));
     expect(sync(addon, "addon/X").exitCode).toBe(0);
-    for (const cmd of [["git", "init", "-q"], ["git", "add", "-A"], ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "t"]])
-      expect(run(addon, cmd).exitCode).toBe(0);
+    expect(run(addon, ["git", "init", "-q"]).exitCode).toBe(0);
+    commitAll(addon);
     const tree = join(temp(), "wt");
     expect(run(addon, ["git", "worktree", "add", "-q", "--detach", tree]).exitCode).toBe(0);
     const found = run(tree, ["bun", "scripts/root.ts"]);

@@ -509,9 +509,10 @@ do
 end
 
 -- ── what the game says of the world, shared ──────────────────────────────────
--- Off until the player says yes; then a quest's texts (their name, class and
--- race as the game's tokens), a creature's facts, an NPC's line (never one
--- naming another player), loot by source; a no forgets it all.
+-- Off until the player says yes; then a quest's texts (their name the game's
+-- token, a whole word only; their class and race marked with the word), a
+-- creature's facts, an NPC's line (never one naming another player), loot by
+-- source; a no stops it.
 do
   local units = {}
   GetBuildInfo = function() return "1.15.9", "70003", "Oct 1 2026", 11509 end
@@ -581,7 +582,7 @@ do
   local q = saved.facts.enUS.quest[33]
   check(
     q
-      and q.details == "Hey $N, a $R $C like you can bring me meat."
+      and q.details == "Hey $N, a $R{Dwarf} $C{Warrior} like you can bring me meat."
       and q.giver == "npc:197"
       and q.map == 1426
       and q.x == 46.1,
@@ -680,12 +681,31 @@ do
   fire("LOOT_OPENED")
   local l = saved.facts.enUS.loot["npc:299"]
   check(l and l.looted == 1 and l.items[750] == 1 and l.items[2589] == 1, "collect: what a corpse gave, once a looting")
+  check(
+    C:tokens("Maxou's name, not Maxoume's, in Stormwind") == "$N's name, not Maxoume's, in Stormwind",
+    "collect: the name a whole word only"
+  )
+  check(
+    C:tokens("A warrior, the Warrior's Hall") == "A $c{warrior}, the $C{Warrior}'s Hall",
+    "collect: the class marked with its word, lowercase too, for the database to resolve"
+  )
+  said = {}
+  print = function(line) table.insert(said, line) end
   C:set(false)
+  C:set(false)
+  print = print0
+  local before = saved.facts.enUS.quest[33]
+  quest.id = 34
   fire("QUEST_DETAIL")
-  check(next(saved.facts) == nil and not C:on(), "collect: a no forgets it all, keeps nothing more")
+  check(
+    not C:on() and before and saved.facts.enUS.quest[34] == nil and _G.SaltyMaxCollector == nil,
+    "collect: a no stops it, keeps what was kept, gives up the claim"
+  )
+  check(#said == 1 and said[1]:find("^Kit: Sharing what you see is off"), "collect: a no is said once")
   C:set(true)
+  quest.id = 33
   fire("QUEST_DETAIL")
-  check(saved.facts.enUS and saved.facts.enUS.quest[33], "collect: a yes again starts afresh")
+  check(saved.facts.enUS and saved.facts.enUS.quest[33], "collect: a yes again goes on")
   saved.facts.enUS.npc = { [1860] = { name = "Graz'nar" }, [299] = { name = "Young Wolf", world = true } }
   saved.facts.deDE = { npc = { [1860] = { name = "Graz'nar" } }, gossip = { [448] = { Hallo = true } } }
   C:start()
@@ -702,7 +722,7 @@ do
     C_Seasons = { GetActiveSeason = function() return world.season end }
     _G.SaltyMaxCollector = nil
     local other = { share = true }
-    K.collect({ saved = function() return other end }):start()
+    load().collect({ saved = function() return other end }):start()
     check(_G.SaltyMaxCollector == nil and other.game == nil, "collect: never TBC's world nor the Season of Discovery's")
   end
   C_Seasons = nil
@@ -724,6 +744,151 @@ do
     "gameWindow: its body dark, the dialog box's"
   )
   CreateFrame = function() return frame() end
+end
+
+-- Which game, from the client's interface number; ns told too.
+do
+  for _, g in ipairs({ { 11509, "classic" }, { 16001, "forever" }, { 17000, "forever" }, { 20506, "tbc" } }) do
+    GetBuildInfo = function() return "x", "1", "d", g[1] end
+    local ns = {}
+    assert(loadfile("Kit.lua"))("Test", ns)
+    check(ns.kit.GAME == g[2] and ns.forever == (g[2] == "forever") and ns.tbc == (g[2] == "tbc"), "game: " .. g[1] .. " is " .. g[2])
+  end
+  GetBuildInfo = nil
+end
+
+-- Events: each listener on its own (one's error never silences the others),
+-- nothing before the login or while not ready, always after the others, a
+-- frame a unit.
+do
+  local frames, made = {}, nil
+  CreateFrame = function()
+    local f = frame()
+    f.events, f.units = {}, {}
+    function f:RegisterEvent(e)
+      if e == "NOT_AN_EVENT" then error("unknown event") end
+      self.events[e] = true
+    end
+    function f:UnregisterEvent(e) self.events[e] = nil end
+    function f:RegisterUnitEvent(e, u) self.units[e] = u end
+    table.insert(frames, f)
+    return f
+  end
+  local errors = {}
+  geterrorhandler = function() return function(e) table.insert(errors, e) end end
+  local K = load()
+  local ready, heard, logged = false, {}, 0
+  local E = K.events({ login = function() logged = logged + 1 error("login broke") end, ready = function() return ready end })
+  made = E.frame
+  E.on("BAG_UPDATE", function() error("first broke") end)
+  E.on("BAG_UPDATE", function(n) table.insert(heard, "second " .. n) end)
+  E.always("PLAYER_LOGOUT", function() table.insert(heard, "always") end)
+  E.on("PLAYER_LOGOUT", function() table.insert(heard, "on") end)
+  E.on("NOT_AN_EVENT", function() end)
+  local fire = function(e, ...) made.scripts.OnEvent(made, e, ...) end
+  fire("BAG_UPDATE", 1)
+  check(#heard == 0, "events: nothing before the login")
+  fire("PLAYER_LOGIN")
+  check(logged == 1 and errors[1] and errors[1]:find("login broke"), "events: the login run first, its error reported")
+  fire("BAG_UPDATE", 2)
+  check(#heard == 0, "events: nothing while not ready")
+  ready = true
+  fire("BAG_UPDATE", 3)
+  check(heard[1] == "second 3" and #errors == 2, "events: one listener's error, the next still hears")
+  heard = {}
+  fire("PLAYER_LOGOUT")
+  check(heard[1] == "on" and heard[2] == "always", "events: always after the others")
+  ready, heard = false, {}
+  fire("PLAYER_LOGOUT")
+  check(#heard == 1 and heard[1] == "always", "events: always heard while not ready")
+  check(made.events.BAG_UPDATE and not made.events.NOT_AN_EVENT and not K.knows("NOT_AN_EVENT"), "events: an unknown one never registered")
+  ready = true
+  local got = {}
+  E.onUnit("UNIT_HEALTH", "player", function() table.insert(got, "player") end)
+  E.onUnit("UNIT_HEALTH", "target", function() table.insert(got, "target") end)
+  local playerFrame, targetFrame = frames[#frames - 1], frames[#frames]
+  check(playerFrame ~= targetFrame and playerFrame.units.UNIT_HEALTH == "player" and targetFrame.units.UNIT_HEALTH == "target", "events: a frame a unit")
+  targetFrame.scripts.OnEvent(targetFrame, "UNIT_HEALTH", "target")
+  check(#got == 1 and got[1] == "target", "events: a unit's listeners alone")
+  CreateFrame = function() return frame() end
+end
+
+-- Words as a search compares them; lowercase beyond ASCII.
+do
+  local K = load()
+  check(K.lower("ÉLÉMENTAIRE Ёлка ПРИВЕТ") == "élémentaire ёлка привет", "words: lowercase in Latin-1 and Cyrillic")
+  check(K.plain("Comté-de-l’Or") == "comte-de-l'or", "search: accents and the curly apostrophe aside")
+  check(K.finds("Comté-de-l’Or", K.plain("COMTE-DE-L'OR")) and not K.finds("Elwynn", "durotar") and K.finds("x", ""), "search: finds the typed words")
+end
+
+-- The family's welcomes take turns: the second waits for the first to close.
+do
+  local K = load()
+  SaltyMaxWelcomes = nil
+  local timers = {}
+  C_Timer = { After = function(_, fn) table.insert(timers, fn) end }
+  InCombatLockdown = function() return false end
+  local evts = {}
+  CreateFrame = function()
+    local f = frame()
+    table.insert(evts, f)
+    return f
+  end
+  local function welcome()
+    local W = { shown = 0 }
+    function W:Show()
+      self.shown = self.shown + 1
+      if not self.frame then
+        self.frame = frame()
+        local hooks = {}
+        function self.frame:HookScript(_, fn) table.insert(hooks, fn) end
+        function self.frame:Hide()
+          for _, fn in ipairs(hooks) do
+            fn()
+          end
+        end
+      end
+    end
+    return W
+  end
+  local P = { get = function() return false end }
+  local one, two = welcome(), welcome()
+  K.welcomeOnce(one, P)
+  local e1 = evts[#evts]
+  K.welcomeOnce(two, P)
+  local e2 = evts[#evts]
+  e1.scripts.OnEvent(e1, "PLAYER_ENTERING_WORLD", true)
+  e2.scripts.OnEvent(e2, "PLAYER_ENTERING_WORLD", true)
+  for _, fn in ipairs(timers) do
+    fn()
+  end
+  timers = {}
+  check(one.shown == 1 and two.shown == 0, "welcome: one at a time, the second waits")
+  one.frame:Hide()
+  for _, fn in ipairs(timers) do
+    fn()
+  end
+  check(two.shown == 1, "welcome: the next once one is closed")
+  CreateFrame = function() return frame() end
+  SaltyMaxWelcomes = nil
+end
+
+-- The board: an achievement without its progress or its day never breaks a row.
+do
+  local K = load()
+  local B = K.board({
+    parent = frame(),
+    name = "TestBoard2",
+    groups = { { "g", "Group", "Interface\\Icons\\INV_Misc_QuestionMark" } },
+    items = function()
+      return {
+        { id = "a", group = "g", title = "No progress", text = "t" },
+        { id = "b", group = "g", title = "Old", text = "t", earned = { level = 12 } },
+      }
+    end,
+  })
+  local ok = pcall(B.refresh, B)
+  check(ok and B.rows[1].status.text == "0/1" and B.rows[2].status.text == "Level 12", "board: no progress, no day: still a row")
 end
 
 print(failures == 0 and "all good" or (failures .. " failed"))

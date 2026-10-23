@@ -1,7 +1,10 @@
 # addon-kit
 
-The Lua shared by Hearthtale, Lorekeeper's Codex, Yonder and
-Second Wind: the books' look (one family, a theme each), the pieces their
+The Lua every addon of the family carries but Keyring (Hearthtale,
+Lorekeeper's Codex, Yonder, Second Wind, Palaver, Mealbook, Goodwill, Yours
+Truly): which game this is (`K.GAME`, `K.forever`; `ns.forever` set for the
+addon), its events (`K.events`: each listener behind its own pcall), search
+words (`K.plain`, `K.finds`), the books' look (one family, a theme each), the pieces their
 windows are made of (the list on the left, the page on the right and every part
 of a page, a board of achievements, a strip of figures, a select), the banners
 that tell of a deed done (in the game's own stack of alerts), each character's
@@ -10,8 +13,11 @@ offers them. See `Kit.lua`'s header for what it holds.
 
 Each addon keeps a committed copy (`addon/<Addon>/Kit.lua`, listed in its TOC
 before the files that use it), loaded into the addon's own namespace as
-`ns.kit`: no global, no version clash between the addons, nothing more for
-players to install, and the addons' releases unchanged.
+`ns.kit`: no version clash between the addons, nothing more for players to
+install, and the addons' releases unchanged. Its three globals are shared on
+purpose by every copy: `SaltyMaxCollector` (who collects), `SaltyMaxWelcomes`
+(the welcomes take turns: a new character meets them one at a time) and
+`AchievementShield_OnLoad` (the alert's, where a client lacks it).
 
 Every word the kit shows goes through `K.L` (its addon's too, as `ns.L`),
 English by default: a missing word is its own English. An addon's language
@@ -30,8 +36,15 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
 - `bun run check` runs them all (stylua's check, `luajit test.lua`, `bun
   test`, the panel's tests and manifest); through q.ts it stamps the tree,
   which a push asks for.
-- In each addon: `bun run kit:sync`, then its own checks. `bun run kit:check`
-  fails when the copy isn't the kit's (a copy edited by hand). The sync also
+- In each addon: `bun run kit:sync`, then its own checks. The copy's stamp
+  is the kit's last commit that touched what it copies (`Kit.lua`, `Media/`,
+  `root.ts`, `root.py`): a harness commit moves none. The sync refuses
+  uncommitted kit code (`--dirty`: a trial, stamped `<sha>+`, which the check
+  and preflight refuse). `bun run kit:check` compares each copy with the kit
+  at its stamp (a copy edited by hand, a stamp made up, fail), then the stamp
+  with the kit's newest: behind it, the copy is stale (in CI only said, so a
+  daily job never fails between a kit push and the addon's sync). A picture
+  the kit dropped leaves the addon's `Media/` at the next sync. The sync also
   copies `root.ts` (and `root.py`, beside Python scripts) into the addon's
   `scripts/`, stamped the same way: its scripts find the kit and wow-data
   through them, from a worktree too.
