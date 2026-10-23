@@ -1,0 +1,677 @@
+# The game's globals the family's addons use, and the kit's own three
+# (SaltyMaxCollector, SaltyMaxWelcomes, AchievementShield_OnLoad): selene's
+# standard library for every addon's Lua, copied into each by kit:sync. An
+# addon's own globals (its saved variables, its slash command) are its
+# <addon>.yml: selene.toml says std = "wow+<addon>". A new game function an
+# addon calls goes here (then kit:sync).
+base: lua51
+name: wow
+globals:
+  AcceptQuest:
+    any: true
+  AchievementShield_Desaturate:
+    any: true
+  AchievementShield_OnLoad:
+    property: full-write
+  AchievementShield_Saturate:
+    any: true
+  AlertFrame:
+    any: true
+  AlertFrame_OnClick:
+    any: true
+  and:
+    any: true
+  as:
+    any: true
+  be:
+    any: true
+  bit:
+    any: true
+  ButtonFrameTemplate_HideButtonBar:
+    any: true
+  C_AddOns:
+    any: true
+  C_ChatInfo:
+    any: true
+  C_Container:
+    any: true
+  C_CreatureInfo:
+    any: true
+  C_CurrencyInfo:
+    any: true
+  C_CVar:
+    any: true
+  C_DamageMeter:
+    any: true
+  C_DeathRecap:
+    any: true
+  C_GameRules:
+    any: true
+  C_GossipInfo:
+    any: true
+  C_Item:
+    any: true
+  C_LossOfControl:
+    any: true
+  C_Map:
+    any: true
+  C_MapExplorationInfo:
+    any: true
+  C_Minimap:
+    any: true
+  C_PlayerInfo:
+    any: true
+  C_PlayerInteractionManager:
+    any: true
+  C_QuestInfoSystem:
+    any: true
+  C_QuestLog:
+    any: true
+  C_Reputation:
+    any: true
+  C_Seasons:
+    any: true
+  C_Secrets:
+    any: true
+  C_SpecializationInfo:
+    any: true
+  C_Spell:
+    any: true
+  C_Texture:
+    any: true
+  C_Timer:
+    any: true
+  C_TradeSkillUI:
+    any: true
+  C_UnitAuras:
+    any: true
+  C_XMLUtil:
+    any: true
+  CameraZoomIn:
+    any: true
+  CameraZoomOut:
+    any: true
+  can:
+    any: true
+  CanDualWield:
+    any: true
+  CanLootUnit:
+    any: true
+  cause:
+    any: true
+  ChatFontNormal:
+    any: true
+  CheckInteractDistance:
+    any: true
+  CLASS_ICON_TCOORDS:
+    any: true
+  CloseItemText:
+    any: true
+  CloseQuest:
+    any: true
+  CollapseSkillHeader:
+    any: true
+  CombatLogGetCurrentEventInfo:
+    any: true
+  CompleteQuest:
+    any: true
+  confusing:
+    any: true
+  ConsoleExec:
+    any: true
+  ContainerIDToInventoryID:
+    any: true
+  CreateFrame:
+    any: true
+  CreateFromMixins:
+    any: true
+  CreateUnitHealPredictionCalculator:
+    any: true
+  CreateVector2D:
+    any: true
+  CustomGossipFrameManager:
+    any: true
+  date:
+    any: true
+  debug:
+    any: true
+  debugstack:
+    any: true
+  DeclineQuest:
+    any: true
+  DisableAddOn:
+    any: true
+  during:
+    any: true
+  encoding:
+    any: true
+  Enum:
+    any: true
+  ERR_LEARN_RECIPE_S:
+    any: true
+  ExpandSkillHeader:
+    any: true
+  FACTION_BAR_COLORS:
+    any: true
+  FACTION_STANDING_LABEL1:
+    any: true
+  FACTION_STANDING_LABEL1_FEMALE:
+    any: true
+  FACTION_STANDING_LABEL2:
+    any: true
+  FACTION_STANDING_LABEL2_FEMALE:
+    any: true
+  FACTION_STANDING_LABEL3:
+    any: true
+  FACTION_STANDING_LABEL3_FEMALE:
+    any: true
+  FACTION_STANDING_LABEL4:
+    any: true
+  FACTION_STANDING_LABEL4_FEMALE:
+    any: true
+  FACTION_STANDING_LABEL5:
+    any: true
+  FACTION_STANDING_LABEL5_FEMALE:
+    any: true
+  FACTION_STANDING_LABEL6:
+    any: true
+  FACTION_STANDING_LABEL6_FEMALE:
+    any: true
+  FACTION_STANDING_LABEL7:
+    any: true
+  FACTION_STANDING_LABEL7_FEMALE:
+    any: true
+  FACTION_STANDING_LABEL8:
+    any: true
+  FACTION_STANDING_LABEL8_FEMALE:
+    any: true
+  GameEvent:
+    any: true
+  GameTooltip:
+    any: true
+  GetActiveTitle:
+    any: true
+  GetAddOnInfo:
+    any: true
+  GetAddOnMetadata:
+    any: true
+  GetAvailableQuestInfo:
+    any: true
+  GetAvailableTitle:
+    any: true
+  GetBindLocation:
+    any: true
+  GetBuildInfo:
+    any: true
+  GetCameraZoom:
+    any: true
+  GetCoinTextureString:
+    any: true
+  GetContainerItemID:
+    any: true
+  GetContainerNumSlots:
+    any: true
+  GetCurrentKeyBoardFocus:
+    any: true
+  GetCurrentRegion:
+    any: true
+  GetCursorPosition:
+    any: true
+  GetCVar:
+    any: true
+  GetCVarBool:
+    any: true
+  geterrorhandler:
+    any: true
+  GetExpansionLevel:
+    any: true
+  GetFactionInfoByID:
+    any: true
+  GetGameTime:
+    any: true
+  GetGossipText:
+    any: true
+  GetGreetingText:
+    any: true
+  GetInstanceInfo:
+    any: true
+  GetInventoryItemCooldown:
+    any: true
+  GetInventoryItemID:
+    any: true
+  GetInventoryItemLink:
+    any: true
+  GetItemCooldown:
+    any: true
+  GetItemCount:
+    any: true
+  GetItemIcon:
+    any: true
+  GetItemInfo:
+    any: true
+  GetItemInfoInstant:
+    any: true
+  GetItemStats:
+    any: true
+  GetLocale:
+    any: true
+  GetLootSlotInfo:
+    any: true
+  GetLootSlotLink:
+    any: true
+  GetLootSourceInfo:
+    any: true
+  GetMaxPlayerLevel:
+    any: true
+  GetMinimapShape:
+    any: true
+  GetMoney:
+    any: true
+  GetMouseFoci:
+    any: true
+  GetMouseFocus:
+    any: true
+  GetNumActiveQuests:
+    any: true
+  GetNumAddOns:
+    any: true
+  GetNumAvailableQuests:
+    any: true
+  GetNumGroupMembers:
+    any: true
+  GetNumLootItems:
+    any: true
+  GetNumQuestChoices:
+    any: true
+  GetNumQuestItems:
+    any: true
+  GetNumQuestLeaderBoards:
+    any: true
+  GetNumQuestLogEntries:
+    any: true
+  GetNumQuestRewards:
+    any: true
+  GetNumSkillLines:
+    any: true
+  GetNumTalentTabs:
+    any: true
+  GetNumTradeSkills:
+    any: true
+  GetObjectiveText:
+    any: true
+  GetPlayerFacing:
+    any: true
+  GetPlayerInfoByGUID:
+    any: true
+  GetProfessionInfo:
+    any: true
+  GetProfessions:
+    any: true
+  GetProgressText:
+    any: true
+  GetQuestDifficultyColor:
+    any: true
+  GetQuestID:
+    any: true
+  GetQuestItemInfo:
+    any: true
+  GetQuestItemLink:
+    any: true
+  GetQuestLogIndexByID:
+    any: true
+  GetQuestLogLeaderBoard:
+    any: true
+  GetQuestLogTitle:
+    any: true
+  GetQuestMoneyToGet:
+    any: true
+  GetQuestReward:
+    any: true
+  GetQuestsCompleted:
+    any: true
+  GetQuestText:
+    any: true
+  GetRealmName:
+    any: true
+  GetRealZoneText:
+    any: true
+  GetRewardHonor:
+    any: true
+  GetRewardMoney:
+    any: true
+  GetRewardSpell:
+    any: true
+  GetRewardText:
+    any: true
+  GetRewardTitle:
+    any: true
+  GetRewardXP:
+    any: true
+  GetShapeshiftFormID:
+    any: true
+  GetSkillLineInfo:
+    any: true
+  GetSpecialization:
+    any: true
+  GetSpecializationInfo:
+    any: true
+  GetSpellBaseCooldown:
+    any: true
+  GetSpellCooldown:
+    any: true
+  GetSpellInfo:
+    any: true
+  GetSpellTexture:
+    any: true
+  GetSubZoneText:
+    any: true
+  GetSuggestedGroupNum:
+    any: true
+  GetTalentTabInfo:
+    any: true
+  GetTime:
+    any: true
+  GetTitleForQuestID:
+    any: true
+  GetTitleText:
+    any: true
+  GetTradeSkillInfo:
+    any: true
+  GetTradeSkillItemLink:
+    any: true
+  GetTradeSkillLine:
+    any: true
+  GetTradeSkillRecipeLink:
+    any: true
+  GetUIPanel:
+    any: true
+  GossipFrame:
+    any: true
+  hard:
+    any: true
+  HasFullControl:
+    any: true
+  hooksecurefunc:
+    any: true
+  InboxFrame:
+    any: true
+  InCombatLockdown:
+    any: true
+  IsActiveQuestTrivial:
+    any: true
+  IsAddOnLoaded:
+    any: true
+  IsFishingLoot:
+    any: true
+  IsIndoors:
+    any: true
+  IsInGroup:
+    any: true
+  IsInInstance:
+    any: true
+  IsInRaid:
+    any: true
+  IsModifierKeyDown:
+    any: true
+  IsMounted:
+    any: true
+  IsPlayerSpell:
+    any: true
+  IsQuestCompletable:
+    any: true
+  IsQuestComplete:
+    any: true
+  IsQuestFlaggedCompleted:
+    any: true
+  IsResting:
+    any: true
+  issecretvalue:
+    any: true
+  issecurevariable:
+    any: true
+  issues:
+    any: true
+  IsUsableItem:
+    any: true
+  IsUsableSpell:
+    any: true
+  ITEM_QUALITY_COLORS:
+    any: true
+  ItemRefTooltip:
+    any: true
+  ItemTextFrame:
+    any: true
+  ItemTextGetCreator:
+    any: true
+  ItemTextGetItem:
+    any: true
+  ItemTextGetMaterial:
+    any: true
+  ItemTextGetPage:
+    any: true
+  ItemTextGetText:
+    any: true
+  ItemTextHasNextPage:
+    any: true
+  ItemTextNextPage:
+    any: true
+  ItemTextPrevPage:
+    any: true
+  iteration:
+    any: true
+  LibStub:
+    any: true
+  LinkProcessorResponse:
+    any: true
+  LinkUtil:
+    any: true
+  LOCALIZED_CLASS_NAMES_FEMALE:
+    any: true
+  LOCALIZED_CLASS_NAMES_MALE:
+    any: true
+  LOSS_OF_CONTROL_DISPLAY_CHARM:
+    any: true
+  LOSS_OF_CONTROL_DISPLAY_CONFUSE:
+    any: true
+  LOSS_OF_CONTROL_DISPLAY_FEAR:
+    any: true
+  LOSS_OF_CONTROL_DISPLAY_FEAR_MECHANIC:
+    any: true
+  LOSS_OF_CONTROL_DISPLAY_POSSESS:
+    any: true
+  LOSS_OF_CONTROL_DISPLAY_SLEEP:
+    any: true
+  LOSS_OF_CONTROL_DISPLAY_STUN:
+    any: true
+  LOSS_OF_CONTROL_DISPLAY_STUN_MECHANIC:
+    any: true
+  LowHealthFrame:
+    any: true
+  MailFrame:
+    any: true
+  MailTextFontNormal:
+    any: true
+  MapCanvasDataProviderMixin:
+    any: true
+  MAX_PLAYER_LEVEL_TABLE:
+    any: true
+  MenuUtil:
+    any: true
+  MinimalSliderWithSteppersMixin:
+    any: true
+  Minimap:
+    any: true
+  MinimapBackdrop:
+    any: true
+  mixed:
+    any: true
+  MoneyFrame_Update:
+    any: true
+  NO:
+    any: true
+  NumTaxiNodes:
+    any: true
+  OpenMailFrame:
+    any: true
+  or:
+    any: true
+  PanelTemplates_SetNumTabs:
+    any: true
+  PanelTemplates_SetTab:
+    any: true
+  PanelTemplates_TabResize:
+    any: true
+  PlayAutoAcceptQuestSound:
+    any: true
+  PlaySound:
+    any: true
+  QUEST_MONSTERS_KILLED:
+    any: true
+  QuestFrame:
+    any: true
+  QuestInfoFrame:
+    any: true
+  SaltyMaxCollector:
+    property: full-write
+  SaltyMaxWelcomes:
+    property: full-write
+  SECONDARY_SKILLS:
+    any: true
+  SelectActiveQuest:
+    any: true
+  SelectAvailableQuest:
+    any: true
+  SetCVar:
+    any: true
+  SetItemRef:
+    any: true
+  SetPortraitTexture:
+    any: true
+  SetPortraitTextureFromCreatureDisplayID:
+    any: true
+  Settings:
+    any: true
+  SetUIVisibility:
+    any: true
+  should:
+    any: true
+  SlashCmdList:
+    any: true
+  SOUNDKIT:
+    any: true
+  STANDARD_TEXT_FONT:
+    any: true
+  StartDuel:
+    any: true
+  STATICPOPUP_NUMDIALOGS:
+    any: true
+  StaticPopup_Show:
+    any: true
+  StaticPopupDialogs:
+    any: true
+  strsplit:
+    any: true
+  strtrim:
+    any: true
+  such:
+    any: true
+  tables:
+    any: true
+  TakeTaxiNode:
+    any: true
+  TaxiNodeGetType:
+    any: true
+  TaxiNodeName:
+    any: true
+  they:
+    any: true
+  time:
+    any: true
+  tinsert:
+    any: true
+  to:
+    any: true
+  TooltipDataProcessor:
+    any: true
+  TRADE_SKILLS:
+    any: true
+  UIDropDownMenu_AddButton:
+    any: true
+  UIDropDownMenu_CreateInfo:
+    any: true
+  UIDropDownMenu_DisableDropDown:
+    any: true
+  UIDropDownMenu_EnableDropDown:
+    any: true
+  UIDropDownMenu_Initialize:
+    any: true
+  UIDropDownMenu_SetText:
+    any: true
+  UIDropDownMenu_SetWidth:
+    any: true
+  UIParent:
+    any: true
+  UISpecialFrames:
+    any: true
+  UnitAffectingCombat:
+    any: true
+  UnitBuff:
+    any: true
+  UnitCanAttack:
+    any: true
+  UnitClass:
+    any: true
+  UnitClassification:
+    any: true
+  UnitCreatureFamily:
+    any: true
+  UnitCreatureType:
+    any: true
+  UnitDebuff:
+    any: true
+  UnitExists:
+    any: true
+  UnitFactionGroup:
+    any: true
+  UnitGetDetailedHealPrediction:
+    any: true
+  UnitGUID:
+    any: true
+  UnitHealth:
+    any: true
+  UnitHealthMax:
+    any: true
+  UnitIsDead:
+    any: true
+  UnitIsDeadOrGhost:
+    any: true
+  UnitIsGhost:
+    any: true
+  UnitIsPlayer:
+    any: true
+  UnitIsUnit:
+    any: true
+  UnitLevel:
+    any: true
+  UnitName:
+    any: true
+  UnitOnTaxi:
+    any: true
+  UnitPlayerControlled:
+    {args: [{type: string}]}
+  UnitRace:
+    any: true
+  UnitReaction:
+    any: true
+  UnitSex:
+    any: true
+  UnitTokenFromGUID:
+    any: true
+  UnitXP:
+    any: true
+  wipe:
+    any: true
+  WorldMapFrame:
+    any: true
+  YES:
+    any: true

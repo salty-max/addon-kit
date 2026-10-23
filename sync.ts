@@ -22,13 +22,17 @@
  * way: root.ts as scripts/root.ts, and root.py as scripts/root.py when a
  * Python script is there; the languages' core (locales-lib.ts) beside the
  * addon's scripts/locales.ts. The kit's words, translated once
- * (addon-kit/i18n/<locale>.json), go into the addon's i18n/kit/. The scripts reach addon-kit and wow-data through
+ * (addon-kit/i18n/<locale>.json), go into the addon's i18n/kit/. At the
+ * repository's root: wow.yml, the game's globals for selene (beside a
+ * selene.toml, whose std is "wow+<addon>": the addon's own globals its
+ * <addon>.yml), and stylua.toml, the family's one layout. The scripts reach addon-kit and wow-data through
  * them (`familyPath("wow-data", "src", "db.ts")`, `bun scripts/root.ts --run
  * addon-kit/sync.ts`), so a worktree outside ~/code/wow-addons finds them. A
  * root.py left behind once the last Python script went fails the check.
  *
  * The stamp is the last commit of the kit's that touched what is copied
- * (Kit.lua, Media/, root.ts, root.py, locales-lib.ts, i18n/): a commit of the harness alone moves
+ * (Kit.lua, Media/, root.ts, root.py, locales-lib.ts, i18n/, wow.yml,
+ * stylua.toml): a commit of the harness alone moves
  * no stamp. The sync refuses uncommitted kit code (--dirty: a trial, its
  * stamp "+", which the check and preflight refuse). The check compares each
  * copy with the kit at its stamp (a hand edit, a stamp made up, fail), then
@@ -40,7 +44,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { join } from "node:path";
 
 const KIT = new URL(".", import.meta.url).pathname;
-const COPIED = ["Kit.lua", "Media", "root.ts", "root.py", "locales-lib.ts", "i18n"];
+const COPIED = ["Kit.lua", "Media", "root.ts", "root.py", "locales-lib.ts", "i18n", "wow.yml", "stylua.toml"];
 
 function git(...args: string[]): string | undefined {
   const p = Bun.spawnSync(["git", ...args], { cwd: KIT, stderr: "ignore" });
@@ -170,8 +174,11 @@ if (import.meta.main) {
   if (existsSync(scripts) && readdirSync(scripts).some((f) => f.endsWith(".py") && f !== "root.py")) finders.push(["root.py", "#"]);
   if (check && existsSync(join(scripts, "root.py")) && !finders.some(([n]) => n === "root.py"))
     fail(`${join(scripts, "root.py")}: no Python script beside it any more (remove the copy)`);
-  for (const [name, mark] of existsSync(scripts) ? finders : []) {
-    const to = join(scripts, name);
+  const copies: [string, string, string][] = (existsSync(scripts) ? finders : []).map(([n, m]) => [n, m, join(scripts, n)]);
+  // (at the root: the linters' configs, where the addon has them)
+  if (existsSync("selene.toml")) copies.push(["wow.yml", "#", "wow.yml"]);
+  if (existsSync("stylua.toml")) copies.push(["stylua.toml", "#", "stylua.toml"]);
+  for (const [name, mark, to] of copies) {
     if (check) {
       if (!existsSync(to)) fail(`${to}: none (run kit:sync)`);
       verify(to, stampOf(readFileSync(to, "utf8"), mark), name, mark);

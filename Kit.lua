@@ -2825,10 +2825,10 @@ function K.minimapButton(o)
   icon:SetPoint("TOPLEFT", 7, -6)
   if o.crop then icon:SetTexCoord(unpack(K.ICON_CROP)) end
   M.icon = icon
-  local border = button:CreateTexture(nil, "OVERLAY")
-  border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-  border:SetSize(53, 53)
-  border:SetPoint("TOPLEFT")
+  local edge = button:CreateTexture(nil, "OVERLAY")
+  edge:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  edge:SetSize(53, 53)
+  edge:SetPoint("TOPLEFT")
   button:SetScript("OnClick", function(_, mouse)
     if mouse == "RightButton" then
       if o.rightClick then o.rightClick() end
