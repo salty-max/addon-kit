@@ -18,7 +18,10 @@
  * untracked files, the ignored left out), shared by the repository's
  * worktrees: a commit of exactly that state pushes. Only the repository's
  * own check stamps (harness.check, else `bun run check` where package.json
- * has one), and a failing check on a stamped tree takes the stamp back.
+ * has one; a repository with neither stamps nothing), and a failing check
+ * on a stamped tree takes the stamp back. Stamps older than 30 days go.
+ * A check says so when the repository's git hooks are gone (core.hooksPath
+ * naming a folder without them: git then runs no gate at all).
  * The verdict line goes to the harness's event log too (events.ts), and while
  * it runs a file of its own says so beside it (the panel's gates lit).
  */
@@ -105,6 +108,25 @@ function stamp(cwd: string, s: Stamp) {
   writeFileSync(join(dir, `check-${s.tree}`), JSON.stringify(s) + "\n");
 }
 
+// Stamps older than a month: a tree that old won't be pushed (its check would run again).
+const STAMP_DAYS = 30;
+function prune(cwd: string, now = Date.now()) {
+  const dir = stampDir(cwd);
+  if (!dir || !existsSync(dir)) return;
+  for (const f of readdirSync(dir).filter((f) => f.startsWith("check-")))
+    if (now - statSync(join(dir, f)).mtimeMs > STAMP_DAYS * 86_400_000) rmSync(join(dir, f), { force: true });
+}
+
+// core.hooksPath naming a folder without the gates (the kit moved, an old
+// checkout of it): git runs no hook and says nothing, so the check does.
+export function hooksGone(top: string): string | undefined {
+  const path = git(top, ["config", "--get", "core.hooksPath"]);
+  if (!path || path.includes(".husky")) return undefined;
+  const at = path.startsWith("/") ? path : join(top, path);
+  const ok = (f: string) => existsSync(join(at, f)) && (statSync(join(at, f)).mode & 0o111) !== 0;
+  return ok("pre-push") && ok("commit-msg") ? undefined : `hooks gone: ${path} has no gates, git runs none (bun addon-kit/hooks.ts install)`;
+}
+
 function unstamp(cwd: string, tree: string) {
   const dir = stampDir(cwd);
   if (dir) rmSync(join(dir, `check-${tree}`), { force: true });
@@ -114,7 +136,10 @@ function unstamp(cwd: string, tree: string) {
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07/g;
 const BAD =
   /\b(errors?|fail|failed|failures?|failing|assert|assertion|expected|received|traceback|exception|panic|fatal|refused|missing|cannot|can't|unable|not found|mismatch|stale|differs?)\b|✗|✘|×|❌|:\d+:(\d+:)?\s/i;
-const FINE = /\b0 (errors?|fail(ed|ures?)?|problems?)\b|\bno errors?\b|^\s*at\s|^\s*\d+ pass\b/i;
+// (what a passing step says in words BAD knows: every addon's ids check and selene print some)
+const FINE = /\b0 (errors?|fail(ed|ures?)?|problems?)\b|\b0 [\w ]*errors?\b|\bno errors?\b|\bnone missing\b|^\s*at\s|^\s*\d+ pass\b|^\s*✓|\(pass\)/i;
+// (the output's end, always shown: a chain of steps stops on the one that failed)
+const END = 5;
 
 export function clean(text: string): string[] {
   return text
@@ -126,13 +151,18 @@ export function clean(text: string): string[] {
 
 export function matters(lines: string[], max = MAX_LINES): string[] {
   const cut = (l: string) => (l.length > 200 ? `${l.slice(0, 199)}…` : l);
-  let picked = lines.filter((l) => BAD.test(l) && !FINE.test(l));
-  if (!picked.length) return lines.slice(-max).map(cut);
-  picked = picked.filter((l, i) => l !== picked[i - 1]);
-  if (picked.length <= max) return picked.map(cut);
-  const tail = 5;
-  const head = max - tail - 1;
-  return [...picked.slice(0, head), `… ${picked.length - head - tail} more in the log`, ...picked.slice(-tail)].map(cut);
+  const flagged = lines.map((l, i) => (BAD.test(l) && !FINE.test(l) ? i : -1)).filter((i) => i >= 0);
+  if (!flagged.length) return lines.slice(-max).map(cut);
+  // The flagged lines, then the output's last lines whatever they say: a
+  // failure no word of BAD names (a diff, a crash) is at the end.
+  const end = lines.map((_, i) => i).slice(-END);
+  const early = flagged.filter((i) => i < end[0]).filter((i, k, a) => k === 0 || lines[i] !== lines[a[k - 1]]);
+  const room = max - end.length - (early.length + end.length > max ? 1 : 0);
+  const head = early.length > room ? [...early.slice(0, Math.max(0, room - 3)), -1, ...early.slice(-3)] : early;
+  const hidden = early.length - (head.length - (head.includes(-1) ? 1 : 0));
+  const out = head.map((i) => (i < 0 ? `… ${hidden} more in the log` : lines[i]));
+  if (early.length && end[0] > (early.at(-1) ?? -1) + 1) out.push("…");
+  return [...out, ...end.map((i) => lines[i])].map(cut);
 }
 
 const secs = (ms: number) => (ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 1000)}s`);
@@ -175,7 +205,12 @@ export async function run(name: string, command: string[], cwd = process.cwd()):
   let code: number;
   try {
     const p = Bun.spawn(command, { cwd, stdin: "ignore", stdout: fd, stderr: fd, env: { ...process.env, NO_COLOR: "1" } });
+    // (q stopped stops its command too: never a check left running on its own, racing the next)
+    const pass = (sig: NodeJS.Signals) => () => p.kill(sig);
+    const handlers = (["SIGINT", "SIGTERM", "SIGHUP"] as const).map((sig) => [sig, pass(sig)] as const);
+    for (const [sig, h] of handlers) process.on(sig, h);
     await p.exited;
+    for (const [sig, h] of handlers) process.off(sig, h);
     code = p.exitCode ?? 128 + (constants.signals[p.signalCode as keyof typeof constants.signals] ?? 0);
   } catch (e) {
     writeSync(fd, `${(e as Error).message}\n`);
@@ -187,16 +222,21 @@ export async function run(name: string, command: string[], cwd = process.cwd()):
 
   const shown = relative(process.cwd(), log) || log;
   let line = verdict(name, code, ms, shown);
+  if (checking && !before && code === 0) line += " · not stamped: couldn't read the working tree (git status)";
   if (checking && before) {
     const after = workTree(cwd);
     const expected = checkCommand(top!);
     if (code !== 0) unstamp(cwd, before);
-    else if (expected && command.join(" ") !== expected) line += ` · not stamped: this repository's check is \`${expected}\``;
+    else if (!expected) line += " · not stamped: no check known here (git config harness.check '<the check>', or package.json's check)";
+    else if (command.join(" ") !== expected) line += ` · not stamped: this repository's check is \`${expected}\``;
     else if (after !== before) line += " · not stamped: the files changed while it ran, run it again";
     else {
       stamp(cwd, { tree: before, head: git(cwd, ["rev-parse", "--verify", "-q", "HEAD"]), at: new Date().toISOString(), command: command.join(" "), seconds: Math.round(ms / 1000) });
       line += ` · stamped ${before.slice(0, 7)}`;
+      prune(cwd);
     }
+    const gone = hooksGone(top!);
+    if (gone) line += ` · ${gone}`;
   }
   done();
   console.log(line);

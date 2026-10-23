@@ -3,10 +3,10 @@
 // family folder of its own under the system's temp folder, git kept from the
 // user's own configuration.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { add, before, cards, conflicts, format, holders, holding, isHeld, lines, options, parseCard, repoList, set, setSection, slug, strangers, waitingOn, warnings } from "./board";
+import { add, before, cardId, cards, conflicts, format, holders, holding, isHeld, lines, options, parseCard, repoList, set, setSection, slug, strangers, waitingOn, warnings } from "./board";
 import { eventLine, eventsPath, logEvent, repoOf } from "./events";
 import { HOOKS } from "./hooks";
 import { changedLines, packet, packetRange, range, riddles, subjectProblem, touched, trailerProblem } from "./packet";
@@ -72,22 +72,31 @@ function family(files: Record<string, string> = { "a.txt": "one\n" }) {
   }
   git(repo, "add", "-A");
   git(repo, "commit", "-q", "-m", "chore: first");
+  // (the repository's own check, as every repository of the family has one: `true` unless package.json says)
+  if (!files["package.json"]) git(repo, "config", "harness.check", "true");
   return { root, repo };
 }
 
 describe("q", () => {
   test("the lines that matter", () => {
+    // short: the whole of it
     expect(matters(clean("building\n\x1b[31mx.lua:12: attempt to index nil\x1b[0m\n 3 pass\n 1 fail\n 0 errors\n"))).toEqual([
+      "building",
       "x.lua:12: attempt to index nil",
+      " 3 pass",
       " 1 fail",
+      " 0 errors",
     ]);
+    // the flagged lines, then the end whatever it says (a diff, a crash: no word of BAD names it)
+    const noisy = [...Array.from({ length: 10 }, (_, i) => `step ${i}`), "x.lua:4: boom", "ids: ok, none missing", "0 parse errors", ...Array.from({ length: 10 }, (_, i) => `step ${10 + i}`), "Diff in addon/A.lua:", "-local a=1", "+local a = 1"];
+    expect(matters(noisy)).toEqual(["x.lua:4: boom", "…", "step 18", "step 19", "Diff in addon/A.lua:", "-local a=1", "+local a = 1"]);
     // nothing that looks like an error: the end of the output
     const plain = Array.from({ length: 30 }, (_, i) => `line ${i}`);
     expect(matters(plain)).toEqual(plain.slice(-20));
     // more than 20: the first ones, how many were left out, the last five
     const many = matters(Array.from({ length: 50 }, (_, i) => `error ${i}`));
     expect(many).toHaveLength(20);
-    expect(many[14]).toBe("… 31 more in the log");
+    expect(many[11]).toBe("… 31 more in the log");
     expect(many.at(-1)).toBe("error 49");
     expect(clean("10%\r50%\r100%\n\n")).toEqual(["100%"]);
   });
@@ -110,7 +119,7 @@ describe("q", () => {
     expect(bad.code).toBe(3);
     expect(bad.out.split("\n")[0]).toMatch(/^demo: FAILED \(exit 3, .*\) · \.cache\/logs\/demo\.log$/);
     expect(bad.out).toContain("  x.lua:3: boom");
-    expect(bad.out).not.toContain("building");
+    expect(bad.out).toContain("  building");
     const log = readFileSync(join(repo, ".cache", "logs", "demo.log"), "utf8");
     expect(log).toContain("$ sh -c echo building");
     expect(log).toContain("building\nx.lua:3: boom\n");
@@ -142,9 +151,43 @@ describe("q", () => {
     git(repo, "commit", "-q", "-m", "feat: two");
     expect(stampOf(repo, headTree(repo))).toBeDefined();
     // a check that changes the files isn't stamped
+    git(repo, "config", "harness.check", "sh -c echo three > c.txt");
     const moving = q(repo, "check", "--", "sh", "-c", "echo three > c.txt");
-    expect(moving.out).toContain("not stamped");
+    expect(moving.out).toContain("not stamped: the files changed");
     expect(stampOf(repo, workTree(repo))).toBeUndefined();
+  });
+
+  test("a repository with no check known stamps nothing", () => {
+    const { repo } = family();
+    git(repo, "config", "--unset", "harness.check");
+    expect(q(repo, "check", "--", "true").out).toContain("not stamped: no check known here");
+    expect(stampOf(repo, headTree(repo))).toBeUndefined();
+  });
+
+  test("stamps older than a month go; gone hooks are said", () => {
+    const { repo } = family();
+    const dir = join(git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir").out.trim(), "harness");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "check-old"), "{}\n");
+    const old = new Date(Date.now() - 40 * 86_400_000);
+    utimesSync(join(dir, "check-old"), old, old);
+    git(repo, "config", "core.hooksPath", join(tmp, "no-such-hooks"));
+    const out = q(repo, "check", "--", "true").out;
+    expect(out).toContain("stamped");
+    expect(out).toContain("hooks gone:");
+    expect(existsSync(join(dir, "check-old"))).toBe(false);
+    git(repo, "config", "core.hooksPath", HOOKS);
+    expect(q(repo, "check", "--", "true").out).not.toContain("hooks gone");
+  });
+
+  test("q stopped stops its command", async () => {
+    const { repo } = family();
+    const p = Bun.spawn([process.execPath, join(KIT, "q.ts"), "slow", "--", "sh", "-c", "sleep 2; echo late"], { cwd: repo, stdout: "pipe", stderr: "pipe" });
+    await Bun.sleep(700);
+    p.kill("SIGTERM");
+    expect(await p.exited).toBe(143);
+    await Bun.sleep(2000);
+    expect(readFileSync(join(repo, ".cache", "logs", "slow.log"), "utf8")).not.toContain("\nlate\n");
   });
 
   test("only the repository's own check stamps", () => {
@@ -407,8 +450,22 @@ describe("packet", () => {
     expect(subjectProblem("Added riddles")).toBe("not a Conventional Commit");
   });
 
+  test("a repository never pushed anywhere: its whole history", () => {
+    const { repo } = family();
+    for (const n of [2, 3, 4]) {
+      writeFileSync(join(repo, `f${n}.txt`), `${n}\n`);
+      git(repo, "add", "-A");
+      git(repo, "commit", "-qm", `feat: ${n}`);
+    }
+    expect(range(repo)).toMatchObject({ base: "4b825dc642cb6eb9a060e54bf8d69288fbee4904", label: "the whole history (never pushed) and the uncommitted files" });
+    git(repo, "remote", "add", "origin", join(tmp, "nowhere.git"));
+    expect(range(repo)).toMatchObject({ base: "4b825dc642cb6eb9a060e54bf8d69288fbee4904" });
+  });
+
   test("the packet: commits, files, the stamp, the cards of the riddles touched", () => {
     const { root, repo } = family({ "expeditions/zone.md": ZONE, "a.txt": "one\n" });
+    // (pushed once: its first commit on a remote, a branch of its own never pushed)
+    git(repo, "update-ref", "refs/remotes/origin/main", "HEAD");
     writeFileSync(join(repo, "expeditions", "zone.md"), ZONE.replace("A pool.", "A pool, rewritten."));
     git(repo, "commit", "-qam", "feat(expeditions): the pool rewritten\n\nCo-Authored-By: Claude <noreply@anthropic.com>");
     q(repo, "check", "--", "true");
@@ -419,7 +476,7 @@ describe("packet", () => {
     if (typeof res === "string") throw new Error(res);
     let text = readFileSync(res.file, "utf8");
     expect(res.file).toBe(join(repo, ".cache", "review", `${git(repo, "rev-parse", "HEAD").out.slice(0, 12)}.md`));
-    expect(text).toContain("Range: the last commit (no upstream) and the uncommitted files.");
+    expect(text).toContain("Range: everything no remote has (no upstream) and the uncommitted files.");
     // Its range written for review.ts, whole.
     expect(packetRange(text)).toEqual({ base: git(repo, "rev-parse", "HEAD~1").out.trim(), tip: git(repo, "rev-parse", "HEAD").out.trim() });
     expect(text).toContain("- check: passed on HEAD's tree");
@@ -510,6 +567,9 @@ describe("review", () => {
     expect([r.base, r.tip]).toEqual([sha(`${reviewed}~1`), reviewed]);
     expect(reviewOf(repo)).toMatchObject({ verdict: "clean (1 finding fixed)", base: sha(`${reviewed}~1`), tip: reviewed });
     expect(readFileSync(join(stampDir(repo)!, `review-${sha("HEAD")}`), "utf8")).toContain(`\nbase: ${sha(`${reviewed}~1`)}\ntip: ${reviewed}\n`);
+    // what came after the tip, unread by the reviewer, written down
+    expect(r.after).toEqual([`${sha("HEAD").slice(0, 7)} fix: the findings`]);
+    expect(reviewOf(repo)?.after).toEqual(r.after);
     // HEAD's own packet first, though an older one would do.
     expect(packet(repo)).not.toBeString();
     const own = record(repo, "clean");
@@ -626,10 +686,45 @@ describe("board", () => {
     expect(lines([blocked], Date.parse("2026-10-20T21:00:00+02:00"))[0]).toBe("blocked        wow-data+mealbook+yonder+lorekeepers-codex  mealbook-trainers  mealbook-trainers (on yonder-riddles)  0m");
   });
 
+  test("an id names the repo once", () => {
+    expect(cardId("addon-kit", "addon-kit: the kit audited")).toBe("addon-kit-the-kit-audited");
+    expect(cardId("yours-truly", "Yours Truly: Zephras Isle's letters")).toBe("yours-truly-zephras-isles-letters");
+    expect(cardId("yonder", "Eight riddles")).toBe("yonder-eight-riddles");
+    expect(cardId("yonder", "Yonderland")).toBe("yonder-yonderland");
+  });
+
+  test("a card cut short or written on Windows", () => {
+    expect(parseCard("x", "---\r\nrepo: yonder\r\ntitle: T\r\nstatus: blocked\r\n---\r\nbody\r\n")).toMatchObject({ repo: "yonder", status: "blocked", repos: ["yonder"] });
+    expect(parseCard("x", "---\nrepo: yonder\ntitle: T\nsta").broken).toBe(true);
+    expect(parseCard("x", "").broken).toBe(true);
+    expect(parseCard("x", "---\nrepo: yonder\nstatus: running\n---\n").broken).toBeUndefined();
+    expect(lines([parseCard("x", "")])[0]).toStartWith("BROKEN");
+  });
+
+  test("adds at once under one title never share a card", async () => {
+    const { root } = family();
+    const procs = Array.from({ length: 6 }, (_, i) =>
+      Bun.spawn(["bun", join(KIT, "board.ts"), "add", "yonder", "Yonder: the riddles of the Barrens"], {
+        env: { ...process.env, WOW_ADDONS_ROOT: root, CLAUDE_CODE_SESSION_ID: `s${i}` },
+        stdout: "pipe",
+        stderr: "pipe",
+      }),
+    );
+    const ids = await Promise.all(procs.map(async (p) => (await new Response(p.stdout).text()).trim()));
+    expect(new Set(ids).size).toBe(6);
+    expect(readdirSync(join(root, "board")).filter((f) => f.endsWith(".md"))).toHaveLength(6);
+    expect(readdirSync(join(root, "board")).some((f) => f.includes(".part"))).toBe(false);
+    // (one holds, five are told they're held)
+    const told = await Promise.all(procs.map(async (p) => await new Response(p.stderr).text()));
+    expect(told.filter((t) => t.includes("held: yonder")).length).toBe(5);
+  });
+
   test("a section replaced in its place", () => {
     const body = "## Try\n\nold\n\n## Committed\n\nabc\n\n## Left\n\n";
     expect(setSection(body, "Try", "new")).toBe("## Try\n\nnew\n\n## Committed\n\nabc\n\n## Left\n");
     expect(setSection("## Left\n\nmore\n", "Try", "go")).toBe("## Try\n\ngo\n\n## Left\n\nmore\n");
+    // (a heading of its own stays after the three, in its place)
+    expect(setSection("## Notes\n\nn\n\n## Left\n\nl\n", "Try", "t")).toBe("## Try\n\nt\n\n## Left\n\nl\n\n## Notes\n\nn\n");
   });
 
   test("add, set, list", () => {

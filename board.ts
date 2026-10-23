@@ -37,7 +37,8 @@
  * add prints the card's id: <repo>-<a slug of the title>. A card added or
  * moved to another status gets a line in the harness's event log (events.ts).
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { logEvent, type Tone } from "./events";
 import { familyPath } from "./root";
@@ -58,6 +59,8 @@ export type Card = {
   /** A running card's place in each repository's queue: when it came to hold it. */
   since: Record<string, string>;
   body: string;
+  /** Its front matter unreadable (cut short, never closed): it holds nothing it can say, and set refuses it. */
+  broken?: boolean;
 };
 const KEYS = ["repo", "title", "status", "session", "updated"] as const;
 /** A card writing its repositories now: it holds them. */
@@ -115,7 +118,8 @@ function sinceMap(text: string, repos: string[]): Record<string, string> {
 }
 const ownRepos = (repo: string) => (/^[a-z0-9][\w.-]*$/i.test(repo) && repo !== "every-repo" ? [repo] : []);
 
-export function parseCard(id: string, text: string): Card {
+export function parseCard(id: string, raw: string): Card {
+  const text = raw.replace(/\r\n/g, "\n");
   const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   const fields: Record<string, string> = {};
   for (const line of (m?.[1] ?? "").split("\n")) {
@@ -135,6 +139,7 @@ export function parseCard(id: string, text: string): Card {
     waits: fields.waits ?? "",
     since: sinceMap(fields.since ?? "", fields.repos !== undefined ? repoList(fields.repos) : ownRepos(fields.repo ?? "")),
     body: m ? m[2] : text,
+    ...(m && fields.repo !== undefined && fields.status !== undefined ? {} : { broken: true }),
   };
 }
 
@@ -152,10 +157,10 @@ export function setSection(body: string, heading: string, text: string): string 
     else head.push(line);
   }
   parts.set(heading, text.trim() + "\n");
-  const names = [...parts.keys()].sort((a, b) => {
-    const [i, j] = [order.indexOf(a), order.indexOf(b)];
-    return i < 0 || j < 0 ? 0 : i - j;
-  });
+  // (the three in their order, any other heading after them as it came)
+  const seen = [...parts.keys()];
+  const rank = (n: string) => (order.includes(n) ? order.indexOf(n) : order.length + seen.indexOf(n));
+  const names = seen.sort((a, b) => rank(a) - rank(b));
   const top = head.join("\n").trim();
   return [top, ...names.map((n) => `## ${n}\n\n${parts.get(n)!.trim()}\n`)].filter(Boolean).join("\n").trimEnd() + "\n";
 }
@@ -205,7 +210,56 @@ export function where(c: Card): string {
 export function lines(list: Card[], from = Date.now()): string[] {
   const wi = Math.max(0, ...list.map((c) => c.id.length));
   const wr = Math.max(0, ...list.map((c) => where(c).length));
-  return list.map((c) => `${c.status.padEnd(14)} ${where(c).padEnd(wr)}  ${c.id.padEnd(wi)}  ${c.title}${c.waits ? ` (on ${c.waits})` : ""}  ${ago(c.updated, from)}`.trimEnd());
+  return list.map((c) =>
+    `${(c.broken ? "BROKEN" : c.status).padEnd(14)} ${where(c).padEnd(wr)}  ${c.id.padEnd(wi)}  ${c.title}${c.waits ? ` (on ${c.waits})` : ""}  ${ago(c.updated, from)}`.trimEnd(),
+  );
+}
+
+// A card's text, written whole: beside it first, then moved in, so a reader
+// (another session's read-back, the panel every 2 seconds) never sees it cut.
+function writeCard(file: string, text: string) {
+  const part = `${file}.${process.pid}.part`;
+  writeFileSync(part, text);
+  renameSync(part, file);
+}
+// A new card under a name no other card has: linked in whole, which fails
+// when the name is taken (two adds at once never share one file).
+function createCard(file: string, text: string): boolean {
+  const part = `${file}.${process.pid}.part`;
+  writeFileSync(part, text);
+  try {
+    linkSync(part, file);
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw e;
+  } finally {
+    unlinkSync(part);
+  }
+}
+
+/**
+ * The sessions alive on this computer, from Claude Code's own registry
+ * (`~/.claude/sessions/<pid>.json`, an internal format: the panel reads it
+ * too) and whether each pid still runs; undefined when it can't be read.
+ */
+export function liveSessions(dir = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "sessions")): Set<string> | undefined {
+  let names: string[];
+  try {
+    names = readdirSync(dir).filter((n) => /^\d+\.json$/.test(n));
+  } catch {
+    return undefined;
+  }
+  const out = new Set<string>();
+  for (const name of names) {
+    try {
+      const r = JSON.parse(readFileSync(join(dir, name), "utf8")) as { pid?: unknown; sessionId?: unknown };
+      if (!Number.isInteger(r.pid) || typeof r.sessionId !== "string") continue;
+      process.kill(r.pid as number, 0);
+      out.add(r.sessionId);
+    } catch {}
+  }
+  return out;
 }
 
 type Since = Pick<Card, "id" | "since" | "updated">;
@@ -256,11 +310,12 @@ export function holding(card: Pick<Card, "session" | "repos">, list: Card[]): Ne
 }
 
 /** What a session reads after writing its card: whether it may write, whether what it waits for still holds, why. */
-export function warnings(card: Card, list: Card[]): string[] {
+export function warnings(card: Card, list: Card[], live?: Set<string>): string[] {
+  const gone = (c: Card) => (live && c.session && !live.has(c.session) ? "; its session looks gone: the user moves it, or a session does on their word" : "");
   if (card.status === "blocked") {
     const still = holding(card, list);
     if (!still.length) return [`free: nothing holds ${card.repos.join(", ") || "its repositories"}: set ${card.id} --status running (held again if another got there first)`];
-    return still.map((h) => `still held: ${h.repos.join(", ")} by ${h.card.id} (running): write nothing until it's free`);
+    return still.map((h) => `still held: ${h.repos.join(", ")} by ${h.card.id} (running${gone(h.card)}): write nothing until it's free`);
   }
   if (!HOLDS.includes(card.status)) return [];
   const { held, later, pending } = conflicts(card, list);
@@ -268,7 +323,7 @@ export function warnings(card: Card, list: Card[]): string[] {
   const rest = card.repos.filter((r) => !taken.has(r));
   const out = held.map(({ card: c, repos }) => {
     const drop = rest.length ? `drop ${repos.join(", ")} (set ${card.id} --repos ${rest.join(",")}) and go on, or ` : "";
-    return `held: ${repos.join(", ")} by ${c.id} (there since ${clock(c, repos[0])}, session ${c.session || "?"}): ${drop}commit what you have, set ${card.id} --on ${c.id} and write nothing until it's free`;
+    return `held: ${repos.join(", ")} by ${c.id} (there since ${clock(c, repos[0])}, session ${c.session || "?"}${gone(c)}): ${drop}commit what you have, set ${card.id} --on ${c.id} and write nothing until it's free`;
   });
   for (const { card: c, repos } of later) out.push(`note: ${repos.join(", ")} has ${c.id} running there since after this card: it was told to wait`);
   for (const { card: c, repos } of pending) out.push(`note: ${repos.join(", ")} has ${c.id} (${c.status}) with unpushed work: its commits go out with the next push`);
@@ -333,16 +388,26 @@ function logCard(c: Card, text: string) {
   logEvent("board", tone, c.repo, text);
 }
 
+/** A card's id: its repo and title as a slug, the repo once when the title starts with it. */
+export function cardId(repo: string, title: string): string {
+  const own = slug(repo);
+  const t = slug(title);
+  return (own && (t === own || t.startsWith(`${own}-`)) ? t : slug(`${repo} ${title}`)) || "task";
+}
+
 export function add(repo: string, title: string, o: Opts = {}): Card {
   const dir = boardDir();
   mkdirSync(dir, { recursive: true });
-  const base = slug(`${repo} ${title}`) || "task";
-  let id = base;
-  for (let n = 2; existsSync(join(dir, `${id}.md`)); n++) id = `${base}-${n}`;
+  const base = cardId(repo, title);
   const blank = Object.values(SECTIONS).map((h) => `## ${h}\n\n`).join("\n");
   const session = process.env.CLAUDE_CODE_SESSION_ID ?? "";
-  const card = apply({ id, repo, title, status: "running", session, updated: "", repos: ownRepos(repo), waits: "", since: {}, body: blank }, o);
-  writeFileSync(join(dir, `${id}.md`), format(card));
+  let card: Card;
+  for (let n = 1; ; n++) {
+    const id = n === 1 ? base : `${base}-${n}`;
+    if (existsSync(join(dir, `${id}.md`))) continue;
+    card = apply({ id, repo, title, status: "running", session, updated: "", repos: ownRepos(repo), waits: "", since: {}, body: blank }, o);
+    if (createCard(join(dir, `${id}.md`), format(card))) break;
+  }
   // (the status last: the panel's log shows a line's last word as its figure)
   logCard(card, `${card.title}${card.waits ? ` (on ${card.waits})` : ""} added, ${card.status}`);
   return card;
@@ -386,9 +451,10 @@ export function set(id: string, o: Opts): Card | string {
   const file = join(boardDir(), `${id}.md`);
   if (!existsSync(file)) return `no card ${id} (bun addon-kit/board.ts list --all)`;
   const was = parseCard(id, readFileSync(file, "utf8"));
+  if (was.broken) return `${id}'s front matter is unreadable (cut short?): look at ${file} and mend it by hand first`;
   if (o.on === id) return `${id} can't wait on itself`;
   const card = apply(was, o);
-  writeFileSync(file, format(card));
+  writeCard(file, format(card));
   if (card.status !== was.status) logCard(card, `${card.title}${card.waits ? ` (on ${card.waits})` : ""} ${was.status} → ${card.status}`);
   return card;
 }
@@ -405,11 +471,13 @@ if (import.meta.main) {
   };
   if (typeof parsed === "string") fail(parsed);
   const { rest, o } = parsed as Exclude<typeof parsed, string>;
+  if (o.on && !existsSync(join(boardDir(), `${o.on}.md`))) fail(`no card ${o.on} to wait on (bun addon-kit/board.ts list --all)`);
   // What a session reads after writing its card: a repository held or a typo, cards it frees.
   const tell = (card: Card) => {
     const list = cards();
     for (const r of strangers(card.repos)) console.error(`note: ${r} is no folder of the family's: it holds nothing`);
-    for (const w of warnings(card, list)) console.error(w);
+    for (const w of warnings(card, list, liveSessions())) console.error(w);
+    for (const c of list.filter((c) => c.broken)) console.error(`note: ${c.id}'s front matter is unreadable: it holds nothing until it's mended`);
     if (card.status === "blocked" && !card.waits) console.error(`note: ${card.id} is blocked on nothing: name the card with --on <id>`);
     if (card.status !== "running") for (const c of waitingOn(card.id, list)) console.error(`frees ${c.id} (blocked on it, session ${c.session || "?"})`);
   };

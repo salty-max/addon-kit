@@ -26,7 +26,9 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { familyRoot } from "./root";
 
-const ROOT = familyRoot(); // the family folder, from a worktree too (root.ts)
+// the family folder, from a worktree too (root.ts); found when first asked
+let root: string | undefined;
+const ROOT = () => (root ??= familyRoot());
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ── pure (tools.test.ts) ─────────────────────────────────────────────────────
@@ -52,7 +54,7 @@ export function users(name: string, workflows: Record<string, string[]>): string
     const inherited = files.some((text) =>
       [...text.matchAll(/uses:\s*salty-max\/([\w.-]+)\/\.github\/workflows\/([\w.-]+)@\S+[\s\S]*?secrets:\s*inherit/g)].some(
         ([, other, file]) => {
-          const path = join(ROOT, other, ".github", "workflows", file);
+          const path = join(ROOT(), other, ".github", "workflows", file);
           return existsSync(path) && reads(readFileSync(path, "utf8"));
         },
       ),
@@ -65,9 +67,9 @@ export function users(name: string, workflows: Record<string, string[]>): string
 // ── the run ──────────────────────────────────────────────────────────────────
 function workflowsOf(): Record<string, string[]> {
   const out: Record<string, string[]> = {};
-  for (const d of readdirSync(ROOT, { withFileTypes: true })) {
-    const dir = join(ROOT, d.name, ".github", "workflows");
-    if (!d.isDirectory() || !existsSync(join(ROOT, d.name, ".git")) || !existsSync(dir)) continue;
+  for (const d of readdirSync(ROOT(), { withFileTypes: true })) {
+    const dir = join(ROOT(), d.name, ".github", "workflows");
+    if (!d.isDirectory() || !existsSync(join(ROOT(), d.name, ".git")) || !existsSync(dir)) continue;
     out[d.name] = readdirSync(dir)
       .filter((f) => /\.ya?ml$/.test(f))
       .map((f) => readFileSync(join(dir, f), "utf8"));
@@ -76,7 +78,7 @@ function workflowsOf(): Record<string, string[]> {
 }
 
 function slugOf(repo: string): string | undefined {
-  const r = Bun.spawnSync(["git", "remote", "get-url", "origin"], { cwd: join(ROOT, repo) });
+  const r = Bun.spawnSync(["git", "remote", "get-url", "origin"], { cwd: join(ROOT(), repo) });
   return r.stdout.toString().trim().match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/)?.[1];
 }
 
@@ -86,10 +88,10 @@ function setOn(slug: string, name: string, value: string): string | undefined {
 }
 
 function setOnVercel(dir: string, name: string, value: string): string | undefined {
-  const cwd = join(ROOT, dir);
+  const cwd = join(ROOT(), dir);
   if (!existsSync(join(cwd, ".vercel"))) return `${dir} isn't linked to a Vercel project`;
-  Bun.spawnSync(["vercel", "env", "rm", name, "production", "-y"], { cwd }); // (absent is fine)
-  const r = Bun.spawnSync(["vercel", "env", "add", name, "production", "--sensitive"], { cwd, stdin: Buffer.from(value) });
+  // (overwritten in one step: never removed first, so a failed add leaves production with the old value)
+  const r = Bun.spawnSync(["vercel", "env", "add", name, "production", "--sensitive", "--force"], { cwd, stdin: Buffer.from(value) });
   return r.exitCode === 0 ? undefined : r.stderr.toString().trim().split("\n").pop() || `exit ${r.exitCode}`;
 }
 

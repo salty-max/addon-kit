@@ -76,10 +76,15 @@ bun addon-kit/secret.ts INBOX_EVENTS_TOKEN --generate --vercel ravenpost/inbox
 `status.ts` lists what wants a hand last: files uncommitted, commits to push
 or pull, a workflow that failed, a pull request open, a test build behind
 what ships (the addon's folders, not its store page or tests; Ravenpost's
-app, not its inbox). `each.ts` runs one after the other (`--parallel`: all
-at once), prints a line for each that passed and the end of each failure,
-and exits non-zero if one failed; `--only a,b` and `--skip a,b` pick
-repositories by folder. `secret.ts` sets one secret on every repository
+app, not its inbox), hooks gone or not ours, a repository git can't read.
+Every git and gh call gives up after 20 seconds (said so), and without gh
+the workflows and pull requests are left out. `each.ts` runs one after the
+other (`--parallel`: all at once), prints a line for each that passed and
+the end of each failure, and exits non-zero if one failed; `--only a,b` and
+`--skip a,b` pick repositories by folder, a name that isn't one refused
+(exit 2). The command after `--` runs as its words, no shell between
+(quotes, `$` and globs reach the program as typed); a single word is a
+shell line, run by `/bin/sh` (`-- 'git status --short && git log -1'`). `secret.ts` sets one secret on every repository
 whose workflows read it (directly or through wow-data's reusable workflow),
 from the clipboard or a value it makes (`--generate`), and on a Vercel
 project with `--vercel <dir>`; it checks the token's shape first
@@ -145,14 +150,27 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
 
 - **q.ts** stamps the tree a passing `check` ran on (in
   `.git/harness/`, shared by worktrees), when the command is the
-  repository's check: `harness.check` (git config), else `bun run check`. Never pipe a check into `tail`:
-  q prints the end that matters and keeps the exit code.
+  repository's check: `harness.check` (git config), else `bun run check`
+  where package.json has one; a repository with neither stamps nothing.
+  Stamps older than 30 days go. Never pipe a check into `tail`: q prints
+  the lines that matter (the ones naming a failure, then the output's last
+  five whatever they say: a diff or a crash names nothing) and keeps the
+  exit code. q stopped (Ctrl-C, killed) stops its command too. A check says
+  so when the repository's hooks are gone (`hooks gone:`).
 - **githooks/** (`core.hooksPath`, set by `hooks.ts`): `commit-msg`
-  refuses an AI co-author or a "generated with" line, `pre-push` refuses a
-  branch or tag whose tree has no stamp and prints the command that makes
-  one. A check on uncommitted files counts for the commit holding exactly
-  them. A repository's own hooks (husky's) run after ours; husky's
-  `prepare` takes `core.hooksPath` back on `bun install` (status says so).
+  refuses an AI co-author or a "generated with" line (`_ai`: any
+  `…-by:` or `…-with:` trailer naming one, "generated/made/written with"
+  one), `pre-push` refuses a branch or tag whose tree has no stamp and
+  prints the command that makes one, and a commit it sends whose message
+  `_ai` refuses (a cherry-pick, a rebase or a merge never ran commit-msg).
+  A check on uncommitted files counts for the commit holding exactly
+  them. A repository's own hooks (husky's) run after ours, never the
+  harness's own again by another path (`_chain`); husky's `prepare` takes
+  `core.hooksPath` back on `bun install` (status says so). A
+  `core.hooksPath` naming a folder without the gates (the kit moved, an
+  old checkout of it) makes git run no hook and say nothing: `hooks.ts
+  status` says `MISSING` and exits 1, `status.ts` lists it, q's check
+  says it.
 - **packet.ts**: the commits, diff stat, files, uncommitted state, what
   scripts already checked (the stamp, subjects, trailers) and, for Yonder's
   riddle files, wow-data's cards of the subjects the change touches. The
@@ -164,10 +182,19 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   built on and not pushed yet: the commit that fixed its findings): the
   panel counts a review only when its base is already on the upstream and
   its tip isn't, so the default range (everything not on GitHub yet: past
-  the upstream, or on a branch never pushed all no remote has) is the one
-  that counts.
+  the upstream, on a branch never pushed all no remote has, in a
+  repository no remote has ever seen its whole history) is the one that
+  counts. The commits after the tip the reviewer read are written down
+  (`after:`) and said, with a louder line when one isn't a fix.
 - **board.ts**: one card a task in `~/code/wow-addons/board/`, its
-  front matter written only here. Its body is `## Try`, `## Committed`,
+  front matter written only here, whole (beside it, then moved in: a
+  reader never sees one cut); a new card is linked in under a name no
+  other has, so two adds at once never share a file. Its id is the repo
+  and the title as a slug, the repo once when the title starts with it
+  (`addon-kit-the-kit-audited`). A card whose front matter can't be read
+  (cut short) lists as `BROKEN`, holds nothing and `set` refuses it until
+  it's mended by hand; `--on` names a card that exists; a `held:` line
+  says when the holder's session looks gone (Claude Code's registry). Its body is `## Try`, `## Committed`,
   `## Left` (`--try`, `--committed`, `--left`). `status.ts` shows the open
   cards and each repository's check. The board is the lock of "two
   sessions never write the same repository at once": a card names every

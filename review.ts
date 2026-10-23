@@ -16,8 +16,10 @@
  * is built on and isn't pushed yet (a verdict recorded on the commit that
  * fixed its findings). The panel counts a review only when that base is
  * already on the upstream and that tip isn't: the review reached all a push
- * sends. The harness's event log gets a line
- * (events.ts).
+ * sends. The commits after that tip, which the reviewer didn't read, are
+ * written down (`after:`) and said, louder when one isn't a fix: a feature
+ * after the review wants a packet and a review of its own. The harness's
+ * event log gets a line (events.ts).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
@@ -31,7 +33,7 @@ function git(cwd: string, ...args: string[]): string | undefined {
   return p.exitCode === 0 ? p.stdout.toString().trim() : undefined;
 }
 
-export type Review = { verdict: string; head: string; tree?: string; at?: string; packet?: string; base?: string; tip?: string };
+export type Review = { verdict: string; head: string; tree?: string; at?: string; packet?: string; base?: string; tip?: string; after?: string[] };
 
 export function parseReview(text: string): Review | undefined {
   const fields: Record<string, string> = {};
@@ -41,7 +43,16 @@ export function parseReview(text: string): Review | undefined {
   }
   return fields.verdict === undefined
     ? undefined
-    : { verdict: fields.verdict, head: fields.head ?? "", tree: fields.tree, at: fields.at, packet: fields.packet, base: fields.base, tip: fields.tip };
+    : {
+        verdict: fields.verdict,
+        head: fields.head ?? "",
+        tree: fields.tree,
+        at: fields.at,
+        packet: fields.packet,
+        base: fields.base,
+        tip: fields.tip,
+        ...(fields.after ? { after: fields.after.split(" | ") } : {}),
+      };
 }
 
 // The packet the reviewer read: HEAD's own, else the newest whose tip HEAD is
@@ -80,9 +91,26 @@ export function record(dir: string, verdict: string): Review | string {
   const one = verdict.replace(/\s+/g, " ").trim();
   if (!one) return "the verdict is empty";
   const p = packetFor(top, head);
-  const r: Review = { verdict: one, head, tree: git(dir, "rev-parse", "HEAD^{tree}"), at: new Date().toISOString(), packet: p?.path, base: p?.base, tip: p?.tip };
+  const after = p && p.tip !== head ? (git(top, "log", "--format=%h %s", `${p.tip}..${head}`) ?? "").split("\n").filter(Boolean) : [];
+  const r: Review = {
+    verdict: one,
+    head,
+    tree: git(dir, "rev-parse", "HEAD^{tree}"),
+    at: new Date().toISOString(),
+    packet: p?.path,
+    base: p?.base,
+    tip: p?.tip,
+    ...(after.length ? { after } : {}),
+  };
   mkdirSync(stamps, { recursive: true });
-  const lines = [`verdict: ${r.verdict}`, `head: ${r.head}`, `tree: ${r.tree}`, `at: ${r.at}`, ...(p ? [`packet: ${p.path}`, `base: ${p.base}`, `tip: ${p.tip}`] : [])];
+  const lines = [
+    `verdict: ${r.verdict}`,
+    `head: ${r.head}`,
+    `tree: ${r.tree}`,
+    `at: ${r.at}`,
+    ...(p ? [`packet: ${p.path}`, `base: ${p.base}`, `tip: ${p.tip}`] : []),
+    ...(after.length ? [`after: ${after.join(" | ")}`] : []),
+  ];
   writeFileSync(join(stamps, `review-${head}`), lines.join("\n") + "\n");
   logEvent("review", "", repoOf(dir), `${head.slice(0, 7)} ${r.verdict}`);
   return r;
@@ -105,5 +133,11 @@ if (import.meta.main) {
       process.exit(1);
     }
     console.log(`${repo} ${r.head.slice(0, 7)}: ${r.verdict}`);
+    if (r.after?.length) {
+      console.error(`note: ${r.after.length} commit${r.after.length > 1 ? "s" : ""} after the packet the reviewer read (${r.tip?.slice(0, 7)}):`);
+      for (const c of r.after) console.error(`  ${c}`);
+      const others = r.after.filter((c) => !/^\w+ (fix|docs|style|test|chore)(\(|!|:)/.test(c));
+      if (others.length) console.error("not fixes among them: make a packet again (packet.ts) and have the reviewer read them before the push");
+    }
   }
 }

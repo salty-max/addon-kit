@@ -23,6 +23,7 @@
  * worktree can't reach the kit before it knows where the family folder is.
  */
 import { existsSync, statSync } from "node:fs";
+import { constants as osConstants } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 const isDir = (p: string) => existsSync(p) && statSync(p).isDirectory();
@@ -69,7 +70,10 @@ if (import.meta.main) {
       if (!script) throw new Error("usage: root.ts --run <a script in the family folder> [args...]");
       const path = familyPath(script);
       if (!existsSync(path)) throw new Error(`${path}: no such script`);
-      process.exit(Bun.spawnSync([process.execPath, path, ...rest], { stdio: ["inherit", "inherit", "inherit"] }).exitCode ?? 1);
+      const run = Bun.spawnSync([process.execPath, path, ...rest], { stdio: ["inherit", "inherit", "inherit"] });
+      // (a script killed by a signal exits as a shell says it: 128 and the signal's number)
+      const signal = run.signalCode ? osConstants.signals[run.signalCode as keyof typeof osConstants.signals] : undefined;
+      process.exit(run.exitCode ?? (signal ? 128 + signal : 1));
     }
     console.log(familyPath(...args));
   } catch (e) {

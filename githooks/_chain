@@ -10,4 +10,8 @@ case $dir in
 *) dir="$(git rev-parse --show-toplevel)/$dir" ;;
 esac
 [ -f "$dir/$hook" ] && [ -x "$dir/$hook" ] || exit 0
+# (never the harness's own hooks again, reached another way: a symlink, a
+# worktree of addon-kit, an old place still there; that would run forever)
+[ -f "$dir/_chain" ] && exit 0
+[ "$(cd "$dir" && pwd -P)" = "$(cd "$(dirname "$0")" && pwd -P)" ] && exit 0
 exec "$dir/$hook" "$@"

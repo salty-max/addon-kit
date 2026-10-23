@@ -3,7 +3,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parse, pick } from "./each";
+import { argvOf, parse, pick, unknown } from "./each";
 import { unfit, users } from "./secret";
 import { attention, buildVersion, latestPerWorkflow, slugOf, type Repo, type Run } from "./status";
 
@@ -60,7 +60,12 @@ describe("each", () => {
   const test_ = { addon: (n: string) => ["keyring", "palaver"].includes(n), kit: (n: string) => n === "palaver" };
 
   test("the command after --", () => {
-    expect(parse(["--kit", "--", "bun", "run", "check"])).toMatchObject({ which: "kit", command: "bun run check" });
+    expect(parse(["--kit", "--", "bun", "run", "check"])).toMatchObject({ which: "kit", command: ["bun", "run", "check"] });
+    // (the words as given, no shell between; one word alone a shell line)
+    expect(argvOf(["printf", "[%s]", "two words"])).toEqual(["printf", "[%s]", "two words"]);
+    expect(argvOf(["git status && git log -1"])).toEqual(["/bin/sh", "-c", "git status && git log -1"]);
+    const o = parse(["--only", "yonder,yondr", "--", "x"]) as Exclude<ReturnType<typeof parse>, string>;
+    expect(unknown(["yonder", "keyring"], o)).toEqual(["yondr"]);
     expect(parse(["--kit"])).toBe("give the command after --");
     expect(parse(["--nope", "--", "x"])).toBe("unknown option --nope");
     expect(parse(["--only", "--", "x"])).toBe("--only takes folder names, a,b");

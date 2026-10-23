@@ -1,7 +1,9 @@
 #!/bin/sh
 # Refuses a push whose trees have no passing check. q.ts stamps the tree a
 # check passed on (<git common dir>/harness/check-<tree>), and every branch
-# or tag this push sends must point at a commit with that tree. Then the
+# or tag this push sends must point at a commit with that tree. Refuses too
+# a commit it sends whose message breaks the family's rule (_ai: a
+# cherry-pick, a rebase or a merge never ran commit-msg). Then the
 # repository's own pre-push, if any.
 here=$(cd "$(dirname "$0")" && pwd)
 stamps="$(git rev-parse --path-format=absolute --git-common-dir)/harness"
@@ -9,13 +11,31 @@ input=$(mktemp) || exit 1
 trap 'rm -f "$input"' EXIT
 cat >"$input"
 missing=""
+trailers=""
 nl='
 '
 while read -r local_ref local_oid remote_ref remote_oid; do
   case $local_oid in *[!0]*) ;; *) continue ;; esac # a deletion
+  # (the commits this ref sends: past what the remote had, else past every remote's)
+  case $remote_oid in
+  *[!0]*) sent=$(git rev-list "$remote_oid..$local_oid" 2>/dev/null) || sent=$(git rev-list "$local_oid" --not --remotes 2>/dev/null) ;;
+  *) sent=$(git rev-list "$local_oid" --not --remotes 2>/dev/null) ;;
+  esac
+  for c in $sent; do
+    git log -1 --format=%B "$c" | "$here/_ai" >/dev/null || trailers="$trailers  $(git log -1 --format='%h %s' "$c")$nl"
+  done
   tree=$(git rev-parse -q --verify "$local_oid^{tree}" 2>/dev/null) || continue
   [ -f "$stamps/check-$tree" ] || missing="$missing  ${remote_ref#refs/*/} ($(git rev-parse --short "$local_oid"))$nl"
 done <"$input"
+if [ -n "$trailers" ]; then
+  {
+    echo "pre-push: the family's rule, no AI co-author or \"generated with\" line, in what this push sends:"
+    printf '%s' "$trailers"
+    echo "Reword them (git rebase -i, reword) and push again."
+  } >&2
+  "$here/_event" fail "pre-push refused an AI trailer in $(printf '%s' "$trailers" | head -1 | sed 's/^ *//')"
+  exit 1
+fi
 if [ -n "$missing" ]; then
   check=$(git config --get harness.check)
   if [ -z "$check" ]; then

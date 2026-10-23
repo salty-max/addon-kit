@@ -63,6 +63,8 @@ export function range(dir: string, arg?: string): Range | string {
   const remotes = (git(dir, "for-each-ref", "--format=%(objectname)", "refs/remotes") ?? "").split("\n").filter(Boolean);
   if (remotes.length && git(dir, "rev-list", "--count", tip, "--not", "--remotes") !== "0")
     return { base: git(dir, "merge-base", tip, ...remotes) ?? EMPTY_TREE, tip, label: "everything no remote has (no upstream) and the uncommitted files", working: true };
+  // (never pushed anywhere, no remote's ref at all: its first push sends all of it)
+  if (!remotes.length) return { base: EMPTY_TREE, tip, label: "the whole history (never pushed) and the uncommitted files", working: true };
   return { base: rev("HEAD^") ?? EMPTY_TREE, tip, label: "the last commit (no upstream) and the uncommitted files", working: true };
 }
 

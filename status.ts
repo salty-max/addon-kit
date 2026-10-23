@@ -10,17 +10,24 @@
  *   bun addon-kit/status.ts --no-fetch  as the checkouts know it
  *   bun addon-kit/status.ts --json      the same as JSON
  *
- * Needs git and gh (signed in); without gh, the workflows and pull requests
- * are left out and said so.
+ * Needs git; gh (signed in) for the workflows and pull requests, left out
+ * and said so without it. Every git and gh call gives up after 20 seconds
+ * (a stalled remote), said so too. The family's git hooks are checked:
+ * a repository whose hooks are gone or not ours wants a hand.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { cards, lines } from "./board";
-import { headTree, stampOf } from "./q";
+import { hooksWant, state } from "./hooks";
+import { checkCommand, headTree, stampOf } from "./q";
 import { familyRoot } from "./root";
 
-const ROOT = familyRoot(); // the family folder, from a worktree too (root.ts)
+// the family folder, from a worktree too (root.ts); found when first asked,
+// so the module loads (and its pure parts are tested) outside one
+let root: string | undefined;
+const ROOT = () => (root ??= familyRoot());
+const TIMEOUT_MS = 20_000;
 const ICLOUD = join(homedir(), "Library", "Mobile Documents", "com~apple~CloudDocs", "Hearthtale test");
 
 export type Run = { workflow: string; status: string; conclusion: string; sha: string; at: string };
@@ -39,9 +46,17 @@ export type Repo = {
   build?: Build;
   checked?: boolean;
   ghFailed?: boolean;
+  /** The repository's own check, as a push's gate names it. */
+  check?: string;
+  /** What its git hooks want (gone, not ours), else none. */
+  hooks?: string;
+  /** git couldn't read it (HEAD gone, a broken .git). */
+  unreadable?: boolean;
+  /** Calls that gave up after TIMEOUT_MS. */
+  timedOut?: string[];
 };
 
-// ── helpers, pure (status.test.ts) ──────────────────────────────────────────
+// ── helpers, pure (tools.test.ts) ───────────────────────────────────────────
 // owner/repo from a GitHub remote, ssh or https.
 export function slugOf(url: string): string | undefined {
   const m = url.trim().match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
@@ -71,11 +86,14 @@ export function mark(r: Run): string {
 // What wants a hand, one line each.
 export function attention(r: Repo): string[] {
   const out: string[] = [];
+  if (r.unreadable) return ["not a readable repository (git rev-parse HEAD failed)"];
+  if (r.hooks) out.push(`hooks: ${r.hooks}`);
+  for (const t of r.timedOut ?? []) out.push(`${t} gave up after ${TIMEOUT_MS / 1000}s (a stalled remote?)`);
   if (r.dirty) out.push(`${r.dirty} file${r.dirty > 1 ? "s" : ""} uncommitted`);
   if (!r.upstream) out.push("no upstream (local only)");
   if (r.ahead) out.push(`${r.ahead} commit${r.ahead > 1 ? "s" : ""} to push`);
   if (r.behind) out.push(`${r.behind} commit${r.behind > 1 ? "s" : ""} to pull`);
-  if (r.ahead && r.checked === false) out.push("no passing check on HEAD's tree (bun ../addon-kit/q.ts check -- bun run check)");
+  if (r.ahead && r.checked === false) out.push(`no passing check on HEAD's tree (bun ../addon-kit/q.ts check -- ${r.check ?? "bun run check"})`);
   for (const run of r.runs ?? []) {
     if (run.status === "completed" && !["success", "skipped", "cancelled"].includes(run.conclusion))
       out.push(`${run.workflow}: ${run.conclusion} (${run.sha.slice(0, 7)})`);
@@ -96,10 +114,17 @@ export function ships(name: string): string[] {
 }
 
 // ── reading the repositories ────────────────────────────────────────────────
-async function run(cmd: string[], cwd: string): Promise<{ ok: boolean; out: string }> {
-  const p = Bun.spawn(cmd, { cwd, stdout: "pipe", stderr: "pipe" });
-  const out = await new Response(p.stdout).text();
-  return { ok: (await p.exited) === 0, out: out.trim() };
+// (a program missing is a failure, never a crash; a call past TIMEOUT_MS is killed and said so)
+async function run(cmd: string[], cwd: string): Promise<{ ok: boolean; out: string; timedOut?: boolean }> {
+  let p: ReturnType<typeof Bun.spawn>;
+  try {
+    p = Bun.spawn(cmd, { cwd, stdout: "pipe", stderr: "pipe", timeout: TIMEOUT_MS });
+  } catch {
+    return { ok: false, out: "" };
+  }
+  const out = await new Response(p.stdout as ReadableStream).text();
+  const code = await p.exited;
+  return { ok: code === 0, out: out.trim(), ...(p.signalCode === "SIGTERM" && code !== 0 ? { timedOut: true } : {}) };
 }
 const git = (cwd: string, ...args: string[]) => run(["git", ...args], cwd);
 
@@ -153,9 +178,10 @@ async function github(r: Repo) {
   if (!r.slug) return;
   const branch = r.upstream?.split("/").slice(1).join("/") || r.branch;
   const [runs, prs] = await Promise.all([
-    run(["gh", "run", "list", "-R", r.slug, "-b", branch, "-L", "30", "--json", "workflowName,status,conclusion,headSha,createdAt"], ROOT),
-    run(["gh", "pr", "list", "-R", r.slug, "--state", "open", "--json", "number,title"], ROOT),
+    run(["gh", "run", "list", "-R", r.slug, "-b", branch, "-L", "30", "--json", "workflowName,status,conclusion,headSha,createdAt"], ROOT()),
+    run(["gh", "pr", "list", "-R", r.slug, "--state", "open", "--json", "number,title"], ROOT()),
   ]);
+  if (runs.timedOut || prs.timedOut) (r.timedOut ??= []).push("gh");
   if (!runs.ok && !prs.ok) {
     r.ghFailed = true;
     return;
@@ -170,8 +196,8 @@ async function github(r: Repo) {
 }
 
 export async function read(name: string, fetch: boolean): Promise<Repo> {
-  const dir = join(ROOT, name);
-  if (fetch) await git(dir, "fetch", "-q", "origin");
+  const dir = join(ROOT(), name);
+  const fetched = fetch ? await git(dir, "fetch", "-q", "origin") : undefined;
   const [branch, upstream, dirty, head, remote] = await Promise.all([
     git(dir, "rev-parse", "--abbrev-ref", "HEAD"),
     git(dir, "rev-parse", "--abbrev-ref", "@{u}"),
@@ -189,6 +215,10 @@ export async function read(name: string, fetch: boolean): Promise<Repo> {
     head: head.out,
     slug: remote.ok ? slugOf(remote.out) : undefined,
   };
+  if (fetched?.timedOut) r.timedOut = ["git fetch"];
+  if (!branch.ok) return { ...r, unreadable: true };
+  r.check = checkCommand(dir);
+  r.hooks = hooksWant(state(dir));
   if (r.upstream) {
     const counts = await git(dir, "rev-list", "--left-right", "--count", "HEAD...@{u}");
     const [a, b] = counts.out.split(/\s+/).map(Number);
@@ -223,8 +253,8 @@ function table(repos: Repo[]) {
 
 if (import.meta.main) {
   const args = process.argv.slice(2);
-  const names = readdirSync(ROOT, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && existsSync(join(ROOT, d.name, ".git")))
+  const names = readdirSync(ROOT(), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(join(ROOT(), d.name, ".git")))
     .map((d) => d.name)
     .sort();
   const repos = await Promise.all(names.map((n) => read(n, !args.includes("--no-fetch"))));
