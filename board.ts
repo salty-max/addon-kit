@@ -9,6 +9,7 @@
  *   bun addon-kit/board.ts set <id> [--repos a,b] [--status s] [--on id] [--title t] [--session id] [fields]
  *   bun addon-kit/board.ts list [--all] [--json]
  *   bun addon-kit/board.ts held [repo…]
+ *   bun addon-kit/board.ts may <repo>   exit 1 unless this session's running card may write it
  *
  *   repos    every repository the task writes (add: the card's repo); a
  *            running card holds them, the first to run there first
@@ -459,6 +460,28 @@ export function set(id: string, o: Opts): Card | string {
   return card;
 }
 
+/**
+ * Why this session may not write `repo` now, or none: no running card of
+ * its own names it (every task on the board), or another session's running
+ * card came to hold it first. The pre-commit hook asks it of a session's
+ * every commit; a person's own commit (no session) is never asked.
+ */
+export function mayWrite(repo: string, list: Card[], session: string): string | undefined {
+  if (!session) return undefined;
+  const mine = list.filter((c) => c.session === session && HOLDS.includes(c.status) && c.repos.includes(repo));
+  if (!mine.length) {
+    const own = list.filter((c) => c.session === session && c.status !== "done");
+    return own.length
+      ? `no running card of this session names ${repo}: ${own.map((c) => `${c.id} (${c.status})`).join(", ")}; set it running with ${repo} in --repos first`
+      : `this session has no card: its first write is its card (bun addon-kit/board.ts add ${repo} "<title>" --repos ${repo})`;
+  }
+  if (isHeld(repo, list, session)) {
+    const by = holders(list, [repo]).find((h) => h.kind === "held" && h.card.session !== session);
+    return `${repo} is held by ${by?.card.id ?? "another session's card"}: commit nothing there until it's free (board.ts held ${repo})`;
+  }
+  return undefined;
+}
+
 /** The blocked cards waiting on `id`: freed once it is done. */
 export const waitingOn = (id: string, list: Card[]) => list.filter((c) => c.status === "blocked" && c.waits === id);
 
@@ -504,9 +527,16 @@ if (import.meta.main) {
     // Scriptable: a named repository another session holds fails.
     const list = cards();
     if (rest.some((r) => isHeld(r, list, session))) process.exit(1);
+  } else if (cmd === "may" && rest.length === 1) {
+    const why = mayWrite(rest[0], cards(), process.env.CLAUDE_CODE_SESSION_ID ?? "");
+    if (why) {
+      console.error(`board: ${why}`);
+      logEvent("board", "fail", rest[0], `a commit refused: ${why}`);
+      process.exit(1);
+    }
   } else if (cmd === "list" && !rest.length) {
     const list = cards(o.all);
     if (o.json) console.log(JSON.stringify(list, null, 2));
     else console.log(list.length ? lines(list).join("\n") : "the board is empty");
-  } else fail('usage: bun board.ts add <repo> "<title>" [options] | set <id> [options] | list [--all] [--json] | held [repo…]');
+  } else fail('usage: bun board.ts add <repo> "<title>" [options] | set <id> [options] | list [--all] [--json] | held [repo…] | may <repo>');
 }

@@ -29,9 +29,12 @@ let tmp: string;
 let events: string;
 
 beforeAll(() => {
-  for (const k of [...Object.keys(GIT_ENV), "WOW_ADDONS_ROOT", "HARNESS_EVENTS"]) saved[k] = process.env[k];
+  for (const k of [...Object.keys(GIT_ENV), "WOW_ADDONS_ROOT", "HARNESS_EVENTS", "CLAUDE_CODE_SESSION_ID", "CI"]) saved[k] = process.env[k];
   Object.assign(process.env, GIT_ENV);
   delete process.env.WOW_ADDONS_ROOT;
+  // (the tests' commits are a person's: the lock's gate is tested on its own)
+  delete process.env.CLAUDE_CODE_SESSION_ID;
+  delete process.env.CI;
   tmp = realpathSync(mkdtempSync(join(tmpdir(), "harness-test-")));
   events = join(tmp, "events.log");
   process.env.HARNESS_EVENTS = events;
@@ -351,6 +354,70 @@ describe("git hooks", () => {
     commit(repo, "feat: later");
     expect(git(repo, "push", "-q", "origin", "main").code).not.toBe(0);
     expect(git(repo, "push", "-q", "origin", "--delete", "main").code).toBe(0);
+  });
+
+  test("the AI filter: every trailer form, nothing legitimate", () => {
+    const ai = (msg: string) => Bun.spawnSync([join(HOOKS, "_ai")], { stdin: Buffer.from(`${msg}\n`), env: { ...process.env } }).exitCode;
+    for (const bad of ["co-authored-by:claude", "Signed-off-by: Claude", "Reviewed-by: GPT-5", "Co-Developed-By: Claude", "Made with Claude", "Written with Claude Code", "Built with ChatGPT", "Made-with: Cursor", "Generated with [x](https://x.y)"])
+      expect([bad, ai(bad)]).toEqual([bad, 1]);
+    for (const fine of ["fix: claude-mem notes", "feat: the Claude Docs page", "chore: generated with locales.ts", "Co-Authored-By: Jane Doe <jane@x.org>", "made with love", "Signed-off-by: Max <m@x>"])
+      expect([fine, ai(fine)]).toEqual([fine, 0]);
+  });
+
+  test("pre-push reads what it sends: a trailer brought in by a hookless commit is refused", () => {
+    const { repo } = hooked();
+    q(repo, "check", "--", "true");
+    expect(git(repo, "push", "-q", "origin", "main").code).toBe(0);
+    writeFileSync(join(repo, "a.txt"), "picked\n");
+    git(repo, "add", "-A");
+    // (as a cherry-pick or a rebase would: no commit-msg ran)
+    git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "feat: picked\n\nCo-Authored-By: Claude <noreply@anthropic.com>");
+    q(repo, "check", "--", "true");
+    const refused = git(repo, "push", "-q", "origin", "main");
+    expect(refused.code).not.toBe(0);
+    expect(refused.err).toContain("feat: picked");
+    git(repo, "commit", "-q", "--amend", "-m", "feat: picked");
+    q(repo, "check", "--", "true");
+    expect(git(repo, "push", "-q", "origin", "main").code).toBe(0);
+    newEvents();
+  });
+
+  test("a hooks folder gone is said, and the chain never runs the harness again", () => {
+    const { repo } = hooked();
+    // the chain pointed at our own folder by another path: a commit still ends
+    const link = join(tmp, `hooks-link-${n}`);
+    Bun.spawnSync(["ln", "-s", HOOKS, link]);
+    git(repo, "config", "harness.chain", link);
+    const p = Bun.spawnSync(["git", "commit", "-q", "--allow-empty", "-m", "chore: chained"], { cwd: repo, timeout: 10_000, stderr: "pipe", env: { ...process.env } });
+    expect([p.exitCode, p.stderr.toString()]).toEqual([0, ""]);
+    git(repo, "config", "--unset", "harness.chain");
+    // installed through the link: already ours, never chained to itself
+    git(repo, "config", "core.hooksPath", link);
+    expect(run(repo, ["bun", join(KIT, "hooks.ts"), "install", repo], { CI: "" }).out).toContain("already");
+    // gone: status says so and fails
+    git(repo, "config", "core.hooksPath", join(tmp, "no-such-hooks"));
+    const s = run(repo, ["bun", join(KIT, "hooks.ts"), "status", repo]);
+    expect(s.code).toBe(1);
+    expect(s.out).toContain("hooks MISSING");
+  });
+
+  test("the board as the lock: a session's commit wants its running card", () => {
+    const { root, repo } = hooked();
+    const env = { WOW_ADDONS_ROOT: root, CLAUDE_CODE_SESSION_ID: "s-lock", CI: "" };
+    const commit = () => run(repo, ["git", "commit", "-q", "--allow-empty", "-m", "chore: locked"], env);
+    const refused = commit();
+    expect(refused.code).not.toBe(0);
+    expect(refused.err).toContain("this session has no card");
+    const card = run(root, ["bun", join(KIT, "board.ts"), "add", "repo", "the task"], env);
+    expect(card.code).toBe(0);
+    expect(commit().code).toBe(0);
+    // another session's card there first: held
+    const other = { ...env, CLAUDE_CODE_SESSION_ID: "s-other" };
+    run(root, ["bun", join(KIT, "board.ts"), "add", "repo", "another task"], other);
+    expect(run(repo, ["git", "commit", "-q", "--allow-empty", "-m", "chore: other"], other).err).toContain("is held by");
+    // a person's commit is never asked
+    expect(run(repo, ["git", "commit", "-q", "--allow-empty", "-m", "chore: mine"], { WOW_ADDONS_ROOT: root }).code).toBe(0);
+    newEvents();
   });
 
   test("the repository's own hooks still run, and come back on uninstall", () => {

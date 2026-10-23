@@ -155,7 +155,17 @@ and the range of the packet the reviewer read (`base:`, `tip:`; 21 October
   reload mid-session.
 - Beyond the six asked for: a push through `each.ts`, a pull request's
   merge (`gh pr merge`: main moves, Hearthtale's site deploys) and
-  `--no-verify`.
+  `--no-verify`. Added 24 October 2026 after the kit audit (the user's
+  go): a secret or a variable set or deleted (`secret.ts` with any
+  argument, `gh secret set|delete`, `gh variable set|delete`, in their `-R`
+  and `--repo` forms; listing them doesn't ask), anything naming
+  `core.hooksPath` (`git -c core.hooksPath=/dev/null commit` would skip
+  both gates) and `hooks.ts uninstall`.
+- The lock in git (24 October 2026): the pre-commit hook asks `board.ts
+  may <repo>` of every commit a Claude session makes (its
+  `CLAUDE_CODE_SESSION_ID` set): a running card of that session must name
+  the repository, and no other session's running card may have come to
+  hold it first. A person's commit and CI's are never asked.
 - The patterns are wide on purpose: `git -C * push *` asks for a commit
   whose message holds " push ". `*/scripts/release.sh *` wants arguments
   after the script, so reading it (cat, a grep with the file last) doesn't

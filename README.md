@@ -144,6 +144,7 @@ bun addon-kit/board.ts set yonder-eight-riddles --on wow-data-trainers     # blo
 bun addon-kit/board.ts set yonder-eight-riddles --status ready-to-push --committed "f4ab31a"
 bun addon-kit/board.ts list [--all]            # what waits on the user first
 bun addon-kit/board.ts held [yonder]           # who holds what; exit 1 when another session holds one named
+bun addon-kit/board.ts may yonder              # exit 1 unless this session's running card may write it (pre-commit asks)
 bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the same for Python)
 bun addon-kit/events.ts [n]                    # the harness's last n events, as the panel's log reads them
 ```
@@ -218,7 +219,11 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   stops running names the blocked cards it frees, a name that is no family
   folder is a note. `held [repo…]` lists the holders, exit 1 when another
   session's card holds one named before this session's own, so a session
-  can check before it writes.
+  can check before it writes. git keeps it too: a Claude session's commit
+  (`CLAUDE_CODE_SESSION_ID` set) passes the pre-commit hook only while a
+  running card of that session names the repository and no other
+  session's card came to hold it first (`board.ts may`); a person's own
+  commit and CI's are never asked.
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
   directory, else up from the repository's main checkout (so a worktree
   anywhere finds `addon-kit/` and `wow-data/`). Each addon carries a copy in

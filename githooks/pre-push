@@ -24,7 +24,11 @@ while read -r local_ref local_oid remote_ref remote_oid; do
   for c in $sent; do
     git log -1 --format=%B "$c" | "$here/_ai" >/dev/null || trailers="$trailers  $(git log -1 --format='%h %s' "$c")$nl"
   done
-  tree=$(git rev-parse -q --verify "$local_oid^{tree}" 2>/dev/null) || continue
+  # (a tag of a blob or a tree: no commit, nothing a check could have passed on)
+  tree=$(git rev-parse -q --verify "$local_oid^{tree}" 2>/dev/null) || {
+    missing="$missing  ${remote_ref#refs/*/} (not a commit: nothing a check stamps)$nl"
+    continue
+  }
   [ -f "$stamps/check-$tree" ] || missing="$missing  ${remote_ref#refs/*/} ($(git rev-parse --short "$local_oid"))$nl"
 done <"$input"
 if [ -n "$trailers" ]; then
