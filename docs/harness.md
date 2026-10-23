@@ -315,8 +315,10 @@ finds its docs and the skills.
   the version bump. Ravenpost's check is `scripts/check.sh` (CI's steps,
   the inbox's too), set as `harness.check` (local git config, once per
   clone); wow-locker gained a `check` script instead. Hearthtale's and
-  wow-locker's `prepare` run husky, then `hooks.ts install .` (quiet, and a
-  no-op in CI): `bun install` keeps our hooks, husky's chained after.
+  wow-locker's `prepare` run husky, then `hooks.ts install .` (quiet, and
+  skipped in CI by `hooks.ts` itself, 23 October 2026: Hearthtale's daily
+  game-data job had its push refused by the gate, no stamp in CI): `bun
+  install` keeps our hooks, husky's chained after.
 - **The maps.** Every CLAUDE.md is 360 to 770 words; the prose moved
   verbatim to `docs/` (architecture, data, writing, site, expeditions,
   sources, releases), every old line checked to have landed. Keyring and

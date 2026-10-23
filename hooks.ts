@@ -11,7 +11,8 @@
  *   bun addon-kit/hooks.ts uninstall <repo...>     its hooks as they were
  *
  * husky's prepare script (`bun install`) points core.hooksPath back at
- * .husky/_: status says so, install again.
+ * .husky/_: status says so, install again. install does nothing in CI (CI
+ * set): a job's push has no check stamp to show.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
@@ -62,6 +63,9 @@ export function state(dir: string): State {
 }
 
 export function install(dir: string): string {
+  // (never in CI: a job has no check stamp, so the pre-push gate would refuse
+  // its pushes; its own check and the pull request's checks gate it there)
+  if (process.env.CI) return `${dir}: skipped in CI`;
   if (!existsSync(join(dir, ".git"))) return `${dir}: not a repository`;
   if (state(dir).ours) return `${dir}: already`;
   const prev = previous(dir);

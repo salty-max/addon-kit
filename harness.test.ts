@@ -249,9 +249,14 @@ describe("events", () => {
 });
 
 describe("git hooks", () => {
+  test("never installed in CI: a job's push has no stamp to show", () => {
+    const f = family();
+    expect(run(f.repo, ["bun", join(KIT, "hooks.ts"), "install", f.repo], { CI: "true" }).out).toContain("skipped in CI");
+    expect(git(f.repo, "config", "core.hooksPath").code).not.toBe(0);
+  });
   function hooked() {
     const f = family();
-    expect(run(f.repo, ["bun", join(KIT, "hooks.ts"), "install", f.repo]).out).toContain("installed");
+    expect(run(f.repo, ["bun", join(KIT, "hooks.ts"), "install", f.repo], { CI: "" }).out).toContain("installed");
     expect(git(f.repo, "config", "core.hooksPath").out.trim()).toBe(HOOKS);
     const remote = join(f.root, "remote.git");
     git(f.root, "init", "-q", "--bare", remote);
@@ -310,7 +315,7 @@ describe("git hooks", () => {
     mkdirSync(join(repo, ".husky", "_"), { recursive: true });
     writeFileSync(join(repo, ".husky", "_", "pre-commit"), "#!/bin/sh\necho ran >> \"$(git rev-parse --show-toplevel)/.git/marker\"\n", { mode: 0o755 });
     git(repo, "config", "core.hooksPath", ".husky/_");
-    expect(run(repo, ["bun", join(KIT, "hooks.ts"), "install", repo]).out).toContain(".husky/_ chained");
+    expect(run(repo, ["bun", join(KIT, "hooks.ts"), "install", repo], { CI: "" }).out).toContain(".husky/_ chained");
     writeFileSync(join(repo, "a.txt"), "changed\n");
     git(repo, "commit", "-qam", "fix: one");
     expect(readFileSync(join(repo, ".git", "marker"), "utf8")).toBe("ran\n");
