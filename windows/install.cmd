@@ -1,29 +1,35 @@
 @echo off
 rem Installs every addon zip beside this script into one game's AddOns folder:
-rem _classic_era_ (Classic Era) or _classic_beta_ (Forever's beta). Its name
-rem picks the game: copied as "Install Classic Era.cmd" and "Install Forever
+rem _classic_era_ (Classic Era), _forever_ (World of Warcraft: Forever) or
+rem _classic_beta_ (Forever's beta). Its name picks the game: copied as
+rem "Install Classic Era.cmd", "Install Forever.cmd" and "Install Forever
 rem beta.cmd", a double-click is enough (else it asks, or takes the folder's
-rem name as its argument: install.cmd _classic_era_).
+rem name as its argument: install.cmd _forever_).
 rem
 rem Each zip's folders are removed from AddOns first, so no file of an older
-rem version stays behind. Yonder's FieldJournal handover goes to Classic Era
-rem only: on Forever, a FieldJournal folder is Field Journal: Forever's, left
-rem alone. The game's folder is found where Battle.net puts it, else asked once
-rem and kept in wow-folder.txt beside this script. Unzips with Windows' own
-rem tar.exe (Windows 10 1803 and later): no PowerShell.
+rem version stays behind. Yonder's FieldJournal handover never goes to Forever
+rem (_forever_ or its beta): there, a FieldJournal folder is Field Journal:
+rem Forever's, left alone. The game's folder is found where Battle.net puts
+rem it, else asked once and kept in wow-folder.txt beside this script. Unzips
+rem with Windows' own tar.exe (Windows 10 1803 and later): no PowerShell.
 setlocal EnableExtensions EnableDelayedExpansion
 set "HERE=%~dp0"
 set "FLAVOR=%~1"
 rem the script's own name, else ask
-if not defined FLAVOR echo %~n0| findstr /i "forever beta" >nul && set "FLAVOR=_classic_beta_"
+if not defined FLAVOR echo %~n0| findstr /i "beta" >nul && set "FLAVOR=_classic_beta_"
+if not defined FLAVOR echo %~n0| findstr /i "forever" >nul && set "FLAVOR=_forever_"
 if not defined FLAVOR echo %~n0| findstr /i "era" >nul && set "FLAVOR=_classic_era_"
 if not defined FLAVOR (
   echo Which game?
   echo   1  Classic Era   [_classic_era_]
-  echo   2  Forever beta  [_classic_beta_]
-  choice /c 12 /n /m "1 or 2: "
-  if errorlevel 2 (set "FLAVOR=_classic_beta_") else (set "FLAVOR=_classic_era_")
+  echo   2  Forever       [_forever_]
+  echo   3  Forever beta  [_classic_beta_]
+  choice /c 123 /n /m "1, 2 or 3: "
+  if errorlevel 1 set "FLAVOR=_classic_era_"
+  if errorlevel 2 set "FLAVOR=_forever_"
+  if errorlevel 3 set "FLAVOR=_classic_beta_"
 )
+if not defined FLAVOR goto :end
 
 set "TAR=%SystemRoot%\System32\tar.exe"
 if not exist "%TAR%" (
@@ -56,6 +62,7 @@ if defined ASKED (>"%HERE%wow-folder.txt" echo !WOW!)
 set "ADDONS=!WOW!\%FLAVOR%\Interface\AddOns"
 if not exist "!ADDONS!\" mkdir "!ADDONS!"
 set "SKIP="
+if /i "%FLAVOR%"=="_forever_" set "SKIP=FieldJournal"
 if /i "%FLAVOR%"=="_classic_beta_" set "SKIP=FieldJournal"
 
 echo Installing into !ADDONS!

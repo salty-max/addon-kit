@@ -38,12 +38,16 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
 - A visual change is checked first against the game's own textures and code
   (Gethe/wow-ui-textures and wow-ui-source), rendered at the sizes it's drawn.
 
-`windows/install.cmd` is the test builds' installer, copied twice beside the
-zips in the iCloud test folder, as `Install Classic Era.cmd` and `Install
-Forever beta.cmd`: its name picks the game. It unzips every addon zip beside
-it into that game's `Interface\AddOns` (`_classic_era_` or `_classic_beta_`),
-each zip's old folders removed first. Yonder's `FieldJournal` handover goes
-to Classic Era only. Windows' own `tar.exe` does the unzipping, no
+`windows/install.cmd` is the test builds' installer, copied beside the zips
+in the iCloud test folder as `Install Classic Era.cmd`, `Install
+Forever.cmd` and `Install Forever beta.cmd`: its name picks the game. It
+unzips every addon zip beside it into that game's `Interface\AddOns`
+(`_classic_era_`, `_forever_` or `_classic_beta_`), each zip's old folders
+removed first. Yonder's `FieldJournal` handover never goes to Forever (a
+folder of that name there is Field Journal: Forever's). The client's game
+type, not its folder, picks the TOC: `_forever_` loads `_Camelot.toc`
+(Blizzard's own TOCs say `AllowLoadGameType: camelot`). Windows' own
+`tar.exe` does the unzipping, no
 PowerShell. The game's folder is found where Battle.net puts it, else asked
 once and kept in `wow-folder.txt`. CRLF line endings: batch files need them.
 
