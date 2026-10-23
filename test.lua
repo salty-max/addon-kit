@@ -891,5 +891,58 @@ do
   check(ok and B.rows[1].status.text == "0/1" and B.rows[2].status.text == "Level 12", "board: no progress, no day: still a row")
 end
 
+-- Words handed over: plurals, gender, Classic's names swapped longest first.
+do
+  local K = load()
+  UnitSex = function() return 3 end
+  K.translate({ locale = "ruRU", plural = "ru", words = { ["You are ready"] = "Vous êtes $gprêt:prête;" } })
+  check(K.L["You are ready"] == "Vous êtes prête" and K.isOne(21) and not K.isOne(11), "words: gender and Russian's plural")
+  local swaps = { { "Comté", "Comté-de-l'Or" }, { "Comté-de-l'Or", "Elwynn" } }
+  check(K.swap("Comté-de-l'Or et Comté", swaps) == "Elwynn et Comté-de-l'Or", "words: the longest name swapped first")
+  check(K.upper("écrit Привет") == "ÉCRIT ПРИВЕТ", "words: capitals beyond ASCII")
+  UnitSex = nil
+end
+
+-- The game's things by id: a creature's from a GUID (a vehicle's too), a mask.
+do
+  local K = load()
+  check(K.npcId("Creature-0-4372-0-21-5824-00005E7A2B") == 5824 and K.npcId("Vehicle-0-4372-0-21-28670-0001") == 28670, "ids: a creature's, a vehicle's")
+  check(K.npcId("Player-1-0ABC") == nil and K.npcId(nil) == nil, "ids: none for a player")
+  UnitRace = function() return "Dwarf", "Dwarf", 3 end
+  UnitClass = function() return "Warrior", "WARRIOR", 1 end
+  check(K.forMe(nil, 0) and K.forMe(4, 1) and not K.forMe(2, 1) and not K.forMe(4, 2), "ids: a mask's races and classes")
+  check(K.forMe(2 ^ 31, nil, { [3] = 31 }), "ids: a race of its own bit")
+end
+
+-- Links: written in a colour, followed by their scheme.
+do
+  local followed
+  LinkUtil = { RegisterLinkHandler = function(_, fn) LinkUtil.fn = fn end }
+  local K = load()
+  local link = K.links("kittest", function(target) followed = target end)
+  check(link("ach:5", "First Steps") == "|cffffd100|Hkittest:ach:5|h[First Steps]|h|r", "links: written")
+  LinkUtil.fn("kittest:ach:5")
+  LinkUtil.fn("other:1")
+  check(followed == "ach:5", "links: followed, another scheme's left alone")
+  LinkUtil = nil
+end
+
+-- The minimap button: placed by its angle, shown or not by its setting.
+do
+  local opts = { minimapAngle = 90, minimapHidden = false }
+  Minimap = frame()
+  Minimap.GetWidth = function() return 140 end
+  CreateFrame = function() return frame() end
+  local K = load()
+  local M = K.minimapButton({ name = "TestMinimapButton", icon = "x", title = "Test", get = function(k) return opts[k] end, set = function(k, v) opts[k] = v end })
+  local _, _, _, x, y = M.button:GetPoint()
+  check(math.abs(x) < 0.001 and math.abs(y - 80) < 0.001 and M.button.shown, "minimap: placed by its angle, shown")
+  opts.minimapHidden = true
+  M:update()
+  check(not M.button.shown, "minimap: hidden by its setting")
+  check(K.MINIMAP_ANGLES.LorekeepersCodex ~= K.MINIMAP_ANGLES.Hearthtale, "minimap: the family's places apart")
+  Minimap = nil
+end
+
 print(failures == 0 and "all good" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)

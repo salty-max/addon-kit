@@ -205,6 +205,76 @@ function K.plain(s)
   if type(s) ~= "string" then return "" end
   return (K.lower(s):gsub("\226\128[\152\153]", FOLD):gsub("[\195\197\209][\128-\191]", FOLD))
 end
+-- Capitals the same way ("écrit" is "ÉCRIT": the game's upper leaves a
+-- letter of two bytes as it is).
+local UPPER = {}
+for small, capital in pairs(LOWER) do
+  UPPER[capital] = small
+end
+function K.upper(s) return (s:upper():gsub("[\195\197\208\209][\128-\191]", UPPER)) end
+
+-- A language's file hands its words over: K.translate(t, { swaps }) at its
+-- load. t.plural names its rule (K.PLURALS: is n the "one" form? English,
+-- German, Spanish, Italian: 1; French and Brazilian Portuguese: 0 and 1;
+-- Russian: 1, 21, 31... but not 11; Korean and Chinese have one form); every
+-- word passes K.agree (the reader's gender, the game's own token,
+-- $gmasculine:feminine;) and the swaps (Classic's own names for the places
+-- Forever renamed: { { Forever's, Classic's }, ... } or { [Forever's] =
+-- Classic's }, the longest first, found as written).
+K.PLURALS = {
+  one = function(n) return n == 1 end,
+  fr = function(n) return n == 0 or n == 1 end,
+  ru = function(n) return n % 10 == 1 and n % 100 ~= 11 end,
+  none = function() return false end,
+}
+function K.agree(text)
+  if type(text) ~= "string" then return text end
+  local female = UnitSex and UnitSex("player") == 3
+  return (text:gsub("%$g([^:;]*):([^;]*);", function(m, f) return female and f or m end))
+end
+-- (a plain replacement: names hold the pattern's characters, "Comte-du-Lac")
+local function replaced(s, from, to)
+  local out, i = {}, 1
+  while true do
+    local a, b = s:find(from, 1 + i - 1, true)
+    if not a then break end
+    out[#out + 1] = s:sub(i, a - 1)
+    out[#out + 1] = to
+    i = b + 1
+  end
+  out[#out + 1] = s:sub(i)
+  return table.concat(out)
+end
+local swapCache = setmetatable({}, { __mode = "k" })
+function K.swap(text, swaps)
+  if type(text) ~= "string" or not swaps then return text end
+  local list = swapCache[swaps]
+  if not list then
+    list = {}
+    for k, v in pairs(swaps) do
+      if type(v) == "table" then
+        list[#list + 1] = { v[1], v[2] }
+      else
+        list[#list + 1] = { k, v }
+      end
+    end
+    table.sort(list, function(a, b) return #a[1] > #b[1] or (#a[1] == #b[1] and a[1] < b[1]) end)
+    swapCache[swaps] = list
+  end
+  for _, pair in ipairs(list) do
+    if text:find(pair[1], 1, true) then text = replaced(text, pair[1], pair[2]) end
+  end
+  return text
+end
+function K.translate(t, o)
+  K.locale = t.locale
+  K.isOne = K.PLURALS[t.plural] or K.isOne
+  local swaps = o and o.swaps
+  for english, word in pairs(t.words or {}) do
+    L[english] = K.swap(K.agree(word), swaps)
+  end
+end
+
 -- A search box's words, as K.plain makes them; whether a text holds them.
 function K.query(box) return K.plain(strtrim(box and box:GetText() or "")) end
 function K.finds(text, query) return query == "" or K.plain(text):find(query, 1, true) ~= nil end
@@ -307,6 +377,26 @@ end
 function K.panel(parent, book)
   if ns.forever then return K.card(parent) end
   return K.inset(parent, book)
+end
+
+-- A small card's backing (a banner's, a pinned card's): Forever's card, else
+-- the game's tooltip edge on the theme's shade (f made with BackdropTemplate).
+function K.backing(f, alpha)
+  if ns.forever then
+    f.art = K.card(f)
+    f.art:SetAllPoints()
+    return f.art
+  end
+  f:SetBackdrop({
+    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+    tile = true,
+    tileSize = 16,
+    edgeSize = 16,
+    insets = { left = 4, right = 4, top = 4, bottom = 4 },
+  })
+  f:SetBackdropColor(T.shade[1], T.shade[2], T.shade[3], alpha or 0.95)
+  f:SetBackdropBorderColor(unpack(T.ring))
 end
 
 -- ── scrolling ────────────────────────────────────────────────────────────────
@@ -517,12 +607,154 @@ function K.itemName(id, fallback)
   return fallback
 end
 function K.itemIcon(id)
-  if C_Item and C_Item.GetItemIconByID then return C_Item.GetItemIconByID(id) end
-  return GetItemIcon and GetItemIcon(id)
+  if not id then return nil end
+  local get = (C_Item and C_Item.GetItemIconByID) or GetItemIcon
+  if not get then return nil end
+  local ok, icon = pcall(get, id)
+  if ok and icon and not K.secret(icon) then return icon end
 end
 function K.itemQuality(id)
   if C_Item and C_Item.GetItemQualityByID then return C_Item.GetItemQualityByID(id) end
   if GetItemInfo then return select(3, GetItemInfo(id)) end
+end
+
+-- ── the game's things by id ──────────────────────────────────────────────────
+-- A creature's id from its GUID (a vehicle's too: "Creature-0-…-<id>-<spawn>"),
+-- none for a player, an object or a secret; a unit's.
+function K.npcId(guid)
+  if type(guid) ~= "string" or K.secret(guid) then return nil end
+  return tonumber(
+    guid:match("^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)") or guid:match("^Vehicle%-%d+%-%d+%-%d+%-%d+%-(%d+)") or ""
+  )
+end
+function K.npcOf(unit) return UnitGUID and K.npcId(UnitGUID(unit)) end
+-- A spell's name in the client's language (the fallback while the game keeps
+-- it secret or doesn't know it), and its icon.
+function K.spellName(id, fallback)
+  if not id or K.secret(id) then return fallback end
+  local name
+  if C_Spell and C_Spell.GetSpellName then
+    name = C_Spell.GetSpellName(id)
+  elseif GetSpellInfo then
+    name = GetSpellInfo(id)
+  end
+  return type(name) == "string" and name ~= "" and not K.secret(name) and name or fallback
+end
+function K.spellIcon(id)
+  if not id or K.secret(id) then return nil end
+  local icon
+  if C_Spell and C_Spell.GetSpellTexture then
+    icon = C_Spell.GetSpellTexture(id)
+  elseif GetSpellTexture then
+    icon = GetSpellTexture(id)
+  end
+  if icon and not K.secret(icon) then return icon end
+end
+-- A quest done, as the game keeps it.
+function K.questDone(id)
+  if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then return C_QuestLog.IsQuestFlaggedCompleted(id) == true end
+  if IsQuestFlaggedCompleted then return IsQuestFlaggedCompleted(id) == true end
+  return false
+end
+-- Whether the character is among a mask's races and classes (the game's
+-- masks: a race's bit is its id's, one less, but where raceBits says
+-- otherwise: Forever's Skyborne, races 95 and 96, are bits 32 and 33). A mask
+-- of none or 0 is everyone; a race or class the client doesn't say, no one's.
+local function hasBit(mask, n)
+  if not mask or mask == 0 then return true end
+  if not n then return false end
+  return math.floor(mask / 2 ^ (n - 1)) % 2 == 1
+end
+function K.forMe(races, classes, raceBits)
+  local race = select(3, UnitRace("player"))
+  local class = select(3, UnitClass("player"))
+  local raceBit = race and ((raceBits and raceBits[race]) or race - 1)
+  return hasBit(races, raceBit and raceBit + 1) and hasBit(classes, class)
+end
+
+-- ── sounds ───────────────────────────────────────────────────────────────────
+-- The sounds an addon offers for a find (all from the original game's
+-- interface: -1 is the sting heard on discovering a new zone, which differs
+-- by race, 0 none; their names words, L[name] where shown), and the fanfare
+-- of the game's achievements.
+K.SOUNDS = {
+  { -1, "Zone discovery" },
+  { 878, "Quest complete" },
+  { 3175, "Map ping" },
+  { 8960, "Ready check" },
+  { 836, "Page turn" },
+  { 844, "Book opening (quiet)" },
+  { 0, "None" },
+}
+local DISCOVERY =
+  { Human = 4140, Orc = 4141, Scourge = 4142, Tauren = 4143, Troll = 4144, NightElf = 4145, Gnome = 4146, Dwarf = 4147 }
+function K.playSound(id)
+  if id == -1 then
+    local _, race = UnitRace("player")
+    id = DISCOVERY[race] or DISCOVERY.Human
+  end
+  if id and id > 0 and PlaySound then pcall(PlaySound, id, "Master") end
+end
+local FANFARE = 12891
+-- (the trophy where the client lacks the fanfare: never a stop to what comes after)
+function K.fanfare(fallback)
+  local ok, willPlay = pcall(PlaySound, FANFARE, "Master")
+  if not (ok and willPlay) then K.playSound(fallback or 878) end
+end
+
+-- ── tooltips and links ───────────────────────────────────────────────────────
+-- A line added to the game's unit or item tooltips: the modern client's
+-- post-call where it has one, else the tooltips' own hooks. fn(tooltip, id)
+-- (the game's tooltip's unit, as it says it; an item tooltip's item id),
+-- never with a secret, behind its own pcall.
+function K.onUnitTooltip(fn)
+  local function onUnit(tip)
+    if tip ~= GameTooltip or not tip.GetUnit then return end
+    local _, unit = tip:GetUnit()
+    if unit and not K.secret(unit) then protected(fn, tip, unit) end
+  end
+  if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, onUnit)
+  elseif GameTooltip and GameTooltip.HookScript then
+    GameTooltip:HookScript("OnTooltipSetUnit", onUnit)
+  end
+end
+function K.onItemTooltip(fn)
+  if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tip, data)
+      if data and data.id and not K.secret(data.id) then protected(fn, tip, data.id) end
+    end)
+  else
+    local function onItem(tip)
+      local _, link = tip:GetItem()
+      local item = type(link) == "string" and not K.secret(link) and tonumber(link:match("item:(%d+)"))
+      if item then protected(fn, tip, item) end
+    end
+    for _, tip in ipairs({ GameTooltip, ItemRefTooltip }) do
+      if tip and tip.HookScript then tip:HookScript("OnTooltipSetItem", onItem) end
+    end
+  end
+end
+-- An addon's links in chat (|H<scheme>:<target>|h[text]|h): follow(target)
+-- when one is clicked, through the client's link registry, else SetItemRef.
+-- The function returned writes one, in a colour of its own (the game's
+-- quest yellow by default).
+function K.links(scheme, follow, colour)
+  local function heard(link)
+    local target = type(link) == "string" and link:match("^" .. scheme .. ":(.+)$")
+    if target then protected(follow, target) end
+  end
+  if LinkUtil and LinkUtil.RegisterLinkHandler then
+    LinkUtil.RegisterLinkHandler(scheme, function(link)
+      heard(link)
+      return LinkProcessorResponse and LinkProcessorResponse.Handled
+    end)
+  elseif hooksecurefunc and SetItemRef then
+    hooksecurefunc("SetItemRef", heard)
+  end
+  return function(target, text, c)
+    return ("|cff%s|H%s:%s|h[%s]|h|r"):format(c or colour or "ffd100", scheme, target, text)
+  end
 end
 
 -- Methods set on a frame (a frame's own metatable must stay as the game made it).
@@ -1499,21 +1731,7 @@ function K.banners(o)
     f:SetFrameStrata("DIALOG")
     f:SetClampedToScreen(true)
     f:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    if ns.forever then
-      f.art = K.card(f)
-      f.art:SetAllPoints()
-    else
-      f:SetBackdrop({
-        bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true,
-        tileSize = 16,
-        edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 },
-      })
-      f:SetBackdropColor(T.shade[1], T.shade[2], T.shade[3], 0.95)
-      f:SetBackdropBorderColor(unpack(T.ring))
-    end
+    K.backing(f)
     local body = CreateFrame("Frame", nil, f)
     body:SetAllPoints()
     body:SetFrameLevel(f:GetFrameLevel() + 4)
@@ -2546,6 +2764,107 @@ function K.movable(window, width, height, place)
   end)
   table.insert(UISpecialFrames, window.kitName)
   window:Hide()
+end
+
+-- ── the minimap button ───────────────────────────────────────────────────────
+-- The book's button on the minimap: click to open the book, right-click for
+-- its settings, drag to move it around the minimap; made of the game's own
+-- minimap buttons' textures (the tracking button's border, the zoom
+-- highlight). Its place and whether it shows are the addon's settings
+-- (get/set: minimapAngle, minimapHidden). Its global name stays
+-- <Addon>MinimapButton (Keyring finds the family's buttons by it).
+--   M = K.minimapButton({ name = "GoodwillMinimapButton", icon = path, crop = true,
+--     title = "Goodwill", lines = function() return { "a white line", ... } end,
+--     hint = (the kit's line by default), click = fn, rightClick = fn, get = fn(k), set = fn(k, v) })
+--   M:update() after a change of either setting; M.button
+-- K.MINIMAP_ANGLES: the family's buttons' places, apart (a button is 31
+-- pixels, 25 degrees around the minimap's edge): a new addon takes a free one.
+K.MINIMAP_ANGLES = {
+  YoursTruly = 115,
+  Goodwill = 140,
+  Mealbook = 165,
+  Hearthtale = 200,
+  Yonder = 225,
+  SecondWind = 250,
+  LorekeepersCodex = 275,
+}
+function K.minimapButton(o)
+  local M = {}
+  local button
+  local function place()
+    local angle = math.rad(o.get("minimapAngle") or 200)
+    local r = Minimap:GetWidth() / 2 + 10
+    button:ClearAllPoints()
+    button:SetPoint("CENTER", Minimap, "CENTER", math.cos(angle) * r, math.sin(angle) * r)
+  end
+  -- (while dragging: the angle from the minimap's centre to the cursor)
+  local function follow()
+    local mx, my = Minimap:GetCenter()
+    local cx, cy = GetCursorPosition()
+    local scale = Minimap:GetEffectiveScale()
+    o.set("minimapAngle", math.deg(math.atan2(cy / scale - my, cx / scale - mx)))
+    place()
+  end
+  function M:update()
+    if not button then return end
+    place()
+    button:SetShown(not o.get("minimapHidden"))
+  end
+  if not Minimap then return M end
+  button = CreateFrame("Button", o.name, Minimap)
+  M.button = button
+  button:SetSize(31, 31)
+  button:SetFrameStrata("MEDIUM")
+  button:SetFrameLevel(8)
+  button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  button:RegisterForDrag("LeftButton")
+  button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+  local icon = button:CreateTexture(nil, "BACKGROUND")
+  icon:SetTexture(o.icon)
+  icon:SetSize(20, 20)
+  icon:SetPoint("TOPLEFT", 7, -6)
+  if o.crop then icon:SetTexCoord(unpack(K.ICON_CROP)) end
+  M.icon = icon
+  local border = button:CreateTexture(nil, "OVERLAY")
+  border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  border:SetSize(53, 53)
+  border:SetPoint("TOPLEFT")
+  button:SetScript("OnClick", function(_, mouse)
+    if mouse == "RightButton" then
+      if o.rightClick then o.rightClick() end
+    elseif o.click then
+      o.click()
+    end
+  end)
+  button:SetScript("OnDragStart", function(self) self:SetScript("OnUpdate", follow) end)
+  button:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+  button:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+    GameTooltip:AddLine(o.title)
+    for _, line in ipairs(o.lines and o.lines() or {}) do
+      GameTooltip:AddLine(line, 1, 1, 1)
+    end
+    GameTooltip:AddLine(
+      o.hint or L["Click to open the book, right-click for the settings. Drag to move this button."],
+      0.7,
+      0.7,
+      0.7,
+      true
+    )
+    GameTooltip:Show()
+  end)
+  button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  M:update()
+  return M
+end
+-- The minimap button as a welcome page's choice (shown or not).
+function K.minimapChoice(get, set)
+  return {
+    text = L["The book by the minimap"],
+    hint = L["Click it to open the book, or drag it around the minimap."],
+    get = function() return not get("minimapHidden") end,
+    set = function(v) set("minimapHidden", not v) end,
+  }
 end
 
 -- ── the welcome ──────────────────────────────────────────────────────────────
