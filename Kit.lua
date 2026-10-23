@@ -590,11 +590,11 @@ K.RINGS = {
 local RANK_RINGS = { elite = "gold", rare = "silver", rareelite = "silver", worldboss = "rose", boss = "rose" }
 function K.rankRing(rank) return rank and K.RINGS[RANK_RINGS[rank]] or nil end
 
--- A day as the books write it: "12 Oct 2026".
+-- A day as the books write it: "5 Oct 2026" (each language its own order).
 local MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
 function K.day(at)
   local d = date("*t", at or 0)
-  return L["%02d %s %d"]:format(d.day, L[MONTHS[d.month]], d.year)
+  return L["%d %s %d"]:format(d.day, L[MONTHS[d.month]], d.year)
 end
 
 -- ── items ────────────────────────────────────────────────────────────────────
@@ -684,7 +684,7 @@ K.SOUNDS = {
   { 8960, "Ready check" },
   { 836, "Page turn" },
   { 844, "Book opening (quiet)" },
-  { 0, "None" },
+  { 0, "No sound" },
 }
 local DISCOVERY =
   { Human = 4140, Orc = 4141, Scourge = 4142, Tauren = 4143, Troll = 4144, NightElf = 4145, Gnome = 4146, Dwarf = 4147 }

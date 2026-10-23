@@ -495,7 +495,7 @@ do
   local L = K.L
   check(L["Begin"] == "Begin" and K.plural(1, "page", "pages") == "page", "words: English by default")
   local at = os.time({ year = 2026, month = 10, day = 5, hour = 12 })
-  check(K.day(at) == "05 Oct 2026", "words: a day, as before")
+  check(K.day(at) == "5 Oct 2026", "words: a day, its number unpadded")
   L["Begin"], L["Oct"], L["pages"], L["page"] = "Commencer", "oct.", "pages", "page"
   local one = K.isOne
   K.isOne = function(n) return n <= 1 end -- (French: 0 and 1 take the singular)
@@ -503,7 +503,7 @@ do
     L["Begin"] == "Commencer" and L["Your choices"] == "Your choices" and K.plural(0, "page", "pages") == "page",
     "words: a language's own, the rest English, its plural rule"
   )
-  check(K.day(at) == "05 oct. 2026", "words: its month names")
+  check(K.day(at) == "5 oct. 2026", "words: its month names")
   L["Begin"], L["Oct"], L["pages"], L["page"] = nil, nil, nil, nil
   K.isOne = one
 end
