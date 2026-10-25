@@ -22,6 +22,7 @@ import { cards, lines } from "./board";
 import { hooksWant, state } from "./hooks";
 import { checkCommand, headTree, stampOf } from "./q";
 import { familyRoot } from "./root";
+import { lastSummary, line as usageLine } from "./usage";
 
 // the family folder, from a worktree too (root.ts); found when first asked,
 // so the module loads (and its pure parts are tested) outside one
@@ -251,6 +252,8 @@ function table(repos: Repo[]) {
   console.log(todo.length ? `\nWants a hand:\n${todo.map((t) => `  - ${t}`).join("\n")}` : "\nNothing wants a hand.");
   const board = cards();
   console.log(board.length ? `\nBoard:\n${lines(board).map((l) => `  ${l}`).join("\n")}` : "\nThe board is empty.");
+  const spent = lastSummary();
+  if (spent) console.log(`\nCost: ${usageLine(spent)}`);
   const silent = repos.filter((r) => r.ghFailed).map((r) => r.name);
   if (silent.length) console.log(`\n(gh gave nothing for ${silent.join(", ")}: workflows and pull requests left out there. \`gh auth status\`)`);
 }

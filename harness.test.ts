@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { add, before, cardId, cards, conflicts, format, holders, holding, isHeld, lines, options, parseCard, repoList, set, setSection, slug, strangers, waitingOn, warnings } from "./board";
 import { eventLine, eventsPath, logEvent, repoOf } from "./events";
 import { HOOKS } from "./hooks";
-import { changedLines, packet, packetRange, range, riddles, subjectProblem, touched, trailerProblem } from "./packet";
+import { changedLines, packet, sizeLine, packetRange, range, riddles, subjectProblem, touched, trailerProblem } from "./packet";
 import { clean, headTree, matters, parse, stampDir, stampOf, verdict, workTree } from "./q";
 import { parseReview, record, reviewOf } from "./review";
 import { familyRoot } from "./root";
@@ -529,6 +529,11 @@ describe("packet", () => {
     expect(range(repo)).toMatchObject({ base: "4b825dc642cb6eb9a060e54bf8d69288fbee4904" });
   });
 
+  test("the size line: lines to read, a large change read biggest first", () => {
+    expect(sizeLine("3\t1\ta.ts\n-\t-\timg.png\n")).toBe("Size: 2 files, +3 −1 lines. Read every changed file's diff, several in one turn.");
+    expect(sizeLine("2000\t600\tbig.lua\n")).toContain("Large (over 2500): read the biggest files");
+  });
+
   test("the packet: commits, files, the stamp, the cards of the riddles touched", () => {
     const { root, repo } = family({ "expeditions/zone.md": ZONE, "a.txt": "one\n" });
     // (pushed once: its first commit on a remote, a branch of its own never pushed)
@@ -551,6 +556,7 @@ describe("packet", () => {
     expect(text).toContain("feat(expeditions): the pool rewritten");
     expect(text).toContain('trailers: AI co-author or "generated with" found');
     expect(text).toContain("- M expeditions/zone.md");
+    expect(text).toMatch(/Size: 1 file, \+1 −1 lines\. Read every changed file's diff/);
     expect(text).toContain("- A new.txt (untracked)");
     expect(text).toContain("card.ts isn't there yet");
     expect(text).toContain('z-pool: `bun wow-data/bin/card.ts place "Pool of Tears" --game classic`');

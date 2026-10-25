@@ -28,6 +28,24 @@ import { familyRoot } from "./root";
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const MAX_CARDS = 24;
 const MAX_COMMITS = 100;
+/** Changed lines past which the reviewer reads the packet's biggest files first and says what it left unread. */
+export const BIG_CHANGE = 2500;
+
+/** The size line of a packet, from `git diff --numstat` (a binary file counts none): how much there is to read and how to spend the turns on it. */
+export function sizeLine(numstat: string): string {
+  let added = 0;
+  let removed = 0;
+  let files = 0;
+  for (const l of numstat.split("\n").filter(Boolean)) {
+    const [a, d] = l.split("\t");
+    files++;
+    added += Number(a) || 0;
+    removed += Number(d) || 0;
+  }
+  const lines = added + removed;
+  const big = lines > BIG_CHANGE;
+  return `Size: ${files} file${files === 1 ? "" : "s"}, +${added} −${removed} lines. ${big ? `Large (over ${BIG_CHANGE}): read the biggest files in the stat first, every file's diff in one turn, and end with a line naming what you did not reach.` : "Read every changed file's diff, several in one turn."}`;
+}
 
 function git(cwd: string, ...args: string[]): string | undefined {
   const p = Bun.spawnSync(["git", ...args], { cwd, stderr: "ignore" });
@@ -231,6 +249,8 @@ export function packet(dir: string, arg?: string): { file: string; summary: stri
     `Made ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC by addon-kit/packet.ts. Range: ${r.label}.`,
     `The change: \`git -C ${top} diff ${r.base === EMPTY_TREE ? r.base : r.base.slice(0, 12)}${r.working ? "" : ` ${r.tip.slice(0, 12)}`}\`${r.working ? " (the working files against the base)" : ""}.`,
     `Read first: ${top}/${existsSync(join(top, "CLAUDE.md")) ? "CLAUDE.md" : "README.md"} (the family's CLAUDE.md is in your context).`,
+    "",
+    sizeLine(git(top, "diff", "--numstat", ...diffArgs) ?? ""),
     "",
     "## Already checked (a script's work: don't redo it)",
     "",

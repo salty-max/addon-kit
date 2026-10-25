@@ -35,6 +35,30 @@ its own.
 - **Models by kind.** `opusplan` for code and mechanical work (this build
   included), full Opus for prose, voices, translations and design. Helpers
   unchanged: reviewer Opus, data-scout and prose-reader Sonnet.
+- **The default model and effort** (25 October 2026, after the first
+  numbers: every main session of 20 to 25 October ran Opus, none Sonnet, and
+  about 80% of the spend was the context re-read each turn). The family
+  folder's `.claude/settings.json` sets `model: opusplan` and
+  `modelSettings` (Opus 5.5 `high`, Sonnet 5.5 `medium`): a project's
+  `model` outranks the user's global `opus` (checked with a `claude -p`
+  run in the folder: Sonnet answered), `--model` and `/model` outrank it in
+  turn, so a prose session starts `claude --model opus` (session.ts does it
+  for `--kind prose`) or `/model opus` first. A session in a worktree of an
+  addon finds the addon's root, not the family folder's settings: it is
+  opened by session.ts or inherits the model of the session that entered it.
+  Effort by phase: medium for the work (Sonnet), high for the planning and
+  prose (Opus) and for verification: the reviewer and the architect high,
+  the prose-reader and data-scout medium (agents' `effort:`). Not set per
+  opusplan phase: the docs give none, a model's setting holds for it.
+- **The turn budget of the helpers.** The reviewer hit its 40-turn limit
+  three times on 25 October and the run was cut off with a partial report.
+  It has 60 now, and a Budget section: many calls in one turn, about 20
+  tool calls a review, at 25 write the report, findings the moment they are
+  sure. The packet carries a Size line (changed lines, and over 2,500 the
+  biggest files first and a closing line naming what was not reached).
+  Findings come first in its report.
+- **The cost of a card** is measured, not guessed: `usage.ts`, baseline in
+  `docs/usage-baseline.md`.
 - **Sessions open sessions** (25 October 2026, the user: "It would be
   handy for you to open the sessions"). A new task asked in a session that
   has its own is opened by that session (`session.ts`, G below), which
