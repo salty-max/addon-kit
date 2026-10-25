@@ -1928,7 +1928,7 @@ end
 --   A = K.deeds({
 --     saved = function() return the character's table of earned ones (made) or nil end,
 --     name = "Mealbook", prefix = ns.PREFIX, art = an icon for the alert,
---     kicker = L["Mealbook achievement"], -- the alert's line above the title
+--     kicker = the alert's line above the title, the addon's word ("Mealbook achievement"),
 --     alert = function() return ns.option("achievementToast") end, -- the switch (none: always)
 --     open = function(id) end,           -- the alert's click, the link's
 --     link = function(d) return a chat link to it end, -- (none: its title in the quest yellow)
@@ -3018,7 +3018,7 @@ end
 --     names = { "/codex", "/lorekeeper" }, key = "LOREKEEPERSCODEX", -- SLASH_<key>n, SlashCmdList[key]
 --     name = "Lorekeeper's Codex", prefix = ns.PREFIX, profiles = P,
 --     open = fn,                  -- the command alone
---     usage = L["..."],           -- its help (help, an unknown word)
+--     usage = its help, the addon's word (help, an unknown word)
 --     settings = fn,              -- settings, options: true when a page opened
 --     welcome = fn(mode),         -- welcome, export ("export")
 --     minimap = { get = fn(k), set = fn(k, v) }, -- minimap: the button shown or hidden, said
