@@ -97,6 +97,8 @@ describe("session: its parts", () => {
       const rows = registry(dir);
       expect(rows).toHaveLength(2);
       expect(rows.find((r) => r.sessionId === "e5a0fd61-0b4d")).toEqual({ pid: process.pid, sessionId: "e5a0fd61-0b4d", job: "e5a0fd61", name: "kit-addon-audit", status: "idle", socket: "/tmp/cc-socks/1.sock" });
+    writeFileSync(join(dir, "6.json"), JSON.stringify({ pid: process.pid, sessionId: "83-1e0000", name: "83-1e", nameSource: "derived" }));
+    expect(registry(dir).find((r) => r.sessionId === "83-1e0000")?.nameSource).toBe("derived");
       // (no jobId: the short id is the session id's first 8)
       expect(rows.find((r) => r.sessionId === "971e2d60-df57")?.job).toBe("971e2d60");
       expect(registry(join(dir, "missing"))).toEqual([]);
@@ -128,7 +130,7 @@ describe("session: its parts", () => {
 describe("session: whether a child may close", () => {
   const live = (status: string): Live => ({ pid: 1, sessionId: "abc12345-x", job: "abc12345", status });
   const card = (status: string, id = "c1") => ({ id, status }) as never;
-  const clean = { repo: "yonder", ahead: 0, dirty: false, others: [] as string[] };
+  const clean = { repo: "yonder", ahead: 0, dirty: false, running: [] as string[], open: [] as string[] };
   const ok = { live: live("idle"), cards: [card("done")], repos: [clean], force: false };
 
   test("idle, done, clean: closable", () => {
@@ -145,18 +147,22 @@ describe("session: whether a child may close", () => {
     expect(verdict({ ...ok, cards: [card("running", "kit-x")] }).why).toEqual(["card kit-x is running"]);
     expect(verdict({ ...ok, repos: [{ ...clean, ahead: 2 }] }).why).toEqual(["yonder: 2 commits unpushed"]);
     expect(verdict({ ...ok, repos: [{ ...clean, ahead: 1, dirty: true }] }).why).toEqual(["yonder: 1 commit unpushed, uncommitted changes"]);
+    // (another open card there never excuses unpushed commits, the reason names it)
+    expect(verdict({ ...ok, repos: [{ ...clean, ahead: 2, open: ["kit-y"] }] }).why).toEqual(["yonder: 2 commits unpushed since it started (kit-y open there too: if they are theirs, the user's --force)"]);
     expect(verdict({ ...ok, repos: [{ ...clean, dirty: true }] }).why).toEqual(["yonder: uncommitted changes"]);
     const forced = verdict({ ...ok, cards: [], repos: [{ ...clean, dirty: true }], force: true });
     expect(forced.ok).toBe(true);
     expect(forced.why).toEqual([]);
   });
 
-  test("notes: already closed, another card there, no upstream", () => {
+  test("notes: already closed, a running card there, no remote", () => {
     expect(verdict({ ...ok, live: undefined })).toEqual({ ok: true, why: [], notes: ["already closed"] });
-    const near = verdict({ ...ok, repos: [{ ...clean, ahead: 2, others: ["kit-y"] }] });
+    const near = verdict({ ...ok, repos: [{ ...clean, dirty: true, running: ["kit-y"], open: ["kit-y"] }] });
     expect(near.ok).toBe(true);
-    expect(near.notes).toEqual(["yonder: 2 commits unpushed, kit-y is open there too: check they aren't this session's"]);
-    expect(verdict({ ...ok, repos: [{ ...clean, ahead: -1 }] })).toEqual({ ok: true, why: [], notes: ["yonder: no upstream to compare"] });
+    expect(near.notes).toEqual(["yonder: uncommitted changes, kit-y is running there too: check they aren't this session's"]);
+    // (a waiting card isn't writing now: it explains no changes)
+    expect(verdict({ ...ok, repos: [{ ...clean, dirty: true, open: ["kit-y"] }] }).why).toEqual(["yonder: uncommitted changes"]);
+    expect(verdict({ ...ok, repos: [{ ...clean, ahead: -1 }] })).toEqual({ ok: true, why: [], notes: ["yonder: no remote to compare"] });
   });
 });
 
@@ -298,7 +304,7 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     expect(given().cwd).toBe(root);
     expect(existsSync(join(root, ".cache", "harness", "opened", "abc12345.json"))).toBe(false);
     expect(r.out).toContain('closed "Eight riddles" (abc12345)');
-    expect(r.out).toContain("note: wow-data: no upstream to compare");
+    expect(r.out).toContain("note: wow-data: no remote to compare");
     expect(readFileSync(events, "utf8")).toContain("\tsession\tok\twow-data\tEight riddles closed (abc12345)");
   });
 
@@ -343,9 +349,100 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     expect(run(["close", "x/../y"]).code).toBe(2);
   });
 
+  test("close: a live idle session with a done card but no record from session.ts is refused, not stopped", () => {
+    row("626262.json", { sessionId: "cafe0000-1111-2222", kind: "bg", jobId: "cafe0000", status: "idle" });
+    writeFileSync(
+      join(root, "board", "ghost-the-stranger.md"),
+      '---\nrepo: ghost\ntitle: The stranger\nstatus: done\nsession: cafe0000-1111-2222\nupdated: "2026-10-25T20:00:00+01:00"\nrepos: ghost\n---\n## Try\n\nx\n',
+    );
+    const r = run(["close", "cafe0000"]);
+    expect(r.code).toBe(1);
+    expect(r.err.split("\n").filter((l) => l.startsWith("not closed:"))).toEqual(["not closed: this session didn't open it (no record from session.ts)"]);
+    expect(existsSync(seen)).toBe(false);
+    const f = run(["close", "cafe0000", "--force"]);
+    expect(f.code).toBe(0);
+    expect(given().argv).toEqual(["stop", "cafe0000"]);
+  });
+
+  // a repo in the family folder with a bare origin; `work` puts one commit on a branch with no upstream
+  const repoWith = (name: string, remote: boolean, date?: string) => {
+    const dir = join(root, name);
+    mkdirSync(dir, { recursive: true });
+    const env = { ...process.env, ...(date ? { GIT_COMMITTER_DATE: date, GIT_AUTHOR_DATE: date } : {}) };
+    const git = (...a: string[]) => expect(Bun.spawnSync(["git", "-C", dir, "-c", "user.name=t", "-c", "user.email=t@t", ...a], { env }).exitCode).toBe(0);
+    git("init", "-q", "-b", "main");
+    git("commit", "-q", "--allow-empty", "--no-verify", "-m", "first");
+    if (remote) {
+      const bare = join(tmp, `${name}.git`);
+      expect(Bun.spawnSync(["git", "init", "-q", "--bare", bare]).exitCode).toBe(0);
+      git("remote", "add", "origin", bare);
+      git("push", "-q", "-u", "origin", "main");
+    }
+    git("checkout", "-q", "-b", "work");
+    git("commit", "-q", "--allow-empty", "--no-verify", "-m", "work");
+    return git;
+  };
+  const child = (id: string, repo: string, at: string, status = "done") => {
+    const dir = join(root, ".cache", "harness", "opened");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, `${id}.json`), JSON.stringify({ id, title: `Child ${id}`, repos: [repo], kind: "code", plan: false, opener: "s-opener", openerName: null, at }));
+    row(`${id}.json`, { sessionId: `${id}-1111`, kind: "bg", jobId: id, status: "idle" });
+    writeFileSync(
+      join(root, "board", `${repo}-${id}.md`),
+      `---\nrepo: ${repo}\ntitle: Child ${id}\nstatus: ${status}\nsession: ${id}-1111\nupdated: "2026-10-25T20:00:00+01:00"\nrepos: ${repo}\n---\n## Try\n\nx\n`,
+    );
+  };
+
+  test("close: a commit on a branch with no upstream is unpushed once a remote exists, a repo with no remote only a note", () => {
+    const git = repoWith("pushy", true);
+    child("beef0001", "pushy", "2000-01-01T00:00:00.000Z");
+    const no = run(["close", "beef0001"]);
+    expect(no.code).toBe(1);
+    expect(no.err).toContain("not closed: pushy: 1 commit unpushed");
+    expect(existsSync(seen)).toBe(false);
+    // (pushed to a remote: nothing is left)
+    git("push", "-q", "origin", "work");
+    expect(run(["close", "beef0001"]).code).toBe(0);
+    repoWith("lonely", false);
+    child("beef0002", "lonely", "2000-01-01T00:00:00.000Z");
+    const alone = run(["close", "beef0002"]);
+    expect(alone.code).toBe(0);
+    expect(alone.out).toContain("note: lonely: no remote to compare");
+  });
+
+  test("close: another session's waiting card never excuses unpushed commits, and only those since the start count", () => {
+    repoWith("shared", true);
+    child("beef0003", "shared", "2000-01-01T00:00:00.000Z");
+    writeFileSync(
+      join(root, "board", "shared-other.md"),
+      '---\nrepo: shared\ntitle: Other\nstatus: waiting-test\nsession: 99999999-aaaa\nupdated: "2026-10-25T20:00:00+01:00"\nrepos: shared\n---\n## Try\n\nx\n',
+    );
+    const no = run(["close", "beef0003"]);
+    expect(no.code).toBe(1);
+    expect(no.err).toContain("not closed: shared: 1 commit unpushed since it started (shared-other open there too: if they are theirs, the user's --force)");
+    expect(existsSync(seen)).toBe(false);
+    // (a commit dated before the child started is not its own)
+    repoWith("aged", true, "2020-01-01T00:00:00Z");
+    child("beef0004", "aged", "2026-01-01T00:00:00.000Z");
+    const yes = run(["close", "beef0004"]);
+    expect(yes.err).toBe("");
+    expect(yes.code).toBe(0);
+  });
+
   test("no display name: the opener's open card names it, not the one it finished last", () => {
     expect(run(["T", "--repos", "yonder", "--kind", "code", "--", "x"], { CLAUDE_CONFIG_DIR: join(tmp, "empty") }).code).toBe(0);
     expect(given().argv[5]).toContain('The session "The kit audited" opened this one');
+  });
+
+  test("an automatic name is no name: the open card's title is, the socket still comes from the row", () => {
+    const cfg = join(tmp, "derived");
+    mkdirSync(join(cfg, "sessions"), { recursive: true });
+    writeFileSync(join(cfg, "sessions", `${process.pid}.json`), JSON.stringify({ pid: process.pid, sessionId: "s-opener", kind: "interactive", name: "83-1e", nameSource: "derived", status: "busy", messagingSocketPath: "/tmp/cc-socks/77.sock" }));
+    expect(run(["T", "--repos", "yonder", "--kind", "code", "--", "x"], { CLAUDE_CONFIG_DIR: cfg }).code).toBe(0);
+    const p = given().argv[5];
+    expect(p).toContain('The session "The kit audited" opened this one');
+    expect(p).toContain('to "uds:/tmp/cc-socks/77.sock" (else to its name, "The kit audited")');
+    expect(p).not.toContain("83-1e");
   });
 
   test("plan mode on demand, prose on Opus", () => {

@@ -50,8 +50,10 @@
  *             refused while it is mid-turn (never overridden), and, unless
  *             --force (on the user's word), while this session didn't open
  *             it (no record, or another opener's), it wrote no card, a card
- *             is not done, or a repository of it has commits unpushed or
- *             uncommitted changes no other open card explains
+ *             is not done, a repository of it has commits unpushed (on no
+ *             remote at all, committed since it started: another open card
+ *             there never excuses them, the reason names it) or uncommitted
+ *             changes no other running card explains
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -165,7 +167,7 @@ export function openerOf(session: string, agents: unknown, list: Pick<Card, "ses
   return list.filter((c) => c.session === session && c.status !== "done").sort((a, b) => b.updated.localeCompare(a.updated))[0]?.title;
 }
 
-export type Live = { pid: number; sessionId: string; job: string; name?: string; status?: string; socket?: string };
+export type Live = { pid: number; sessionId: string; job: string; name?: string; nameSource?: string; status?: string; socket?: string };
 
 /**
  * The sessions alive on this computer, from Claude Code's own registry
@@ -186,7 +188,7 @@ export function registry(dir = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedi
       if (!Number.isInteger(r.pid) || typeof r.sessionId !== "string") continue;
       process.kill(r.pid as number, 0);
       const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-      out.push({ pid: r.pid as number, sessionId: r.sessionId, job: str(r.jobId) ?? r.sessionId.slice(0, 8), name: str(r.name), status: str(r.status), socket: str(r.messagingSocketPath) });
+      out.push({ pid: r.pid as number, sessionId: r.sessionId, job: str(r.jobId) ?? r.sessionId.slice(0, 8), name: str(r.name), nameSource: str(r.nameSource), status: str(r.status), socket: str(r.messagingSocketPath) });
     } catch {}
   }
   return out;
@@ -196,7 +198,8 @@ function openerInfo(session: string | undefined): Opener | undefined {
   if (!session) return undefined;
   const live = registry();
   try {
-    const name = openerOf(session, live, cards());
+    // (an automatic name, "83-1e", is no name to send to: the open card's title is)
+    const name = openerOf(session, live.filter((r) => r.nameSource !== "derived"), cards());
     const socket = live.find((r) => r.sessionId === session)?.socket;
     return name || socket ? { name, socket } : undefined;
   } catch {
@@ -245,7 +248,8 @@ function records(): Opened[] {
 }
 
 // ── closing a child ─────────────────────────────────────────────────────────
-export type RepoState = { repo: string; ahead: number; dirty: boolean; others: string[] };
+/** ahead: commits on no remote since the child started (-1: no remote to compare); running: other sessions' running cards there; open: all their open cards. */
+export type RepoState = { repo: string; ahead: number; dirty: boolean; running: string[]; open: string[] };
 
 /** Whether a child may be closed: hard refusals (never overridden), soft ones (--force), notes. */
 export function verdict(o: { live?: Live; cards: Card[]; repos: RepoState[]; force: boolean; whose?: string }): { ok: boolean; why: string[]; notes: string[] } {
@@ -261,10 +265,13 @@ export function verdict(o: { live?: Live; cards: Card[]; repos: RepoState[]; for
   for (const c of o.cards) if (c.status !== "done") soft.push(`card ${c.id} is ${c.status}`);
   for (const r of o.repos) {
     const n = r.ahead > 0 ? `${r.ahead} commit${r.ahead === 1 ? "" : "s"} unpushed` : "";
-    const problem = [n, r.dirty ? "uncommitted changes" : ""].filter(Boolean).join(", ");
-    if (problem && r.others.length === 0) soft.push(`${r.repo}: ${problem}`);
-    else if (problem) notes.push(`${r.repo}: ${problem}, ${r.others.join(", ")} ${r.others.length === 1 ? "is" : "are"} open there too: check they aren't this session's`);
-    if (r.ahead === -1) notes.push(`${r.repo}: no upstream to compare`);
+    // (unpushed commits are always the child's to push, another card there or not: it only changes the words)
+    if (n && r.open.length) soft.push(`${r.repo}: ${n} since it started (${r.open.join(", ")} open there too: if they are theirs, the user's --force)`);
+    else if (n) soft.push(`${r.repo}: ${[n, r.dirty && r.running.length === 0 ? "uncommitted changes" : ""].filter(Boolean).join(", ")}`);
+    // (changes a running card there may explain: a waiting card isn't writing now)
+    if (r.dirty && r.running.length === 0 && !(n && !r.open.length)) soft.push(`${r.repo}: uncommitted changes`);
+    else if (r.dirty && r.running.length) notes.push(`${r.repo}: uncommitted changes, ${r.running.join(", ")} ${r.running.length === 1 ? "is" : "are"} running there too: check they aren't this session's`);
+    if (r.ahead === -1) notes.push(`${r.repo}: no remote to compare`);
   }
   const why = o.force ? hard : [...hard, ...soft];
   if (o.force && soft.length) notes.push(`forced past: ${soft.join("; ")}`);
@@ -273,8 +280,13 @@ export function verdict(o: { live?: Live; cards: Card[]; repos: RepoState[]; for
 
 const git = (dir: string, ...args: string[]) => Bun.spawnSync(["git", "-C", dir, ...args], { stdout: "pipe", stderr: "ignore" });
 
-/** Each repository's state for `id`: commits ahead of upstream (-1: none), dirty, other sessions' open cards there. */
-function repoStates(repos: string[], id: string, all: Card[], notes: string[]): RepoState[] {
+/**
+ * Each repository's state for `id`: HEAD's commits on no remote at all
+ * (`--not --remotes`, never other local branches) committed since the child
+ * started (the earliest of its record's time and its cards' `since` there;
+ * unknown: all), -1 with no remote; dirty; other sessions' cards there.
+ */
+export function repoStates(repos: string[], id: string, all: Card[], notes: string[], at?: string): RepoState[] {
   const out: RepoState[] = [];
   for (const repo of repos) {
     const dir = familyPath(repo);
@@ -282,11 +294,15 @@ function repoStates(repos: string[], id: string, all: Card[], notes: string[]): 
       notes.push(`${repo}: no such folder here`);
       continue;
     }
-    const ahead = git(dir, "rev-list", "--count", "@{u}..HEAD");
-    const n = ahead.exitCode === 0 ? Number.parseInt(ahead.stdout.toString(), 10) : -1;
+    const times = [at, ...all.filter((c) => c.session.startsWith(id)).map((c) => c.since[repo])].filter((t): t is string => !!t && !Number.isNaN(Date.parse(t)));
+    const start = times.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
+    const remote = git(dir, "remote");
+    const hasRemote = remote.exitCode === 0 && remote.stdout.toString().trim() !== "";
+    const ahead = hasRemote ? git(dir, "rev-list", "--count", ...(start ? [`--since=${start}`] : []), "HEAD", "--not", "--remotes") : undefined;
+    const n = ahead && ahead.exitCode === 0 ? Number.parseInt(ahead.stdout.toString(), 10) : -1;
     const dirty = git(dir, "status", "--porcelain").stdout.toString().trim() !== "";
-    const others = all.filter((c) => c.status !== "done" && !c.session.startsWith(id) && (c.repo === repo || c.repos.includes(repo))).map((c) => c.id);
-    out.push({ repo, ahead: Number.isNaN(n) ? -1 : n, dirty, others });
+    const open = all.filter((c) => c.status !== "done" && !c.session.startsWith(id) && (c.repo === repo || c.repos.includes(repo)));
+    out.push({ repo, ahead: Number.isNaN(n) ? -1 : n, dirty, running: open.filter((c) => c.status === "running").map((c) => c.id), open: open.map((c) => c.id) });
   }
   return out;
 }
@@ -307,7 +323,7 @@ function children(argv: string[]): void {
     const row = live.find((l) => l.job === r.id || l.sessionId.startsWith(r.id));
     const own = board.filter((c) => c.session.startsWith(r.id));
     const notes: string[] = [];
-    const v = verdict({ live: row, cards: own, repos: repoStates([...new Set([...own.flatMap((c) => c.repos), ...r.repos])], r.id, board, notes), force: false });
+    const v = verdict({ live: row, cards: own, repos: repoStates([...new Set([...own.flatMap((c) => c.repos), ...r.repos])], r.id, board, notes, r.at), force: false });
     const state = row ? (row.status ?? "live") : "closed";
     const cs = own.length ? own.map((c) => c.status).join(", ") : "no card";
     console.log(`${r.id}  ${state}  ${r.title}  [${cs}]  ${v.ok ? `→ close: bun addon-kit/session.ts close ${r.id}` : v.why[0]}`);
@@ -332,7 +348,7 @@ function close(argv: string[]): void {
   const me = process.env.CLAUDE_CODE_SESSION_ID;
   const whose = !rec ? "this session didn't open it (no record from session.ts)" : rec.opener !== me ? `another session opened it (${rec.openerName ?? rec.opener ?? "unknown"})` : undefined;
   const names = [...new Set([...own.flatMap((c) => c.repos), ...(rec?.repos ?? [])])];
-  const v = verdict({ live: row, cards: own, repos: repoStates(names, id, board, extra), force, whose });
+  const v = verdict({ live: row, cards: own, repos: repoStates(names, id, board, extra, rec?.at), force, whose });
   const notes = [...extra, ...v.notes].map((n) => `note: ${n}`);
   const title = rec?.title ?? own[0]?.title ?? short;
   const repo = names[0] ?? "";

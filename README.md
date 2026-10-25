@@ -323,8 +323,9 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   `close <id>` runs `claude stop` (the conversation kept) and drops the
   record. It refuses a child that is busy or waiting (always), and,
   without `--force` (the user's word), one this session didn't open, one
-  with no card or an open one, or a repository of it with commits
-  unpushed or uncommitted changes no other open card explains. Tests stub
+  with no card or an open one, a repository of it with commits on no
+  remote committed since it started (another card there or not), or
+  uncommitted changes no other running card explains. Tests stub
   `claude` on the PATH (`session.test.ts`).
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
   directory, else up from the repository's main checkout (so a worktree
@@ -365,8 +366,9 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   Claude Code mod; `harness-view/README.md`), loaded through the link
   `~/.claude/skills/harness-view`. Its tests run in `bun run check`.
 - **skills/**: the family's procedures as Claude Code skills (`wow-riddles`,
-  `wow-translating`, `wow-releasing`, `wow-store-pages`, `wow-data-audit`),
-  each linked into `~/.claude/skills/` so every session finds them. A fresh
+  `wow-translating`, `wow-releasing`, `wow-store-pages`, `wow-data-audit`,
+  and `child`: `/child <task>` opens it as a child session, `/child` alone
+  makes the session the dispatch), each linked into `~/.claude/skills/` so every session finds them. A fresh
   machine links them again:
   `for s in ~/code/wow-addons/addon-kit/skills/*; do ln -sfn "$s" ~/.claude/skills/; done`
 
