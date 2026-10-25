@@ -19,7 +19,7 @@
  * review.ts records it with the verdict, so the panel knows whether the
  * review reached all a push sends.
  */
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { cacheDir, checkCommand, stampOf, workTree, type Stamp } from "./q";
@@ -31,11 +31,23 @@ const MAX_COMMITS = 100;
 /** Changed lines past which the reviewer reads the packet's biggest files first and says what it left unread. */
 export const BIG_CHANGE = 2500;
 
+/** The lines and files of the untracked files (a new file is all added; one over 1 MB counts none, it is data, not read). */
+function untrackedSize(top: string, files: string[]): [number, number] {
+  let lines = 0;
+  for (const f of files) {
+    try {
+      const p = join(top, f);
+      if (statSync(p).size <= 1_000_000) lines += readFileSync(p, "utf8").split("\n").length;
+    } catch {}
+  }
+  return [lines, files.length];
+}
+
 /** The size line of a packet, from `git diff --numstat` (a binary file counts none): how much there is to read and how to spend the turns on it. */
-export function sizeLine(numstat: string): string {
-  let added = 0;
+export function sizeLine(numstat: string, untrackedLines = 0, untrackedFiles = 0): string {
+  let added = untrackedLines;
   let removed = 0;
-  let files = 0;
+  let files = untrackedFiles;
   for (const l of numstat.split("\n").filter(Boolean)) {
     const [a, d] = l.split("\t");
     files++;
@@ -250,7 +262,7 @@ export function packet(dir: string, arg?: string): { file: string; summary: stri
     `The change: \`git -C ${top} diff ${r.base === EMPTY_TREE ? r.base : r.base.slice(0, 12)}${r.working ? "" : ` ${r.tip.slice(0, 12)}`}\`${r.working ? " (the working files against the base)" : ""}.`,
     `Read first: ${top}/${existsSync(join(top, "CLAUDE.md")) ? "CLAUDE.md" : "README.md"} (the family's CLAUDE.md is in your context).`,
     "",
-    sizeLine(git(top, "diff", "--numstat", ...diffArgs) ?? ""),
+    sizeLine(git(top, "diff", "--numstat", ...diffArgs) ?? "", ...untrackedSize(top, untracked)),
     "",
     "## Already checked (a script's work: don't redo it)",
     "",

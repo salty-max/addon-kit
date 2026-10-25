@@ -531,6 +531,8 @@ describe("packet", () => {
 
   test("the size line: lines to read, a large change read biggest first", () => {
     expect(sizeLine("3\t1\ta.ts\n-\t-\timg.png\n")).toBe("Size: 2 files, +3 −1 lines. Read every changed file's diff, several in one turn.");
+    // (untracked files are all added: a change of new files counts)
+    expect(sizeLine("", 3000, 4)).toContain("Size: 4 files, +3000 −0 lines. Large");
     expect(sizeLine("2000\t600\tbig.lua\n")).toContain("Large (over 2500): read the biggest files");
   });
 
@@ -556,7 +558,7 @@ describe("packet", () => {
     expect(text).toContain("feat(expeditions): the pool rewritten");
     expect(text).toContain('trailers: AI co-author or "generated with" found');
     expect(text).toContain("- M expeditions/zone.md");
-    expect(text).toMatch(/Size: 1 file, \+1 −1 lines\. Read every changed file's diff/);
+    expect(text).toMatch(/Size: 2 files, \+3 −1 lines\. Read every changed file's diff/);
     expect(text).toContain("- A new.txt (untracked)");
     expect(text).toContain("card.ts isn't there yet");
     expect(text).toContain('z-pool: `bun wow-data/bin/card.ts place "Pool of Tears" --game classic`');

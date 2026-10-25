@@ -217,7 +217,7 @@ bun addon-kit/board.ts held [yonder]           # who holds what; exit 1 when ano
 bun addon-kit/board.ts may yonder              # exit 1 unless this session's running card may write it (pre-commit asks)
 bun addon-kit/session.ts "Eight riddles" --repos yonder,wow-data --kind code -- "<the task>"
                                                # a new task in a session of its own (--dry-run, --plan)
-bun addon-kit/usage.ts [--since d] [--baseline]  # what the cards cost: tokens per session, card and commit (docs/usage-baseline.md)
+bun addon-kit/usage.ts [--since d] [--baseline]  # what the cards cost: dollars per session, card and commit (docs/usage-baseline.md)
 bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the same for Python)
 bun addon-kit/events.ts [n]                    # the harness's last n events, as the panel's log reads them
 ```
@@ -327,14 +327,15 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
 - **usage.ts**: what a card costs. Reads the transcripts of every card's
   session and its helpers (`~/.claude/projects/<the family folder>*`, the
   session id the card names), each message once, and prints per session:
-  cost in input-token equivalents (output 5, cache write 1.25, cache read
-  0.1, times a factor by model family, `MODEL_FACTOR`), the helpers' share,
-  turns, the context re-read each turn, the commits made in the card's
-  repositories while the session ran (the board's lock keeps that window
-  its own), units per commit and per done card. A session that carried
-  several cards shares its cost among them. Results are cached per session
-  in `.cache/usage/`; `status.ts` shows the last run's line. `--baseline`
-  writes `docs/usage-baseline.md`, the numbers of 25 October 2026 before the
+  dollars at list price (`PRICE`: per million tokens by model family, cache
+  writes at the five-minute or the one-hour rate as the transcript says;
+  an estimate to compare runs by, not an invoice), the helpers' share,
+  turns, the context re-read each turn, the commits the session made (its
+  `git commit` commands that did not fail), dollars per commit and per done
+  card. A session that carried several cards shares its cost among them.
+  Results are cached per session in `.cache/usage/`; `status.ts` shows the
+  last run's line. `--baseline` writes `docs/usage-baseline.md` once (it
+  refuses while the file exists), the numbers of 25 October 2026 before the
   model and effort changes, which the builder pilot and later changes are
   judged against. A floor: deleted transcripts and cards whose session is a
   name are left out and listed. Tests: `usage.test.ts`.

@@ -1,45 +1,45 @@
 # Usage baseline, 2026-10-25
 
 What a card cost before the model and effort changes of 25 October 2026 (main sessions all on Opus,
-no helper builder). Cost is input-token equivalents, see `usage.ts`; the builder pilot and every
-later change is judged against these: units per done card and per commit, the helpers' share, the
-context re-read each turn. Regenerate with `bun addon-kit/usage.ts --baseline` (this file keeps
-the day it was written, so write it once and compare new runs against it).
+no helper builder). Cost is dollars at list price, see `usage.ts`; the builder pilot and every
+later change is judged against these: dollars per done card and per commit, the helpers' share, the
+context re-read each turn. Written once (`usage.ts --baseline` refuses while this file exists):
+a later run is compared against it, not written over it.
 
-- sessions read: 26, carrying 66 cards (65 done), commits in their windows: 437
-- total: 386M units, by model: sonnet 2.6M, haiku 0.0M, opus 384M, other 0.0M
-- median done card: 5.2M units
-- per commit: 0.9M units
-- helpers' share: 10%
+- sessions read: 26, carrying 66 cards (65 done), commits: 295
+- total: $1031, by model: sonnet $26.88, opus $1004, haiku $0.02, other $0.00
+- median done card: $13.55
+- per commit: $3.49
+- helpers' share: 11%
 - context re-read per main turn: 417k tokens
 - no transcript (deleted or not an id): 5 cards
 
 ## Done cards
 
-| units | helpers | turns | commits | units/commit | cards | session |
+| $ | helpers | turns | commits | $/commit | cards | session |
 |---:|---:|---:|---:|---:|---:|---|
-| 87M | 15% | 1196 | 176 | 0.5M | 2 | Goodwill and Yours Truly: store pages (+1 more) |
-| 57M | 6% | 858 | 36 | 1.6M | 11 | Six arrivals become gestures (+10 more) |
-| 55M | 5% | 821 | 35 | 1.6M | 9 | Goodwill: the repository (+8 more) |
-| 45M | 4% | 652 | 48 | 0.9M | 10 | Yours Truly: Zephras Isle's letters (+9 more) |
-| 33M | 6% | 508 | 19 | 1.7M | 5 | Franclorn's page unlockable on hardcore (+4 more) |
-| 18M | 7% | 309 | 7 | 2.6M | 1 | Harness panel: live updates, motion, gaps between boxes |
-| 13M | 51% | 185 | 11 | 1.2M | 2 | wow-data: Forever pinned on its own product (wowf) (+1 more) |
-| 10M | 7% | 259 | 28 | 0.4M | 2 | Batch release: Mealbook 0.1.0, Yonder 0.13.0, Hearthtale, Codex, Second Wind, Palaver (+1 more) |
-| 9.8M | 6% | 218 | 10 | 1.0M | 4 | Harness panel: every live session in the family folder, Open to go to one (+3 more) |
-| 9.8M | 7% | 219 | 15 | 0.7M | 1 | Harness panel: the reference's flow diagram |
-| 7.7M | 1% | 147 | 0 | - | 1 | Letters: the plan |
-| 6.3M | 6% | 192 | 5 | 1.3M | 2 | Harness panel: the running borders in the terminal, redrawn (+1 more) |
-| 5.3M | 11% | 168 | 0 | - | 1 | SoD names kept as aliases (left_out) |
-| 5.1M | 6% | 135 | 5 | 1.0M | 1 | Palaver camera ISO with DialogueUI |
-| 4.5M | 7% | 136 | 2 | 2.2M | 1 | Saved-ids guard on the daily game-data jobs |
-| 4.2M | 5% | 151 | 6 | 0.7M | 3 | Gates meters count only what waits to push (+2 more) |
-| 3.0M | 8% | 83 | 5 | 0.6M | 1 | Harness B: q, gates, packet, board |
-| 2.9M | 9% | 116 | 7 | 0.4M | 1 | Harness: sessions opened by sessions |
-| 2.3M | 1% | 101 | 0 | - | 1 | Harness F: spring cleanup |
-| 1.8M | 20% | 68 | 8 | 0.2M | 1 | Release Yonder 0.14.0 and Codex 0.15.0 |
-| 1.6M | 7% | 82 | 4 | 0.4M | 1 | Ravenpost installs meter vs downloads |
-| 1.5M | 8% | 74 | 3 | 0.5M | 1 | Forever's game folder: _forever_ |
-| 1.3M | 53% | 33 | 1 | 1.3M | 1 | Italian: wow-data first, then the addons |
-| 0.5M | 0% | 32 | 1 | 0.5M | 1 | harness-view: /harness missing in desktop sessions started from a spare folder |
-| 0.2M | 0% | 14 | 1 | 0.2M | 1 | Merge players' facts PR #10 |
+| $208 | 17% | 1198 | 88 | $2.36 | 2 | Goodwill and Yours Truly: store pages (+1 more) |
+| $151 | 9% | 821 | 25 | $6.05 | 9 | Goodwill: the repository (+8 more) |
+| $149 | 8% | 858 | 34 | $4.38 | 11 | Six arrivals become gestures (+10 more) |
+| $126 | 6% | 652 | 20 | $6.28 | 10 | Yours Truly: Zephras Isle's letters (+9 more) |
+| $86.20 | 9% | 508 | 15 | $5.75 | 5 | Franclorn's page unlockable on hardcore (+4 more) |
+| $45.37 | 8% | 309 | 8 | $5.67 | 1 | Harness panel: live updates, motion, gaps between boxes |
+| $37.30 | 48% | 185 | 9 | $4.14 | 2 | wow-data: Forever pinned on its own product (wowf) (+1 more) |
+| $29.16 | 11% | 259 | 11 | $2.65 | 2 | Batch release: Mealbook 0.1.0, Yonder 0.13.0, Hearthtale, Codex, Second Wind, Palaver (+1 more) |
+| $26.97 | 8% | 219 | 8 | $3.37 | 1 | Harness panel: the reference's flow diagram |
+| $26.82 | 3% | 147 | 0 | - | 1 | Letters: the plan |
+| $25.29 | 7% | 218 | 11 | $2.30 | 4 | Harness panel: every live session in the family folder, Open to go to one (+3 more) |
+| $17.07 | 6% | 192 | 4 | $4.27 | 2 | Harness panel: the running borders in the terminal, redrawn (+1 more) |
+| $15.75 | 6% | 135 | 4 | $3.94 | 1 | Palaver camera ISO with DialogueUI |
+| $13.92 | 12% | 168 | 9 | $1.55 | 1 | SoD names kept as aliases (left_out) |
+| $12.02 | 7% | 136 | 7 | $1.72 | 1 | Saved-ids guard on the daily game-data jobs |
+| $11.47 | 6% | 151 | 11 | $1.04 | 3 | Gates meters count only what waits to push (+2 more) |
+| $9.82 | 7% | 83 | 7 | $1.40 | 1 | Harness B: q, gates, packet, board |
+| $8.09 | 10% | 116 | 7 | $1.16 | 1 | Harness: sessions opened by sessions |
+| $6.72 | 33% | 68 | 2 | $3.36 | 1 | Release Yonder 0.14.0 and Codex 0.15.0 |
+| $6.35 | 2% | 101 | 5 | $1.27 | 1 | Harness F: spring cleanup |
+| $5.00 | 8% | 74 | 2 | $2.50 | 1 | Forever's game folder: _forever_ |
+| $4.73 | 8% | 82 | 3 | $1.58 | 1 | Ravenpost installs meter vs downloads |
+| $3.71 | 45% | 33 | 0 | - | 1 | Italian: wow-data first, then the addons |
+| $1.59 | 0% | 32 | 1 | $1.59 | 1 | harness-view: /harness missing in desktop sessions started from a spare folder |
+| $0.67 | 0% | 14 | 0 | - | 1 | Merge players' facts PR #10 |

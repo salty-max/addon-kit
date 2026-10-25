@@ -11,12 +11,12 @@
  *   bun addon-kit/usage.ts --json           the same as JSON
  *   bun addon-kit/usage.ts --baseline       also write docs/usage-baseline.md (today's numbers, to judge a change by)
  *
- * Cost is in input-token equivalents (millions, "M"): output 5, cache write
- * 1.25, cache read 0.1, then a factor by model family (MODEL_FACTOR: the
- * list-price ratio, edit it when the prices move). It is an estimate to
- * compare runs by, not an invoice. The commits of a card are those made in
- * its repositories between the session's first and last message: the board's
- * lock lets one card write a repository at a time, so the window is its own.
+ * Cost is dollars at list price (PRICE below: per million tokens, by model
+ * family, cache writes at the 5-minute or the 1-hour rate as the transcript
+ * says), an estimate to compare runs by, not an invoice (a subscription
+ * isn't billed by the token). The commits of a card are those its session
+ * made: the `git commit` commands of its own transcript that did not fail
+ * (a time window would catch other sessions' work).
  * A session's transcripts are read once, the result cached per session in
  * the kit's .cache/usage/ (keyed by the files' sizes and times); the summary
  * status.ts shows is .cache/usage/summary.json.
@@ -31,25 +31,33 @@ import { basename, join } from "node:path";
 import { cards, type Card } from "./board";
 import { familyRoot } from "./root";
 
-export type Tally = { in: number; out: number; cacheWrite: number; cacheRead: number; msgs: number };
-export const zero = (): Tally => ({ in: 0, out: 0, cacheWrite: 0, cacheRead: 0, msgs: 0 });
+/** cacheWrite1h is the part of cacheWrite kept an hour (the rest five minutes). */
+export type Tally = { in: number; out: number; cacheWrite: number; cacheWrite1h: number; cacheRead: number; msgs: number };
+export const zero = (): Tally => ({ in: 0, out: 0, cacheWrite: 0, cacheWrite1h: 0, cacheRead: 0, msgs: 0 });
 export const add = (a: Tally, b: Tally): Tally => ({
   in: a.in + b.in,
   out: a.out + b.out,
   cacheWrite: a.cacheWrite + b.cacheWrite,
+  cacheWrite1h: a.cacheWrite1h + b.cacheWrite1h,
   cacheRead: a.cacheRead + b.cacheRead,
   msgs: a.msgs + b.msgs,
 });
 
-/** The price ratios against one input token (and by model family, the list-price ratio to Opus). */
-export const RATIO = { in: 1, out: 5, cacheWrite: 1.25, cacheRead: 0.1 };
-export const MODEL_FACTOR: Record<string, number> = { opus: 1, sonnet: 0.2, haiku: 0.07 };
-export const family = (model: string) => /opus|sonnet|haiku/.exec(model)?.[0] ?? "other";
+/** List prices in dollars per million tokens by model family (the API price list of 25 October 2026: Opus 5.5 $4/$20, Sonnet 5.5 $2/$10, Haiku 5.5 $0.10/$0.50, Fable $10/$50; cache read as listed, a five-minute write 1.25x and an hour's 2x the input price; Haiku's read is its tenth, assumed). Edit when the prices move. */
+export const PRICE: Record<string, { in: number; out: number; read: number; write5m: number; write1h: number }> = {
+  opus: { in: 4, out: 20, read: 0.2, write5m: 5, write1h: 8 },
+  sonnet: { in: 2, out: 10, read: 0.2, write5m: 2.5, write1h: 4 },
+  haiku: { in: 0.1, out: 0.5, read: 0.01, write5m: 0.125, write1h: 0.2 },
+  fable: { in: 10, out: 50, read: 0.25, write5m: 12.5, write1h: 20 },
+};
+export const family = (model: string) => /opus|sonnet|haiku|fable|mythos/.exec(model)?.[0].replace("mythos", "fable") ?? "other";
 
-/** A tally in input-token equivalents, by the model family's factor. */
+/** A tally in dollars at list price (a synthetic or unknown model costs nothing). */
 export function units(t: Tally, model: string): number {
-  const f = MODEL_FACTOR[family(model)] ?? 1;
-  return (t.in * RATIO.in + t.out * RATIO.out + t.cacheWrite * RATIO.cacheWrite + t.cacheRead * RATIO.cacheRead) * f;
+  const p = PRICE[family(model)];
+  if (!p) return 0;
+  const w1h = Math.min(t.cacheWrite1h, t.cacheWrite);
+  return (t.in * p.in + t.out * p.out + t.cacheRead * p.read + (t.cacheWrite - w1h) * p.write5m + w1h * p.write1h) / 1e6;
 }
 
 export type Turn = { id: string; ts: string; model: string; tally: Tally };
@@ -79,6 +87,7 @@ export function turns(lines: Iterable<string>, seen: Set<string>): Turn[] {
         in: u.input_tokens || 0,
         out: u.output_tokens || 0,
         cacheWrite: u.cache_creation_input_tokens || 0,
+        cacheWrite1h: u.cache_creation?.ephemeral_1h_input_tokens || 0,
         cacheRead: u.cache_read_input_tokens || 0,
         msgs: 1,
       },
@@ -88,7 +97,7 @@ export function turns(lines: Iterable<string>, seen: Set<string>): Turn[] {
 }
 
 export type Spend = {
-  /** units by who spent them: "main" or "helper:<agent type>" */
+  /** dollars by who spent them: "main" or "helper:<agent type>" */
   by: Record<string, number>;
   /** the raw tally by model family */
   models: Record<string, Tally>;
@@ -100,6 +109,8 @@ export type Spend = {
   contextPerTurn: number;
   /** helper runs by agent type */
   helpers: Record<string, number>;
+  /** commits the session made: its `git commit` commands that did not fail */
+  commits: number;
 };
 
 /** Where Claude Code keeps this family's transcripts (the folder and its worktrees', one project folder each). */
@@ -134,15 +145,45 @@ export function sessionFiles(dirs: string[], sid: string): { file: string; kind:
   return out;
 }
 
+/** The commits a session made: its Bash `git commit` commands whose result was not an error (a hook's refusal is one; a commit the hooks let through prints nothing reliable, `-q` hides it, so the commands are counted, not the shas). */
+export function commitCount(lines: Iterable<string>): number {
+  const commands = new Set<string>();
+  let made = 0;
+  for (const line of lines) {
+    if (line.includes('"tool_use"') && line.includes("commit")) {
+      let o: any;
+      try {
+        o = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      for (const c of Array.isArray(o?.message?.content) ? o.message.content : [])
+        if (c?.type === "tool_use" && c.name === "Bash" && /\bgit\b[^|;&\n]*\bcommit\b/.test(String(c.input?.command ?? ""))) commands.add(c.id);
+    } else if (commands.size && line.includes('"tool_result"')) {
+      let o: any;
+      try {
+        o = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      for (const c of Array.isArray(o?.message?.content) ? o.message.content : [])
+        if (c?.type === "tool_result" && commands.delete(c.tool_use_id) && !c.is_error) made++;
+    }
+  }
+  return made;
+}
+
 /** A session's spend, from its transcripts (undefined when it has none). */
 export function spend(files: { file: string; kind: string }[]): Spend | undefined {
   if (files.length === 0) return undefined;
   const seen = new Set<string>();
-  const s: Spend = { by: {}, models: {}, units: 0, first: "", last: "", turns: 0, contextPerTurn: 0, helpers: {} };
+  const s: Spend = { by: {}, models: {}, units: 0, first: "", last: "", turns: 0, contextPerTurn: 0, helpers: {}, commits: 0 };
   let context = 0;
   for (const { file, kind } of files) {
     if (kind !== "main") s.helpers[kind.slice(7)] = (s.helpers[kind.slice(7)] ?? 0) + 1;
-    for (const t of turns(readFileSync(file, "utf8").split("\n"), seen)) {
+    const text = readFileSync(file, "utf8").split("\n");
+    if (kind === "main") s.commits += commitCount(text);
+    for (const t of turns(text, seen)) {
       const fam = family(t.model);
       const u = units(t.tally, t.model);
       s.by[kind] = (s.by[kind] ?? 0) + u;
@@ -167,7 +208,7 @@ const stamp = (files: { file: string }[]) => files.map(({ file }) => `${basename
 export function spendOf(dirs: string[], sid: string, dir = cacheDir()): Spend | undefined {
   const files = sessionFiles(dirs, sid);
   if (files.length === 0) return undefined;
-  const key = stamp(files);
+  const key = `v2|${stamp(files)}`;
   const path = join(dir, `${sid}.json`);
   try {
     const c = JSON.parse(readFileSync(path, "utf8"));
@@ -177,14 +218,6 @@ export function spendOf(dirs: string[], sid: string, dir = cacheDir()): Spend | 
   mkdirSync(dir, { recursive: true });
   writeFileSync(path, JSON.stringify({ key, spend: s ?? null }));
   return s;
-}
-
-// ── commits ─────────────────────────────────────────────────────────────────
-/** Commits made in a repository between two instants (no merges). */
-export function commitsIn(repoDir: string, from: string, to: string): number {
-  if (!existsSync(join(repoDir, ".git"))) return 0;
-  const p = Bun.spawnSync(["git", "log", "--no-merges", `--since=${from}`, `--until=${to}`, "--format=%H"], { cwd: repoDir, stderr: "ignore" });
-  return p.exitCode === 0 ? p.stdout.toString().split("\n").filter(Boolean).length : 0;
 }
 
 // ── a card's cost ───────────────────────────────────────────────────────────
@@ -206,12 +239,10 @@ export type CardCost = {
   last: string;
 };
 
-export function costOf(group: Pick<Card, "id" | "title" | "status" | "repos" | "repo" | "session">[], s: Spend, root: string): CardCost {
+export function costOf(group: Pick<Card, "id" | "title" | "status" | "repos" | "repo" | "session">[], s: Spend): CardCost {
   const repos = [...new Set(group.flatMap((c) => (c.repos.length ? c.repos : [c.repo])))];
   const status = group.every((c) => c.status === "done") ? "done" : group.find((c) => c.status !== "done")!.status;
-  // (a minute either side: a commit lands just after the last message)
-  const to = new Date(Date.parse(s.last) + 60_000).toISOString();
-  const commits = repos.reduce((n, r) => n + commitsIn(join(root, r), s.first, to), 0);
+  const commits = s.commits;
   const helpers = Object.entries(s.by).filter(([k]) => k !== "main").reduce((n, [, u]) => n + u, 0);
   return {
     session: group[0]!.session,
@@ -288,17 +319,17 @@ export function lastSummary(path = summaryPath()): Summary | undefined {
     return undefined;
   }
 }
-export const M = (n: number) => `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
+export const M = (n: number) => `$${n >= 100 ? n.toFixed(0) : n.toFixed(2)}`;
 /** One line for status.ts. */
 export function line(s: Summary): string {
   const per = s.unitsPerCommit ? `, ${M(s.unitsPerCommit)} a commit` : "";
-  return `${s.sessions} sessions, ${s.cards} cards (${s.done} done): ${M(s.units)} units, median ${M(s.medianUnitsPerDoneCard)} a done card${per}, helpers ${Math.round(s.helperShare * 100)}%, ${Math.round(s.contextPerTurn / 1000)}k context a turn (bun addon-kit/usage.ts, ${s.at.slice(0, 10)})`;
+  return `${s.sessions} sessions, ${s.cards} cards (${s.done} done): ${M(s.units)}, median ${M(s.medianUnitsPerDoneCard)} a done card${per}, helpers ${Math.round(s.helperShare * 100)}%, ${Math.round(s.contextPerTurn / 1000)}k context a turn (bun addon-kit/usage.ts, ${s.at.slice(0, 10)})`;
 }
 
 // ── the report ──────────────────────────────────────────────────────────────
 export function report(costs: CardCost[], sum: Summary): string {
   const rows = [...costs].sort((a, b) => (a.status === "done" ? 0 : 1) - (b.status === "done" ? 0 : 1) || b.units - a.units);
-  const out = ["status   units  help  turns  ctx/turn  commits  units/commit  cards  session"];
+  const out = ["status       $  help  turns  ctx/turn  commits  $/commit  cards  session"];
   for (const c of rows)
     out.push(
       `${c.status.padEnd(8)} ${M(c.units).padStart(6)} ${(Math.round(c.helperShare * 100) + "%").padStart(5)} ${String(c.turns).padStart(6)} ${(Math.round(c.contextPerTurn / 1000) + "k").padStart(8)} ${String(c.commits).padStart(8)} ${(c.unitsPerCommit ? M(c.unitsPerCommit) : "-").padStart(13)}  ${String(c.cards).padStart(5)}  ${c.title.slice(0, 60)} [${c.models.join("+")}]`,
@@ -316,22 +347,22 @@ export function baseline(costs: CardCost[], sum: Summary): string {
     `# Usage baseline, ${sum.at.slice(0, 10)}`,
     "",
     "What a card cost before the model and effort changes of 25 October 2026 (main sessions all on Opus,",
-    "no helper builder). Cost is input-token equivalents, see `usage.ts`; the builder pilot and every",
-    "later change is judged against these: units per done card and per commit, the helpers' share, the",
-    "context re-read each turn. Regenerate with `bun addon-kit/usage.ts --baseline` (this file keeps",
-    "the day it was written, so write it once and compare new runs against it).",
+    "no helper builder). Cost is dollars at list price, see `usage.ts`; the builder pilot and every",
+    "later change is judged against these: dollars per done card and per commit, the helpers' share, the",
+    "context re-read each turn. Written once (`usage.ts --baseline` refuses while this file exists):",
+    "a later run is compared against it, not written over it.",
     "",
-    `- sessions read: ${sum.sessions}, carrying ${sum.cards} cards (${sum.done} done), commits in their windows: ${sum.commits}`,
-    `- total: ${M(sum.units)} units, by model: ${mix}`,
-    `- median done card: ${M(sum.medianUnitsPerDoneCard)} units`,
-    `- per commit: ${sum.unitsPerCommit ? M(sum.unitsPerCommit) : "-"} units`,
+    `- sessions read: ${sum.sessions}, carrying ${sum.cards} cards (${sum.done} done), commits: ${sum.commits}`,
+    `- total: ${M(sum.units)}, by model: ${mix}`,
+    `- median done card: ${M(sum.medianUnitsPerDoneCard)}`,
+    `- per commit: ${sum.unitsPerCommit ? M(sum.unitsPerCommit) : "-"}`,
     `- helpers' share: ${Math.round(sum.helperShare * 100)}%`,
     `- context re-read per main turn: ${Math.round(sum.contextPerTurn / 1000)}k tokens`,
     sum.skipped.length ? `- no transcript (deleted or not an id): ${sum.skipped.length} cards` : "",
     "",
     "## Done cards",
     "",
-    "| units | helpers | turns | commits | units/commit | cards | session |",
+    "| $ | helpers | turns | commits | $/commit | cards | session |",
     "|---:|---:|---:|---:|---:|---:|---|",
     ...done.sort((a, b) => b.units - a.units).map((c) => `| ${M(c.units)} | ${Math.round(c.helperShare * 100)}% | ${c.turns} | ${c.commits} | ${c.unitsPerCommit ? M(c.unitsPerCommit) : "-"} | ${c.cards} | ${c.title} |`),
     "",
@@ -361,7 +392,7 @@ if (import.meta.main) {
       continue;
     }
     spends.push(s);
-    costs.push(costOf(group, s, root));
+    costs.push(costOf(group, s));
   }
   const sum = summarise(costs, spends, skipped);
   mkdirSync(cacheDir(), { recursive: true });
@@ -370,6 +401,10 @@ if (import.meta.main) {
   else console.log(report(costs, sum));
   if (args.includes("--baseline")) {
     const path = join(import.meta.dir, "docs", "usage-baseline.md");
+    if (existsSync(path)) {
+      console.error(`\n${path} exists: the baseline is written once (delete it by hand to write a new one)`);
+      process.exit(1);
+    }
     writeFileSync(path, baseline(costs, sum));
     console.log(`\nwrote ${path}`);
   }
