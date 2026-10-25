@@ -329,7 +329,7 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   uncommitted changes no other running card explains. `claude --bg`
   sessions never show in the desktop app's sidebar: a desktop opener
   opens its children with the app's own session tool (the `child` skill,
-  the prompt from `--dry-run`) and archives them after `check
+  the prompt from `--desktop`) and archives them after `check
   <local_id>`, close's verdict without the stop, the record or the
   opener's question (the app shows whose child it is). Tests stub
   `claude` on the PATH (`session.test.ts`).

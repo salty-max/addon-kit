@@ -13,9 +13,11 @@ describe("session: its parts", () => {
       kind: "code",
       plan: false,
       dryRun: false,
+      desktop: false,
       task: "Write eight riddles",
     });
-    expect(parse(["T", "--repos", "a", "--kind", "prose", "--plan", "--dry-run", "--", "x"])).toMatchObject({ kind: "prose", plan: true, dryRun: true });
+    expect(parse(["T", "--repos", "a", "--kind", "prose", "--plan", "--dry-run", "--", "x"])).toMatchObject({ kind: "prose", plan: true, dryRun: true, desktop: false });
+    expect(parse(["T", "--repos", "a", "--kind", "code", "--desktop", "--", "x"])).toMatchObject({ desktop: true, dryRun: false });
     expect(parse(["--repos", "a", "--kind", "code", "--", "x"])).toBe("the card's title first");
     expect(parse(["T", "--kind", "code", "--", "x"])).toBe("--repos names every repository the task writes");
     expect(parse(["T", "--repos", "a", "--kind", "poetry", "--", "x"])).toBe("--kind is code or prose");
@@ -121,6 +123,22 @@ describe("session: its parts", () => {
     expect(prompt(a, { socket: "/tmp/s.sock" })).toContain("Another session opened this one");
     expect(prompt(a)).not.toContain("Report to the session");
     expect(prompt(a, {})).not.toContain("Report to the session");
+  });
+
+  test("the prompt for a desktop child: Sonnet or Opus lines, no background paragraph", () => {
+    const a = { title: "T", repos: ["a"], kind: "code" as const, plan: false, task: "x" };
+    const code = prompt(a, { socket: "/tmp/s.sock" }, true);
+    expect(code).toContain("You run on Sonnet. Settle your own plan without stopping for the user's approval of it");
+    expect(code).toContain("architect helper");
+    expect(code).not.toContain("opusplan");
+    expect(code.endsWith("\n\nNarrate briefly, move your card at each stop, and end with a `result:` line.")).toBe(true);
+    expect(code).not.toContain("in the background");
+    expect(code).toContain('SendMessage, to "uds:/tmp/s.sock": a few lines');
+    expect(prompt({ ...a, plan: true }, undefined, true)).toContain("You start on Opus in plan mode: plan first, and write nothing (your card included) until the user approves the plan, your opener then moves you to Sonnet for the build.");
+    expect(prompt({ ...a, kind: "prose" }, undefined, true)).toContain("You run on Opus (prose, voices, translations, design).");
+    expect(prompt({ ...a, kind: "prose", plan: true }, undefined, true)).toContain("You run on Opus and start in plan mode");
+    expect(prompt({ ...a, kind: "prose" }, undefined, true)).toContain("Narrate briefly");
+    expect(prompt(a)).toContain("You run in the background: narrate briefly");
   });
 
   test("the short id from claude's answer", () => {
@@ -489,6 +507,21 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     expect(r.out).toContain(`would run, from ${root}:\n  claude --bg -n 'Eight riddles' --model opusplan "$PROMPT"`);
     expect(r.out).toContain("without CLAUDECODE CLAUDE_CODE_SESSION_ID CLAUDE_JOB_DIR");
     expect(r.out).toContain("--repos yonder,wow-data --status running");
+  });
+
+  test("--desktop prints the prompt alone and starts nothing, --dry-run or not", () => {
+    for (const more of [[], ["--dry-run"]]) {
+      const r = run(["Eight riddles", "--repos", "yonder", "--kind", "code", "--desktop", ...more, "--", "Write eight riddles."]);
+      expect(r.code).toBe(0);
+      expect(existsSync(seen)).toBe(false);
+      expect(r.out.startsWith("A new task from the user.")).toBe(true);
+      expect(r.out).toContain('Report to the session that opened you with SendMessage, to "uds:/tmp/cc-socks/56581.sock"');
+      expect(r.out).toContain("You run on Sonnet.");
+      expect(r.out).not.toContain("would run");
+      expect(r.out).not.toContain("without CLAUDE");
+      expect(r.out).not.toContain("PROMPT:");
+      expect(r.err).toContain("note: yonder is held by");
+    }
   });
 
   test("a refusal or an answer without an id fails with what claude said", () => {

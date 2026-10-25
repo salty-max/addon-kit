@@ -489,8 +489,8 @@ never the sidebar. A desktop opener opens its children with the app's own
 session tool (`start_session`, fresh, in the family folder): the child is
 in the sidebar under its opener, its turns reach the opener as the app's
 notes on top of its own reports, and archiving closes it (undone from the
-Archived list). session.ts still writes its prompt (`--dry-run`, the
-PROMPT part), and `session.ts check <local_id>` gives close's verdict
+Archived list). session.ts still writes its prompt (`--desktop`: the
+prompt alone, Sonnet's model line, nothing started), and `session.ts check <local_id>` gives close's verdict
 without the stop, the record or the opener's question (the registry maps
 the desktop id through `hostSessionId`; `list_sessions` with `linked`
 names whose child it is). The model: code a Sonnet id, prose inherits the

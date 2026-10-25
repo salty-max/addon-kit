@@ -25,29 +25,35 @@ Write nothing for the task here: no card, no file, no helper.
 2. Write the task: the user's words, then what this session knows that the
    child needs (files, findings, decisions, what not to touch). Never "as
    discussed": the child starts cold.
-3. Its first words come from session.ts, the same either way (the maps,
-   its card first, its model, the task, the report to this session):
+3. Its first words come from session.ts (the maps, its card first, its
+   model, the task, the report to this session). For a desktop child:
 
    ```bash
-   bun addon-kit/session.ts "<title>" --repos a,b --kind code [--plan] --dry-run -- "<the task>"
+   bun addon-kit/session.ts "<title>" --repos a,b --kind code [--plan] --desktop -- "<the task>"
    ```
+
+   prints the prompt alone and starts nothing.
 
    A `note:` that a repository is held means the child will block on it:
    say so.
 4. Open it:
    - **In the desktop app** (this session has the `start_session` tool):
      `start_session` with `initiation: "user_asked"`, `context: "fresh"`,
-     `use_worktree: false`, the title, a short `name`, `prompt` the PROMPT
-     text from the dry run (all of it), `background` one line on the
+     `use_worktree: false`, the title, a short `name`, `prompt` what
+     `--desktop` printed (all of it), `background` one line on the
      family's harness and where this task comes from. The model: `code`
      passes a Sonnet id (`claude-sonnet-5-5`); `prose` passes none (it
      inherits this session's Opus: from a Sonnet session, open a prose
      child with session.ts instead); `plan` passes none and
      `permission_mode: "plan"` (Opus plans), and once the child says its
      plan is approved, `set_session_model` moves it to Sonnet. It shows in
-     the sidebar under this session.
+     the sidebar under this session. The app starts one only on a turn the
+     user typed (`/child` always is): on a turn another session's message
+     or an event began, it refuses, so propose it instead (`initiation:
+     "own_initiative"`, the same brief) and tell the user it waits on
+     their click.
    - **From a CLI session** (no `start_session`): the same command without
-     `--dry-run`. It runs `claude --bg`: in `claude agents` and the panel,
+     `--desktop`. It runs `claude --bg`: in `claude agents` and the panel,
      never in the desktop sidebar.
 5. Tell the user in a line: its name and where to find it (the sidebar, or
    `claude attach <id>`), and the plan's wait when there is one.

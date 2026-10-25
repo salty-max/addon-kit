@@ -3,7 +3,7 @@
  * task"): a session asked a task that isn't its own opens one here, tells
  * the user its name and how to attach, and writes nothing for it.
  *
- *   bun addon-kit/session.ts "<card title>" --repos a,b --kind code|prose [--plan] [--dry-run] -- "<the task>"
+ *   bun addon-kit/session.ts "<card title>" --repos a,b --kind code|prose [--plan] [--dry-run] [--desktop] -- "<the task>"
  *
  *   title     the new session's name and its card's title
  *   repos     every repository the task writes: its card's --repos, the
@@ -22,6 +22,9 @@
  *             No card shows that wait: the output says it, for the opener
  *             to tell the user
  *   dry-run   print the command and the prompt, start nothing
+ *   desktop   the prompt alone, for a desktop child: the opener hands it to
+ *             the app's own session tool. Printed alone on stdout, nothing
+ *             started (notes still go to stderr), and it wins over --dry-run
  *   the task  in the user's words, with what the opener knows
  *
  * It runs `claude --bg -n <title> --model <model> <prompt>` from the family
@@ -74,9 +77,9 @@ import { familyPath, familyRoot } from "./root";
 export const KINDS = { code: "opusplan", prose: "opus" } as const;
 export type Kind = keyof typeof KINDS;
 
-export type Ask = { title: string; repos: string[]; kind: Kind; plan: boolean; dryRun: boolean; task: string };
+export type Ask = { title: string; repos: string[]; kind: Kind; plan: boolean; dryRun: boolean; desktop: boolean; task: string };
 
-const USAGE = `usage: bun addon-kit/session.ts "<card title>" --repos a,b --kind code|prose [--plan] [--dry-run] -- "<the task>"
+const USAGE = `usage: bun addon-kit/session.ts "<card title>" --repos a,b --kind code|prose [--plan] [--dry-run] [--desktop] -- "<the task>"
        bun addon-kit/session.ts children [--all]
        bun addon-kit/session.ts close <id> [--force]
        bun addon-kit/session.ts check <id>`;
@@ -90,6 +93,7 @@ export function parse(argv: string[]): Ask | string {
   let kind = "";
   let plan = false;
   let dryRun = false;
+  let desktop = false;
   for (let i = 0; i < head.length; i++) {
     const a = head[i];
     if (a === "--repos" || a === "--kind") {
@@ -98,6 +102,7 @@ export function parse(argv: string[]): Ask | string {
       else kind = head[++i];
     } else if (a === "--plan") plan = true;
     else if (a === "--dry-run") dryRun = true;
+    else if (a === "--desktop") desktop = true;
     else if (a.startsWith("-")) return `unknown option ${a}`;
     else if (title) return `one title (a second: ${a}); the task goes after --`;
     else title = a.trim();
@@ -108,7 +113,7 @@ export function parse(argv: string[]): Ask | string {
   if (odd) return `--repos takes folder names, a comma between them (not ${JSON.stringify(odd)})`;
   if (!(kind in KINDS)) return "--kind is code or prose";
   if (!task) return "the task after --, in the user's words";
-  return { title, repos, kind: kind as Kind, plan, dryRun, task };
+  return { title, repos, kind: kind as Kind, plan, dryRun, desktop, task };
 }
 
 // (a shell's single quotes: what the prompt shows the new session to run)
@@ -119,16 +124,20 @@ const dq = (s: string) => `"${s.replace(/(["\\$`])/g, "\\$1")}"`;
 export type Opener = { name?: string; socket?: string };
 
 /** The new session's first words: the maps, its card, its model, the task, how it ends. */
-export function prompt(a: Pick<Ask, "title" | "repos" | "kind" | "plan" | "task">, opener?: Opener): string {
+export function prompt(a: Pick<Ask, "title" | "repos" | "kind" | "plan" | "task">, opener?: Opener, desktop = false): string {
   const [repo] = a.repos;
   const model =
     a.kind === "prose"
       ? a.plan
         ? "You run on Opus and start in plan mode: plan first, and write nothing (your card included) until the user approves the plan."
         : "You run on Opus (prose, voices, translations, design)."
-      : a.plan
-        ? "You run on opusplan and start in plan mode: Opus plans, nothing is written (your card included) until the user approves the plan, then Sonnet carries it out."
-        : "You run on opusplan: Sonnet, and Opus in plan mode. Settle your own plan without stopping for the user's approval of it, and where it needs a design settled (a change across files), have the architect helper look before it locks."
+      : desktop
+        ? a.plan
+          ? "You start on Opus in plan mode: plan first, and write nothing (your card included) until the user approves the plan, your opener then moves you to Sonnet for the build."
+          : "You run on Sonnet. Settle your own plan without stopping for the user's approval of it, and where it needs a design settled (a change across files), have the architect helper look before it locks."
+        : a.plan
+          ? "You run on opusplan and start in plan mode: Opus plans, nothing is written (your card included) until the user approves the plan, then Sonnet carries it out."
+          : "You run on opusplan: Sonnet, and Opus in plan mode. Settle your own plan without stopping for the user's approval of it, and where it needs a design settled (a change across files), have the architect helper look before it locks.";
   const to = [opener?.socket && `to ${dq(`uds:${opener.socket}`)}`, opener?.name && `${opener.socket ? "(else to its name, " : "to "}${dq(opener.name)}${opener.socket ? ")" : ""}`].filter(Boolean).join(" ");
   const report = to
     ? `Report to the session that opened you with SendMessage, ${to}: a few lines each time your card stops running (waiting on the user or on another card, ready to push), saying what is committed and what is asked of whom, and again once you have pushed: the range, CI's verdict, your card done. It checks your work and closes this session: never close it yourself, and after that last report write nothing more.`
@@ -140,7 +149,7 @@ export function prompt(a: Pick<Ask, "title" | "repos" | "kind" | "plan" | "task"
     model,
     `The task:\n\n${a.task}`,
     ...(report ? [report] : []),
-    "You run in the background: narrate briefly, move your card at each stop, and end with a `result:` line.",
+    desktop ? "Narrate briefly, move your card at each stop, and end with a `result:` line." : "You run in the background: narrate briefly, move your card at each stop, and end with a `result:` line.",
   ].join("\n\n");
 }
 
@@ -441,9 +450,13 @@ if (import.meta.main) {
   }
   const root = familyRoot();
   const opener = openerInfo(process.env.CLAUDE_CODE_SESSION_ID);
-  const text = prompt(a, opener);
+  const text = prompt(a, opener, a.desktop);
   const cmd = command(a);
   for (const n of notes(a.repos)) console.error(n);
+  if (a.desktop) {
+    console.log(text);
+    process.exit(0);
+  }
   if (a.dryRun) {
     console.log(`would run, from ${root}:\n  ${cmd.map(sq).join(" ")} "$PROMPT"`);
     const gone = dropped(process.env);
