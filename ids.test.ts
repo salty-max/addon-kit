@@ -218,7 +218,8 @@ describe("ids, the check", () => {
     write(origin, "i18n/enUS/creatures.json", names([10, 11, 12, 14]));
     commit(origin);
     expect(run(dir, ["git", "fetch", "-q"]).exitCode).toBe(0);
-    expect(ids(dir).out).not.toContain("14");
+    // (as a word: the output names a short sha, which may hold "14")
+    expect(ids(dir).out).not.toMatch(/\b14\b/);
   });
 
   test("two past revisions compared, today's manifest for a head without one, the run's summary written", () => {

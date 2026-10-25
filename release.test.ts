@@ -2,10 +2,14 @@
 // a clone holding an addon, gh and bun stubbed on the PATH (gh's variables
 // in a file; bun's check stamping the tree or not, passing or not, moving
 // origin's main meanwhile). Nothing reaches GitHub (bun test).
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+// (each test runs a whole release.sh, two dozen processes: 2s alone, past
+// bun's 5s default on a busy machine)
+setDefaultTimeout(30_000);
 
 const RELEASE = join(import.meta.dir, "release.sh");
 const made: string[] = [];
