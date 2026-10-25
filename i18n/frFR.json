@@ -1,7 +1,9 @@
 {
+  "%d %s": "%d %s",
   "%d %s %d": "%d %s %d",
   "%d of %d": "%d sur %d",
   "%d of %d achievements": "%d hauts faits sur %d",
+  "%s %02d:%02d": "%s %02d:%02d",
   "%s's choices are this character's now.": "Les choix de %s sont désormais ceux de ce personnage.",
   "%s's settings copied.": "Réglages de %s copiés.",
   "Achievement earned: %s.": "Haut fait obtenu : %s.",

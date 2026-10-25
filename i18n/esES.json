@@ -1,7 +1,9 @@
 {
+  "%d %s": "%d %s",
   "%d %s %d": "%d %s %d",
   "%d of %d": "%d de %d",
   "%d of %d achievements": "%d de %d logros",
+  "%s %02d:%02d": "%s %02d:%02d",
   "%s's choices are this character's now.": "Este personaje usa ahora las opciones de %s.",
   "%s's settings copied.": "Se han copiado las opciones de %s.",
   "Achievement earned: %s.": "Logro obtenido: %s.",

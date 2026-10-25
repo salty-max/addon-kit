@@ -592,11 +592,17 @@ K.RINGS = {
 local RANK_RINGS = { elite = "gold", rare = "silver", rareelite = "silver", worldboss = "rose", boss = "rose" }
 function K.rankRing(rank) return rank and K.RINGS[RANK_RINGS[rank]] or nil end
 
--- A day as the books write it: "5 Oct 2026" (each language its own order).
+-- A day as the books write it: "5 Oct 2026" (each language its own order);
+-- o.year false: "5 Oct", o.time: then the time, "5 Oct 16:05". A month's
+-- name alone (a range's: "5 to 7 Oct").
 local MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" }
-function K.day(at)
+function K.month(at) return L[MONTHS[date("*t", at or 0).month]] end
+function K.day(at, o)
   local d = date("*t", at or 0)
-  return L["%d %s %d"]:format(d.day, L[MONTHS[d.month]], d.year)
+  local text = o and o.year == false and L["%d %s"]:format(d.day, L[MONTHS[d.month]])
+    or L["%d %s %d"]:format(d.day, L[MONTHS[d.month]], d.year)
+  if o and o.time then text = L["%s %02d:%02d"]:format(text, d.hour, d.min) end
+  return text
 end
 
 -- ── items ────────────────────────────────────────────────────────────────────

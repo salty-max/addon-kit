@@ -1,7 +1,9 @@
 {
+  "%d %s": "%d. %s",
   "%d %s %d": "%d. %s %d",
   "%d of %d": "%d von %d",
   "%d of %d achievements": "%d von %d Erfolgen",
+  "%s %02d:%02d": "%s, %02d:%02d",
   "%s's choices are this character's now.": "Die Einstellungen von %s gelten jetzt für diesen Charakter.",
   "%s's settings copied.": "Einstellungen von %s kopiert.",
   "Achievement earned: %s.": "Erfolg errungen: %s.",

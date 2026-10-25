@@ -496,6 +496,12 @@ do
   check(L["Begin"] == "Begin" and K.plural(1, "page", "pages") == "page", "words: English by default")
   local at = os.time({ year = 2026, month = 10, day = 5, hour = 12 })
   check(K.day(at) == "5 Oct 2026", "words: a day, its number unpadded")
+  local late = os.time({ year = 2026, month = 10, day = 5, hour = 16, min = 5 })
+  check(
+    K.day(late, { year = false, time = true }) == "5 Oct 16:05" and K.day(late, { time = true }) == "5 Oct 2026 16:05",
+    "words: a day without its year, with the time"
+  )
+  check(K.month(at) == "Oct", "words: a month alone")
   L["Begin"], L["Oct"], L["pages"], L["page"] = "Commencer", "oct.", "pages", "page"
   local one = K.isOne
   K.isOne = function(n) return n <= 1 end -- (French: 0 and 1 take the singular)
