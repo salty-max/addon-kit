@@ -29,7 +29,9 @@
  * <addon>.yml), and stylua.toml, the family's one layout. The scripts reach addon-kit and wow-data through
  * them (`familyPath("wow-data", "src", "db.ts")`, `bun scripts/root.ts --run
  * addon-kit/sync.ts`), so a worktree outside ~/code/wow-addons finds them. A
- * root.py left behind once the last Python script went fails the check.
+ * root.py left behind once the last Python script went fails the check. A
+ * sync ends by writing the addon's language files again (scripts/locales.ts):
+ * the kit's words reach them with it.
  *
  * The stamp is the last commit of the kit's that touched what is copied
  * (Kit.lua, Media/, root.ts, root.py, locales-lib.ts, package-lib.ts,
@@ -189,5 +191,14 @@ if (import.meta.main) {
       writeFileSync(to, `${mark} addon-kit ${commit}: a copy (kit:sync); edit the addon-kit repository's ${name} instead\n${readFileSync(join(KIT, name), "utf8")}`);
       console.log(`✓ ${to}: kit ${commit}`);
     }
+  }
+
+  // The language files written again: a word the kit added or translated
+  // reaches the addon's Text files with the sync (a failure said, the
+  // addon's own words may be the cause).
+  if (!check && existsSync(join(scripts, "locales.ts"))) {
+    const r = Bun.spawnSync(["bun", join(scripts, "locales.ts")], { stdout: "pipe", stderr: "pipe" });
+    if (r.exitCode === 0) console.log("✓ the language files written again (scripts/locales.ts)");
+    else console.warn(`! scripts/locales.ts failed: ${(r.stderr.toString().trim() || r.stdout.toString().trim()).split("\n").pop()}`);
   }
 }
