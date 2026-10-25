@@ -132,7 +132,7 @@ export function run(o: {
     const carried = new Set<string>();
     for (const f of tracked) {
       const parts = f.split("/");
-      if (parts[0].startsWith(".")) continue;
+      if (parts.some((part) => part.startsWith("."))) continue; // (the packager leaves dotfiles out, anywhere)
       const top = parts[0] === "addon" && parts.length > 2 ? `addon/${parts[1]}` : parts[0] === "addon" ? f : parts[0];
       if (top !== "addon" && !shipped.has(top)) carried.add(top);
     }
