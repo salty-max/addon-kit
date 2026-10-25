@@ -42,6 +42,7 @@
  *
  *   bun addon-kit/session.ts children [--all]
  *   bun addon-kit/session.ts close <id> [--force]
+ *   bun addon-kit/session.ts check <id>
  *
  *   children  the records of the sessions this one opened (--all: every
  *             record), their state, their cards, and what keeps each from
@@ -54,6 +55,14 @@
  *             remote at all, committed since it started: another open card
  *             there never excuses them, the reason names it) or uncommitted
  *             changes no other running card explains
+ *   check     a desktop child's verdict, for its opener to archive it (the
+ *             desktop app's own session tool opens it, archiving closes it):
+ *             close's verdict without the stop, the record or the log, and
+ *             without asking whose it is (the opener confirms that in the
+ *             desktop app). <id> is a desktop id (local_<uuid>, mapped through
+ *             the registry's hostSessionId), a session id or a short one. No
+ *             --force: forcing is the archive's, on the user's word. Exit 0:
+ *             may close, 1: not yet, or can't tell
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -69,7 +78,8 @@ export type Ask = { title: string; repos: string[]; kind: Kind; plan: boolean; d
 
 const USAGE = `usage: bun addon-kit/session.ts "<card title>" --repos a,b --kind code|prose [--plan] [--dry-run] -- "<the task>"
        bun addon-kit/session.ts children [--all]
-       bun addon-kit/session.ts close <id> [--force]`;
+       bun addon-kit/session.ts close <id> [--force]
+       bun addon-kit/session.ts check <id>`;
 
 export function parse(argv: string[]): Ask | string {
   const cut = argv.indexOf("--");
@@ -167,7 +177,7 @@ export function openerOf(session: string, agents: unknown, list: Pick<Card, "ses
   return list.filter((c) => c.session === session && c.status !== "done").sort((a, b) => b.updated.localeCompare(a.updated))[0]?.title;
 }
 
-export type Live = { pid: number; sessionId: string; job: string; name?: string; nameSource?: string; status?: string; socket?: string };
+export type Live = { pid: number; sessionId: string; job: string; name?: string; nameSource?: string; status?: string; socket?: string; host?: string };
 
 /**
  * The sessions alive on this computer, from Claude Code's own registry
@@ -188,7 +198,7 @@ export function registry(dir = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedi
       if (!Number.isInteger(r.pid) || typeof r.sessionId !== "string") continue;
       process.kill(r.pid as number, 0);
       const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-      out.push({ pid: r.pid as number, sessionId: r.sessionId, job: str(r.jobId) ?? r.sessionId.slice(0, 8), name: str(r.name), nameSource: str(r.nameSource), status: str(r.status), socket: str(r.messagingSocketPath) });
+      out.push({ pid: r.pid as number, sessionId: r.sessionId, job: str(r.jobId) ?? r.sessionId.slice(0, 8), name: str(r.name), nameSource: str(r.nameSource), status: str(r.status), socket: str(r.messagingSocketPath), host: str(r.hostSessionId) });
     } catch {}
   }
   return out;
@@ -329,6 +339,47 @@ function children(argv: string[]): void {
   }
 }
 
+/** What close and check both look at: the live row, the child's cards, its repositories' states, the notes met on the way. */
+function gather(id: string, rec: Opened | undefined, row: Live | undefined) {
+  const board = cards(true);
+  const own = board.filter((c) => c.session.startsWith(id));
+  const extra: string[] = [];
+  const names = [...new Set([...own.flatMap((c) => c.repos), ...(rec?.repos ?? [])])];
+  return { own, extra, names, states: repoStates(names, id, board, extra, rec?.at), row };
+}
+
+function check(argv: string[]): void {
+  const given = argv[0]?.toLowerCase();
+  if (argv.length !== 1 || !given || !/^(local_[0-9a-f-]{8,}|[0-9a-f][0-9a-f-]{5,})$/.test(given)) {
+    console.error(`check takes one session id (a desktop local_ id, the session's, or the short one), and no --force\n${USAGE}`);
+    process.exit(2);
+  }
+  const live = registry();
+  let id = given;
+  let row: Live | undefined;
+  if (given.startsWith("local_")) {
+    row = live.find((l) => l.host?.toLowerCase() === given);
+    if (!row) {
+      console.error(`can't tell: ${given} isn't running here, check its card by hand (bun addon-kit/board.ts list --all)`);
+      process.exit(1);
+    }
+    id = row.sessionId.toLowerCase();
+  } else row = live.find((l) => l.job === id.slice(0, 8) || l.sessionId.startsWith(id) || l.job === id);
+  const short = id.slice(0, 8);
+  const rec = records().find((r) => r.id === short);
+  const g = gather(id, rec, row);
+  // (no `whose`: a desktop child has no record, its opener confirms the link in the desktop app)
+  const v = verdict({ live: row, cards: g.own, repos: g.states, force: false });
+  const notes = [...g.extra, ...v.notes].map((n) => `note: ${n}`);
+  if (!v.ok) {
+    for (const w of v.why) console.error(`not yet: ${w}`);
+    for (const n of notes) console.error(n);
+    process.exit(1);
+  }
+  console.log(`may close "${rec?.title ?? g.own[0]?.title ?? row?.name ?? given}" (${given}): archive it`);
+  for (const n of notes) console.log(n);
+}
+
 function close(argv: string[]): void {
   const force = argv.includes("--force");
   const rest = argv.filter((a) => a !== "--force");
@@ -341,13 +392,10 @@ function close(argv: string[]): void {
   const file = join(openedDir(), `${short}.json`);
   const rec = records().find((r) => r.id === short);
   const row = registry().find((l) => l.job === short || l.sessionId.startsWith(id) || l.job === id);
-  const board = cards(true);
-  const own = board.filter((c) => c.session.startsWith(id));
-  const extra: string[] = [];
+  const { own, extra, names, states } = gather(id, rec, row);
   const me = process.env.CLAUDE_CODE_SESSION_ID;
   const whose = !rec ? "this session didn't open it (no record from session.ts)" : rec.opener !== me ? `another session opened it (${rec.openerName ?? rec.opener ?? "unknown"})` : undefined;
-  const names = [...new Set([...own.flatMap((c) => c.repos), ...(rec?.repos ?? [])])];
-  const v = verdict({ live: row, cards: own, repos: repoStates(names, id, board, extra, rec?.at), force, whose });
+  const v = verdict({ live: row, cards: own, repos: states, force, whose });
   const notes = [...extra, ...v.notes].map((n) => `note: ${n}`);
   const title = rec?.title ?? own[0]?.title ?? short;
   const repo = names[0] ?? "";
@@ -380,6 +428,10 @@ if (import.meta.main) {
   }
   if (sub === "close") {
     close(process.argv.slice(3));
+    process.exit(0);
+  }
+  if (sub === "check") {
+    check(process.argv.slice(3));
     process.exit(0);
   }
   const a = parse(process.argv.slice(2));

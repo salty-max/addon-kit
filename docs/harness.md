@@ -482,6 +482,23 @@ derived`, "83-1e") taken for the opener's: skipped now. A child waiting
 on the user stays open: the user answers there. A repository with no
 remote is a note: its unpushed commits can't be told.
 
+**Desktop children** (the same night, the user: children "do not appear
+in the desktop app sidebar"). The desktop app lists only its own sessions
+(`local_…`); a `claude --bg` session is in `claude agents` and the panel,
+never the sidebar. A desktop opener opens its children with the app's own
+session tool (`start_session`, fresh, in the family folder): the child is
+in the sidebar under its opener, its turns reach the opener as the app's
+notes on top of its own reports, and archiving closes it (undone from the
+Archived list). session.ts still writes its prompt (`--dry-run`, the
+PROMPT part), and `session.ts check <local_id>` gives close's verdict
+without the stop, the record or the opener's question (the registry maps
+the desktop id through `hostSessionId`; `list_sessions` with `linked`
+names whose child it is). The model: code a Sonnet id, prose inherits the
+opener's (a Sonnet opener opens a prose child with session.ts), plan
+inherits it in plan mode and the opener moves it to Sonnet once the plan
+is approved (`set_session_model`). A CLI opener keeps `claude --bg`. The
+`child` skill carries both.
+
 **The panel**: a session opened this way is in Claude Code's registry like
 any other (`kind: "bg"`, `entrypoint: "cli"`, its `-n` name), so the
 Sessions box shows it with its card (by its id, once the card is written).

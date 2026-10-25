@@ -97,6 +97,8 @@ describe("session: its parts", () => {
       const rows = registry(dir);
       expect(rows).toHaveLength(2);
       expect(rows.find((r) => r.sessionId === "e5a0fd61-0b4d")).toEqual({ pid: process.pid, sessionId: "e5a0fd61-0b4d", job: "e5a0fd61", name: "kit-addon-audit", status: "idle", socket: "/tmp/cc-socks/1.sock" });
+    writeFileSync(join(dir, "7.json"), JSON.stringify({ pid: process.pid, sessionId: "971e2d60-0000", entrypoint: "claude-desktop", hostSessionId: "local_8caf759e-16c9-4579-80be-0b90ed02c5f6" }));
+    expect(registry(dir).find((r) => r.sessionId === "971e2d60-0000")?.host).toBe("local_8caf759e-16c9-4579-80be-0b90ed02c5f6");
     writeFileSync(join(dir, "6.json"), JSON.stringify({ pid: process.pid, sessionId: "83-1e0000", name: "83-1e", nameSource: "derived" }));
     expect(registry(dir).find((r) => r.sessionId === "83-1e0000")?.nameSource).toBe("derived");
       // (no jobId: the short id is the session id's first 8)
@@ -427,6 +429,31 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     const yes = run(["close", "beef0004"]);
     expect(yes.err).toBe("");
     expect(yes.code).toBe(0);
+  });
+
+  test("check: a desktop child through its hostSessionId, close's verdict without the stop", () => {
+    const local = "local_8caf759e-16c9-4579-80be-0b90ed02c5f6";
+    row("737373.json", { sessionId: "abc12345-6789-aaaa", kind: "bg", entrypoint: "claude-desktop", hostSessionId: local, status: "idle" });
+    const r = run(["check", local]);
+    expect(r.err).toBe("");
+    expect(r.code).toBe(0);
+    expect(r.out).toContain(`may close "The child" (${local}): archive it`);
+    expect(existsSync(seen)).toBe(false);
+    row("737373.json", { sessionId: "abc12345-6789-aaaa", kind: "bg", entrypoint: "claude-desktop", hostSessionId: local, status: "busy" });
+    const busy = run(["check", local]);
+    expect(busy.code).toBe(1);
+    expect(busy.err).toContain("not yet: it is busy: mid-turn");
+    row("737373.json", { sessionId: "def67890-1111-bbbb", kind: "bg", entrypoint: "claude-desktop", hostSessionId: local, status: "idle" });
+    const slow = run(["check", local]);
+    expect(slow.code).toBe(1);
+    expect(slow.err).toContain("not yet: card wow-data-the-slow-one is running");
+    expect(existsSync(seen)).toBe(false);
+    rmSync(join(config, "sessions", "737373.json"));
+    const gone = run(["check", local]);
+    expect(gone.code).toBe(1);
+    expect(gone.err).toContain(`can't tell: ${local} isn't running here, check its card by hand (bun addon-kit/board.ts list --all)`);
+    expect(run(["check", "abc12345", "--force"]).code).toBe(2);
+    expect(run(["check", "x"]).code).toBe(2);
   });
 
   test("no display name: the opener's open card names it, not the one it finished last", () => {

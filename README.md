@@ -219,6 +219,7 @@ bun addon-kit/session.ts "Eight riddles" --repos yonder,wow-data --kind code -- 
                                                # a new task in a session of its own (--dry-run, --plan)
 bun addon-kit/session.ts children [--all]      # the sessions this one opened, and what keeps each open
 bun addon-kit/session.ts close <id> [--force]  # a finished child closed (claude stop), once checked
+bun addon-kit/session.ts check <local_id>      # a desktop child's verdict, before its opener archives it
 bun addon-kit/usage.ts [--since d] [--baseline]  # what the cards cost: dollars per session, card and commit (docs/usage-baseline.md)
 bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the same for Python)
 bun addon-kit/events.ts [n]                    # the harness's last n events, as the panel's log reads them
@@ -325,7 +326,12 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   without `--force` (the user's word), one this session didn't open, one
   with no card or an open one, a repository of it with commits on no
   remote committed since it started (another card there or not), or
-  uncommitted changes no other running card explains. Tests stub
+  uncommitted changes no other running card explains. `claude --bg`
+  sessions never show in the desktop app's sidebar: a desktop opener
+  opens its children with the app's own session tool (the `child` skill,
+  the prompt from `--dry-run`) and archives them after `check
+  <local_id>`, close's verdict without the stop, the record or the
+  opener's question (the app shows whose child it is). Tests stub
   `claude` on the PATH (`session.test.ts`).
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
   directory, else up from the repository's main checkout (so a worktree
