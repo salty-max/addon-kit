@@ -3016,7 +3016,7 @@ end
 -- sentences, capitalised, after the addon's coloured prefix.
 --   K.commands({
 --     names = { "/codex", "/lorekeeper" }, key = "LOREKEEPERSCODEX", -- SLASH_<key>n, SlashCmdList[key]
---     name = "Lorekeeper's Codex", prefix = ns.PREFIX, profiles = P,
+--     name = "Lorekeeper's Codex", prefix = ns.PREFIX, profiles = P (or a function giving it: made later),
 --     open = fn,                  -- the command alone
 --     usage = its help, the addon's word (help, an unknown word)
 --     settings = fn,              -- settings, options: true when a page opened
@@ -3046,7 +3046,8 @@ function K.commands(o)
     elseif msg == "export" and o.welcome then
       o.welcome("export")
     elseif msg:match("^import%s") and o.profiles then
-      if o.profiles:import(raw:match("^%a+%s+(.+)$")) then
+      local P = type(o.profiles) == "function" and o.profiles() or o.profiles
+      if P and P:import(raw:match("^%a+%s+(.+)$")) then
         say(L["Settings imported for this character."])
       else
         say(L["That isn't a %s settings code (%s export makes one)."]:format(o.name, slash))
