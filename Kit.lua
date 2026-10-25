@@ -2011,7 +2011,7 @@ function K.deeds(o)
           id = d.id,
           group = d.group,
           title = d.title,
-          text = d.text,
+          text = type(d.text) == "function" and d.text() or d.text, -- (a line the reader's book words)
           earned = self:earned(d.id),
           progress = d.progress,
         })
