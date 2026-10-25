@@ -23,11 +23,12 @@
  * CLAUDE_CONFIG_DIR): the board's lock tells sessions apart by
  * CLAUDE_CODE_SESSION_ID, and a session that inherited the opener's would
  * write its card as the opener's. The prompt begins with the family's
- * CLAUDE.md and the card, then the task. It prints the new session's id and
+ * CLAUDE.md and the card, then the task; it names the opener (its display
+ * name, else its running card's title). It prints the new session's id and
  * how to attach, says which of its repositories another card holds now, and
  * logs the opening in the harness's event log.
  */
-import { cards, holders, repoList, strangers } from "./board";
+import { type Card, cards, holders, repoList, strangers } from "./board";
 import { logEvent } from "./events";
 import { familyRoot } from "./root";
 
@@ -112,13 +113,28 @@ export function idOf(out: string): string | undefined {
   return out.match(/backgrounded\s+·\s+([0-9a-f]{6,})\b/i)?.[1];
 }
 
-/** The opener's name: the title of its newest card (the session takes its card's title). */
-function openerName(session: string | undefined): string | undefined {
+/**
+ * The opener's name: its display name (`claude agents --json`, matched by
+ * its session id: what the user and SendMessage know it by), else its
+ * running card's title. Never a card it finished: a session's done cards
+ * are older tasks it carried.
+ */
+export function openerOf(session: string, agents: unknown, list: Pick<Card, "session" | "status" | "title" | "updated">[]): string | undefined {
+  const row = Array.isArray(agents) ? agents.find((r) => r && typeof r === "object" && (r as { sessionId?: unknown }).sessionId === session) : undefined;
+  const name = (row as { name?: unknown } | undefined)?.name;
+  if (typeof name === "string" && name.trim()) return name.trim();
+  return list.filter((c) => c.session === session && c.status === "running").sort((a, b) => b.updated.localeCompare(a.updated))[0]?.title;
+}
+
+function openerName(session: string | undefined, root: string): string | undefined {
   if (!session) return undefined;
+  let agents: unknown;
   try {
-    return cards(true)
-      .filter((c) => c.session === session)
-      .sort((a, b) => b.updated.localeCompare(a.updated))[0]?.title;
+    const run = Bun.spawnSync(["claude", "agents", "--json"], { cwd: root, env: cleanEnv(process.env), stdout: "pipe", stderr: "ignore", timeout: 20_000 });
+    if (run.exitCode === 0) agents = JSON.parse(run.stdout.toString());
+  } catch {}
+  try {
+    return openerOf(session, agents, cards());
   } catch {
     return undefined;
   }
@@ -141,7 +157,7 @@ if (import.meta.main) {
     process.exit(2);
   }
   const root = familyRoot();
-  const text = prompt(a, openerName(process.env.CLAUDE_CODE_SESSION_ID));
+  const text = prompt(a, openerName(process.env.CLAUDE_CODE_SESSION_ID, root));
   const cmd = command(a);
   for (const n of notes(a.repos)) console.error(n);
   if (a.dryRun) {

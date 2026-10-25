@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { cleanEnv, command, idOf, parse, prompt } from "./session";
+import { cleanEnv, command, idOf, openerOf, parse, prompt } from "./session";
 
 describe("session: its parts", () => {
   test("the title, the repositories, the kind and the task after --", () => {
@@ -67,6 +67,19 @@ describe("session: its parts", () => {
     expect(env).toEqual({ PATH: "/bin", HOME: "/h", CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: "1", CLAUDE_CONFIG_DIR: "/c" });
   });
 
+  test("the opener: its display name, else its running card, never a card it finished", () => {
+    const list = [
+      { session: "s1", status: "done" as const, title: "Store pages", updated: "2026-10-25T19:30:00+01:00" },
+      { session: "s1", status: "running" as const, title: "The kit audited", updated: "2026-10-25T10:00:00+01:00" },
+      { session: "s2", status: "running" as const, title: "Another's", updated: "2026-10-25T19:40:00+01:00" },
+    ];
+    const agents = [{ sessionId: "s2", name: "Other" }, { sessionId: "s1", name: "kit-addon-audit" }];
+    expect(openerOf("s1", agents, list)).toBe("kit-addon-audit");
+    expect(openerOf("s1", undefined, list)).toBe("The kit audited");
+    expect(openerOf("s1", [{ sessionId: "s1", name: "  " }, null, "x"], list)).toBe("The kit audited");
+    expect(openerOf("s1", { not: "a list" }, list.slice(0, 1))).toBeUndefined();
+  });
+
   test("the short id from claude's answer", () => {
     expect(idOf("backgrounded · 1f8f36b9 · Harness: sessions opened by sessions\n  claude agents             list sessions")).toBe("1f8f36b9");
     expect(idOf("Error: unknown model")).toBeUndefined();
@@ -89,6 +102,10 @@ describe("session: a run, claude stubbed", () => {
       join(root, "board", "addon-kit-the-kit-audited.md"),
       '---\nrepo: addon-kit\ntitle: The kit audited\nstatus: running\nsession: s-opener\nupdated: "2026-10-25T10:00:00+01:00"\nrepos: addon-kit, yonder\nsince: "addon-kit@2026-10-25T10:00:00.000+01:00, yonder@2026-10-25T10:00:00.000+01:00"\n---\n## Try\n\nx\n',
     );
+    writeFileSync(
+      join(root, "board", "addon-kit-store-pages.md"),
+      '---\nrepo: addon-kit\ntitle: Store pages\nstatus: done\nsession: s-opener\nupdated: "2026-10-25T19:30:00+01:00"\n---\n## Try\n\nx\n',
+    );
     bin = join(tmp, "bin");
     mkdirSync(bin);
     seen = join(tmp, "seen.json");
@@ -98,6 +115,11 @@ describe("session: a run, claude stubbed", () => {
       join(bin, "claude"),
       `#!${process.execPath}
 const { writeFileSync } = require("node:fs");
+if (process.argv[2] === "agents") {
+  if (process.env.STUB_AGENTS === "none") process.exit(1);
+  console.log(JSON.stringify([{ id: "e5a0fd61", sessionId: "s-opener", name: "kit-addon-audit" }, { sessionId: "s-other", name: "Other" }]));
+  process.exit(0);
+}
 writeFileSync(process.env.STUB_SEEN, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), env: process.env }));
 const name = process.argv[process.argv.indexOf("-n") + 1];
 if (process.env.STUB === "fail") { console.error("error: model 'opusplan' not available"); process.exit(3); }
@@ -138,7 +160,7 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     const g = given();
     expect(g.argv.slice(0, 6)).toEqual(["--bg", "-n", "Eight riddles", "--model", "opusplan", g.argv[5]]);
     expect(g.argv).toHaveLength(6);
-    expect(g.argv[5]).toContain('The session "The kit audited" opened this one');
+    expect(g.argv[5]).toContain('The session "kit-addon-audit" opened this one');
     expect(g.argv[5]).toContain("Write eight riddles.");
     expect(g.cwd).toBe(root);
     expect(g.env.CLAUDE_CODE_SESSION_ID).toBeUndefined();
@@ -150,6 +172,11 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     // (the opener's card holds yonder: the new session will block on it)
     expect(r.err).toContain("note: yonder is held by addon-kit-the-kit-audited (running)");
     expect(readFileSync(events, "utf8")).toContain("\tsession\tok\tyonder\tEight riddles opened (opusplan) as abc12345");
+  });
+
+  test("no display name: the opener's running card names it, not the one it finished last", () => {
+    expect(run(["T", "--repos", "yonder", "--kind", "code", "--", "x"], { STUB_AGENTS: "none" }).code).toBe(0);
+    expect(given().argv[5]).toContain('The session "The kit audited" opened this one');
   });
 
   test("plan mode on demand, prose on Opus", () => {
