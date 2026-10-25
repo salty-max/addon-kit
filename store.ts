@@ -41,7 +41,7 @@
  */
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { familyRoot } from "./root";
 
 const API = "https://authors.curseforge.com/_api";
@@ -401,22 +401,39 @@ if (import.meta.main) {
     process.exit(0);
   }
   const reports: Report[] = [];
+  let failed = false;
   for (const repo of repos) {
-    const r = await inspect(repo);
+    // (every addon: one not on CurseForge yet, or one that can't be read,
+    // said and passed by, never a stop for the others)
+    let r: Report;
+    try {
+      r = await inspect(repo);
+    } catch (e) {
+      if (!all) throw e;
+      const why = (e as Error).message;
+      if (why.startsWith("no X-Curse-Project-ID")) console.log(`${basename(repo)}: not on CurseForge yet (no X-Curse-Project-ID in its TOCs)`);
+      else {
+        console.log(`✗ ${basename(repo)}: ${why}`);
+        failed = true;
+      }
+      continue;
+    }
     reports.push(r);
     tell(r, true);
   }
+
   const todo = reports.filter((r) => due(r).length);
   if (!todo.length) {
     console.log(reports.some((r) => typeof r.wago === "string") ? "✓ every page read is its file (Wago not read)" : "✓ every page is its file");
-    process.exit(0);
+    process.exit(failed ? 1 : 0);
   }
   if (!args.includes("--apply")) {
     console.log(`(nothing saved: --apply puts ${todo.length} of them up${reports.some((r) => r.summary !== undefined) ? ". A summary is changed by hand, on the General page" : ""})`);
-    process.exit(0);
+    process.exit(failed ? 1 : 0);
   }
   for (const r of todo) {
     console.log(r.page.title);
     await apply(r);
   }
+  if (failed) process.exit(1);
 }
