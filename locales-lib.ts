@@ -88,9 +88,12 @@ export function problems(words: Record<string, string>, keys: string[]): { missi
   const errors: string[] = [];
   for (const [english, word] of Object.entries(words)) {
     if (!word) continue;
+    // (a sentence with blanks is formatted: its translation keeps them, and a
+    // lone % there would break it; one without is shown as written, "under 1%")
     const want = formatArgs(english);
-    const stray = word.replace(/%%|%(?:\d+\$)?0?\d*(?:\.\d+)?[sdfi]/g, "").includes("%");
-    if (want.join() !== formatArgs(word).join() || stray) errors.push(`the blanks differ: ${JSON.stringify(english)} → ${JSON.stringify(word)}`);
+    const got = formatArgs(word);
+    const stray = want.length > 0 && word.replace(/%%|%(?:\d+\$)?0?\d*(?:\.\d+)?[sdfi]/g, "").includes("%");
+    if (want.join() !== got.join() || stray) errors.push(`the blanks differ: ${JSON.stringify(english)} → ${JSON.stringify(word)}`);
     if (semicolon(word)) errors.push(`a semicolon in what players read: ${JSON.stringify(word)}`);
   }
   return { missing: keys.filter((k) => !words[k]), unused: Object.keys(words).filter((k) => !known.has(k)), errors };
