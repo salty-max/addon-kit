@@ -14,9 +14,11 @@
  * Cost is dollars at list price (PRICE below: per million tokens, by model
  * family, cache writes at the 5-minute or the 1-hour rate as the transcript
  * says), an estimate to compare runs by, not an invoice (a subscription
- * isn't billed by the token). The commits of a card are those its session
- * made: the `git commit` commands of its own transcript that did not fail
- * (a time window would catch other sessions' work).
+ * isn't billed by the token). The commits of a card are counted by git: in the
+ * repositories the card names, the user's commits made while one of its
+ * session's commit commands ran (see gitCommits), not the commands (one command
+ * may commit in several repositories, or fail after committing). Where git
+ * can't be asked, the transcript's `git commit` segments stand in.
  * A session's transcripts are read once, the result cached per session in
  * the kit's .cache/usage/ (keyed by the files' sizes and times); the summary
  * status.ts shows is .cache/usage/summary.json.
@@ -29,7 +31,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { cards, type Card } from "./board";
-import { familyRoot } from "./root";
+import { familyPath, familyRoot } from "./root";
 
 /** cacheWrite1h is the part of cacheWrite kept an hour (the rest five minutes). */
 export type Tally = { in: number; out: number; cacheWrite: number; cacheWrite1h: number; cacheRead: number; msgs: number };
@@ -109,7 +111,8 @@ export type Spend = {
   contextPerTurn: number;
   /** helper runs by agent type */
   helpers: Record<string, number>;
-  /** commits the session made: its `git commit` commands that did not fail */
+  /** the session's commit commands (git counts what they made, see gitCommits) and, as a fallback, the `git commit` segments of those that did not fail */
+  commitRuns: CommitRun[];
   commits: number;
 };
 
@@ -145,49 +148,89 @@ export function sessionFiles(dirs: string[], sid: string): { file: string; kind:
   return out;
 }
 
-/** A shell command that commits: some segment (split on && ; | and newlines) starts `git [-C dir] commit`, no --amend (it adds none). */
-export function isCommit(command: string): boolean {
-  return command.split(/&&|\|\||[;|\n]/).some((seg) => /^\s*git(\s+-C\s+\S+)*\s+commit\b/.test(seg) && !/--amend\b/.test(seg));
+/** How many `git commit` segments a shell command holds (split on && ; | and newlines), an --amend too: it is a window to search, git does the counting. `each.ts -- git commit` is one segment that commits in many repositories, which is why the count is only the fallback. */
+export function commitSegments(command: string): number {
+  const seg = /^\s*(?:(?:bun\s+)?\S*each\.ts\b.*?--\s+)?git(?:\s+-\S+(?:\s+\S+)?)*\s+commit\b/;
+  return command.split(/&&|\|\||[;|\n]/).filter((s) => seg.test(s)).length;
 }
+export const isCommit = (command: string) => commitSegments(command) > 0;
 
-/** The commits a session made: its Bash `git commit` commands whose result was not an error (a hook's refusal is one; a commit the hooks let through prints nothing reliable, `-q` hides it, so the commands are counted, not the shas). */
-export function commitCount(lines: Iterable<string>): number {
-  const commands = new Set<string>();
-  let made = 0;
+/** One Bash command that commits, from its tool call to its result (ms), the segments it holds and whether it ended in an error (earlier segments may have committed all the same). */
+export type CommitRun = { from: number; to: number; segments: number; failed: boolean };
+
+/** The commit commands of a transcript's lines. */
+export function commitRuns(lines: Iterable<string>): CommitRun[] {
+  const open = new Map<string, { from: number; segments: number }>();
+  const runs: CommitRun[] = [];
   for (const line of lines) {
-    if (line.includes('"tool_use"') && line.includes("commit")) {
-      let o: any;
-      try {
-        o = JSON.parse(line);
-      } catch {
-        continue;
+    const use = line.includes('"tool_use"') && line.includes("commit");
+    if (!use && !(open.size && line.includes('"tool_result"'))) continue;
+    let o: any;
+    try {
+      o = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const at = Date.parse(o?.timestamp);
+    for (const c of Array.isArray(o?.message?.content) ? o.message.content : []) {
+      if (use && c?.type === "tool_use" && c.name === "Bash") {
+        const segments = commitSegments(String(c.input?.command ?? ""));
+        if (segments) open.set(c.id, { from: at, segments });
+      } else if (c?.type === "tool_result") {
+        const r = open.get(c.tool_use_id);
+        if (!r) continue;
+        open.delete(c.tool_use_id);
+        runs.push({ ...r, to: at, failed: !!c.is_error });
       }
-      for (const c of Array.isArray(o?.message?.content) ? o.message.content : [])
-        if (c?.type === "tool_use" && c.name === "Bash" && isCommit(String(c.input?.command ?? ""))) commands.add(c.id);
-    } else if (commands.size && line.includes('"tool_result"')) {
-      let o: any;
-      try {
-        o = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      for (const c of Array.isArray(o?.message?.content) ? o.message.content : [])
-        if (c?.type === "tool_result" && commands.delete(c.tool_use_id) && !c.is_error) made++;
     }
   }
-  return made;
+  return runs;
+}
+
+/** The fallback count where git can't be asked: the segments of the commands that did not fail. */
+export const commitCount = (lines: Iterable<string>) => commitRuns(lines).reduce((n, r) => n + (r.failed ? 0 : r.segments), 0);
+
+const PAD = 3000;
+/**
+ * The commits the session made, from git itself: in each of the card's repositories, the commits by the repository's own user (not the data jobs' bot) whose commit time falls in a commit command's run (padded a few seconds), over every branch. The board's lock means no other session committed there meanwhile, and a time window per command, not per session, keeps the rest of the day out. Counted by sha, so two repositories in one command are two, a command that failed after its commit still counts, a hook's refusal (no commit) counts nothing, and an --amend replaces the commit it amended (the old one is no longer reachable). Undefined when no repository answers (the caller falls back to the transcript's count).
+ */
+export function gitCommits(repos: string[], runs: CommitRun[], pad = PAD): number | undefined {
+  if (!runs.length) return 0;
+  const shas = new Set<string>();
+  let asked = 0;
+  const lo = Math.min(...runs.map((r) => r.from)) - pad;
+  const hi = Math.max(...runs.map((r) => r.to)) + pad;
+  for (const dir of repos) {
+    const git = (...a: string[]) => Bun.spawnSync(["git", "-C", dir, ...a], { stdout: "pipe", stderr: "pipe" });
+    const who = git("config", "user.email");
+    const log = git("log", "--all", "--no-merges", `--since=${new Date(lo).toISOString()}`, `--until=${new Date(hi).toISOString()}`, "--format=%H %ct %ce");
+    if (who.exitCode !== 0 || log.exitCode !== 0) continue;
+    asked++;
+    const me = who.stdout.toString().trim();
+    for (const row of log.stdout.toString().split("\n")) {
+      const [sha, ct, email] = row.split(" ");
+      if (!sha || email !== me) continue;
+      const t = Number(ct) * 1000;
+      if (runs.some((r) => t >= r.from - pad && t <= r.to + pad)) shas.add(`${dir}|${sha}`);
+    }
+  }
+  return asked ? shas.size : undefined;
 }
 
 /** A session's spend, from its transcripts (undefined when it has none). */
 export function spend(files: { file: string; kind: string }[]): Spend | undefined {
   if (files.length === 0) return undefined;
   const seen = new Set<string>();
-  const s: Spend = { by: {}, models: {}, units: 0, first: "", last: "", turns: 0, contextPerTurn: 0, helpers: {}, commits: 0 };
+  const s: Spend = { by: {}, models: {}, units: 0, first: "", last: "", turns: 0, contextPerTurn: 0, helpers: {}, commitRuns: [], commits: 0 };
   let context = 0;
   for (const { file, kind } of files) {
     if (kind !== "main") s.helpers[kind.slice(7)] = (s.helpers[kind.slice(7)] ?? 0) + 1;
     const text = readFileSync(file, "utf8").split("\n");
-    if (kind === "main") s.commits += commitCount(text);
+    if (kind === "main") {
+      const runs = commitRuns(text);
+      s.commitRuns.push(...runs);
+      s.commits += runs.reduce((n, r) => n + (r.failed ? 0 : r.segments), 0);
+    }
     for (const t of turns(text, seen)) {
       const fam = family(t.model);
       const u = units(t.tally, t.model);
@@ -213,7 +256,7 @@ const stamp = (files: { file: string }[]) => files.map(({ file }) => `${basename
 export function spendOf(dirs: string[], sid: string, dir = cacheDir()): Spend | undefined {
   const files = sessionFiles(dirs, sid);
   if (files.length === 0) return undefined;
-  const key = `v2|${stamp(files)}`;
+  const key = `v3|${stamp(files)}`;
   const path = join(dir, `${sid}.json`);
   try {
     const c = JSON.parse(readFileSync(path, "utf8"));
@@ -244,10 +287,16 @@ export type CardCost = {
   last: string;
 };
 
-export function costOf(group: Pick<Card, "id" | "title" | "status" | "repos" | "repo" | "session">[], s: Spend): CardCost {
+export function costOf(
+  group: Pick<Card, "id" | "title" | "status" | "repos" | "repo" | "session">[],
+  s: Spend,
+  /** the commits git shows in these repositories' folders for these runs (undefined: ask nobody) */
+  git: (dirs: string[], runs: CommitRun[]) => number | undefined = (dirs, runs) => gitCommits(dirs, runs),
+  dir: (repo: string) => string = (r) => familyPath(r),
+): CardCost {
   const repos = [...new Set(group.flatMap((c) => (c.repos.length ? c.repos : [c.repo])))];
   const status = group.every((c) => c.status === "done") ? "done" : group.find((c) => c.status !== "done")!.status;
-  const commits = s.commits;
+  const commits = git(repos.map(dir), s.commitRuns) ?? s.commits;
   const helpers = Object.entries(s.by).filter(([k]) => k !== "main").reduce((n, [, u]) => n + u, 0);
   return {
     session: group[0]!.session,

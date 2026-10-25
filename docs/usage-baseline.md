@@ -14,6 +14,17 @@ a later run is compared against it, not written over it.
 - context re-read per main turn: 417k tokens
 - no transcript (deleted or not an id): 5 cards
 
+## Correction, 25 October 2026 (commit count)
+
+The commits above were counted from the transcripts as one per `git commit` *command*, and a command that
+ended in an error counted none. One command can commit in several repositories (`git -C a commit && git -C b
+commit`, `each.ts -- git commit`) and can fail after its commit landed, so 261 was too low and every
+$/commit too high. `usage.ts` now counts from git itself (the user's commits, in the card's repositories,
+made while one of the session's commit commands ran). Recounted over the same 26 sessions and 66 cards
+with the same dollars ($1031): **324 commits, $3.18 a commit** (was 261 and $3.95). Per-card commits and
+$/commit in the table above are the old counts, and so too high in the same way: read them with
+`bun addon-kit/usage.ts`. Everything else here stands as written.
+
 ## Done cards
 
 | $ | helpers | turns | commits | $/commit | cards | session |

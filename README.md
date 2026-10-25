@@ -330,8 +330,9 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   dollars at list price (`PRICE`: per million tokens by model family, cache
   writes at the five-minute or the one-hour rate as the transcript says;
   an estimate to compare runs by, not an invoice), the helpers' share,
-  turns, the context re-read each turn, the commits the session made (its
-  `git commit` commands that did not fail), dollars per commit and per done
+  turns, the context re-read each turn, the commits the session made (counted
+  by git in the card's repositories, the user's, while one of its commit
+  commands ran; the transcript's segments only where git can't answer), dollars per commit and per done
   card. A session that carried several cards shares its cost among them.
   Results are cached per session in `.cache/usage/`; `status.ts` shows the
   last run's line. `--baseline` writes `docs/usage-baseline.md` once (it
