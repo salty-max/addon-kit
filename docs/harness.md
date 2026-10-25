@@ -402,8 +402,8 @@ folder and prints the new session's id and how to attach. What it holds:
   add`, these `--repos`) and the check that its `session` is its own id,
   then its model, then the task, then "end with a `result:` line". The
   opener is named by its display name (`claude agents --json`, matched by
-  its session id), else its running card's title: never a card it
-  finished (the first real use named the kit audit's session after a done
+  its session id), else its newest open card's title (running, or
+  waiting on the user): never a card it finished (the first real use named the kit audit's session after a done
   card it had carried, the store pages).
 - **The model by kind**: code `opusplan`, prose `opus`. `opusplan` is in
   the CLI's own list of aliases (its `--help` names three examples only):

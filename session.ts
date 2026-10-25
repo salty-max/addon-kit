@@ -24,7 +24,7 @@
  * CLAUDE_CODE_SESSION_ID, and a session that inherited the opener's would
  * write its card as the opener's. The prompt begins with the family's
  * CLAUDE.md and the card, then the task; it names the opener (its display
- * name, else its running card's title). It prints the new session's id and
+ * name, else its open card's title). It prints the new session's id and
  * how to attach, says which of its repositories another card holds now, and
  * logs the opening in the harness's event log.
  */
@@ -115,15 +115,16 @@ export function idOf(out: string): string | undefined {
 
 /**
  * The opener's name: its display name (`claude agents --json`, matched by
- * its session id: what the user and SendMessage know it by), else its
- * running card's title. Never a card it finished: a session's done cards
- * are older tasks it carried.
+ * its session id: what the user and SendMessage know it by), else the
+ * title of its newest card still open (running, or waiting on the user).
+ * Never a card it finished: a session's done cards are older tasks it
+ * carried.
  */
 export function openerOf(session: string, agents: unknown, list: Pick<Card, "session" | "status" | "title" | "updated">[]): string | undefined {
   const row = Array.isArray(agents) ? agents.find((r) => r && typeof r === "object" && (r as { sessionId?: unknown }).sessionId === session) : undefined;
   const name = (row as { name?: unknown } | undefined)?.name;
   if (typeof name === "string" && name.trim()) return name.trim();
-  return list.filter((c) => c.session === session && c.status === "running").sort((a, b) => b.updated.localeCompare(a.updated))[0]?.title;
+  return list.filter((c) => c.session === session && c.status !== "done").sort((a, b) => b.updated.localeCompare(a.updated))[0]?.title;
 }
 
 function openerName(session: string | undefined, root: string): string | undefined {

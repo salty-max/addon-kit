@@ -67,7 +67,7 @@ describe("session: its parts", () => {
     expect(env).toEqual({ PATH: "/bin", HOME: "/h", CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: "1", CLAUDE_CONFIG_DIR: "/c" });
   });
 
-  test("the opener: its display name, else its running card, never a card it finished", () => {
+  test("the opener: its display name, else its open card, never a card it finished", () => {
     const list = [
       { session: "s1", status: "done" as const, title: "Store pages", updated: "2026-10-25T19:30:00+01:00" },
       { session: "s1", status: "running" as const, title: "The kit audited", updated: "2026-10-25T10:00:00+01:00" },
@@ -78,6 +78,8 @@ describe("session: its parts", () => {
     expect(openerOf("s1", undefined, list)).toBe("The kit audited");
     expect(openerOf("s1", [{ sessionId: "s1", name: "  " }, null, "x"], list)).toBe("The kit audited");
     expect(openerOf("s1", { not: "a list" }, list.slice(0, 1))).toBeUndefined();
+    // (a card waiting on the user is still its session's: the user answers there, and may ask a new task)
+    expect(openerOf("s1", undefined, [...list, { session: "s1", status: "waiting-test" as const, title: "Waiting", updated: "2026-10-25T11:00:00+01:00" }])).toBe("Waiting");
   });
 
   test("the short id from claude's answer", () => {
@@ -174,7 +176,7 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     expect(readFileSync(events, "utf8")).toContain("\tsession\tok\tyonder\tEight riddles opened (opusplan) as abc12345");
   });
 
-  test("no display name: the opener's running card names it, not the one it finished last", () => {
+  test("no display name: the opener's open card names it, not the one it finished last", () => {
     expect(run(["T", "--repos", "yonder", "--kind", "code", "--", "x"], { STUB_AGENTS: "none" }).code).toBe(0);
     expect(given().argv[5]).toContain('The session "The kit audited" opened this one');
   });
