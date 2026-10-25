@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { baseline, commitCount, costOf, family, line, projectDirs, sessionFiles, spend, spendOf, summarise, turns, units, zero } from "./usage";
+import { baseline, commitCount, costOf, isCommit, family, line, projectDirs, sessionFiles, spend, spendOf, summarise, turns, units, zero } from "./usage";
 
 let tmp: string;
 beforeAll(() => {
@@ -24,6 +24,15 @@ describe("usage", () => {
     expect(family("claude-haiku-5-5")).toBe("haiku");
     expect(family("claude-mythos-5-1")).toBe("fable");
     expect(family("<synthetic>")).toBe("other");
+  });
+
+  test("isCommit: git commit segments only", () => {
+    expect(isCommit("git -C yonder commit -qm x")).toBe(true);
+    expect(isCommit("cd a && git add -A && git commit -qm x")).toBe(true);
+    expect(isCommit("git commit --amend --no-edit")).toBe(false);
+    expect(isCommit('cat <<E\ngit(repo, "commit", "-m")\nE')).toBe(false);
+    expect(isCommit("git log --oneline | grep commit")).toBe(false);
+    expect(isCommit("git -c user.name=t commit -qm x")).toBe(false);
   });
 
   test("commitCount: the git commit commands that did not fail", () => {

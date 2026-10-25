@@ -145,6 +145,11 @@ export function sessionFiles(dirs: string[], sid: string): { file: string; kind:
   return out;
 }
 
+/** A shell command that commits: some segment (split on && ; | and newlines) starts `git [-C dir] commit`, no --amend (it adds none). */
+export function isCommit(command: string): boolean {
+  return command.split(/&&|\|\||[;|\n]/).some((seg) => /^\s*git(\s+-C\s+\S+)*\s+commit\b/.test(seg) && !/--amend\b/.test(seg));
+}
+
 /** The commits a session made: its Bash `git commit` commands whose result was not an error (a hook's refusal is one; a commit the hooks let through prints nothing reliable, `-q` hides it, so the commands are counted, not the shas). */
 export function commitCount(lines: Iterable<string>): number {
   const commands = new Set<string>();
@@ -158,7 +163,7 @@ export function commitCount(lines: Iterable<string>): number {
         continue;
       }
       for (const c of Array.isArray(o?.message?.content) ? o.message.content : [])
-        if (c?.type === "tool_use" && c.name === "Bash" && /\bgit\b[^|;&\n]*\bcommit\b/.test(String(c.input?.command ?? ""))) commands.add(c.id);
+        if (c?.type === "tool_use" && c.name === "Bash" && isCommit(String(c.input?.command ?? ""))) commands.add(c.id);
     } else if (commands.size && line.includes('"tool_result"')) {
       let o: any;
       try {

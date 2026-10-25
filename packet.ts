@@ -37,7 +37,9 @@ function untrackedSize(top: string, files: string[]): [number, number] {
   for (const f of files) {
     try {
       const p = join(top, f);
-      if (statSync(p).size <= 1_000_000) lines += readFileSync(p, "utf8").split("\n").length;
+      if (statSync(p).size > 1_000_000) continue;
+      const text = readFileSync(p, "utf8");
+      if (!text.includes("\0")) lines += text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
     } catch {}
   }
   return [lines, files.length];

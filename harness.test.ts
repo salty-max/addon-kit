@@ -558,7 +558,7 @@ describe("packet", () => {
     expect(text).toContain("feat(expeditions): the pool rewritten");
     expect(text).toContain('trailers: AI co-author or "generated with" found');
     expect(text).toContain("- M expeditions/zone.md");
-    expect(text).toMatch(/Size: 2 files, \+3 −1 lines\. Read every changed file's diff/);
+    expect(text).toMatch(/Size: 2 files, \+2 −1 lines\. Read every changed file's diff/);
     expect(text).toContain("- A new.txt (untracked)");
     expect(text).toContain("card.ts isn't there yet");
     expect(text).toContain('z-pool: `bun wow-data/bin/card.ts place "Pool of Tears" --game classic`');
