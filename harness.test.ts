@@ -623,6 +623,36 @@ describe("review", () => {
     expect(reviewOf(repo)).toBeUndefined();
   });
 
+  test("a verdict wants a committed tree and doesn't overwrite one without --again", () => {
+    const { repo } = family();
+    const head = git(repo, "rev-parse", "HEAD").out.trim();
+    const file = join(repo, "tracked.txt");
+    writeFileSync(file, "one\n");
+    git(repo, "add", "tracked.txt");
+    git(repo, "commit", "-q", "-m", "chore: tracked");
+    const now = git(repo, "rev-parse", "HEAD").out.trim();
+    // Uncommitted changes to a tracked file: nothing recorded, on HEAD or the commit before.
+    writeFileSync(file, "two\n");
+    expect(record(repo, "clean")).toContain("commit first");
+    const cli = run(repo, ["bun", join(KIT, "review.ts"), repo, "clean"]);
+    expect(cli.code).toBe(1);
+    expect(reviewOf(repo)).toBeUndefined();
+    expect(reviewOf(repo, head)).toBeUndefined();
+    // An untracked file doesn't count.
+    git(repo, "checkout", "--", "tracked.txt");
+    writeFileSync(join(repo, "untracked.txt"), "x\n");
+    const first = record(repo, "first");
+    if (typeof first === "string") throw new Error(first);
+    // HEAD has a record: refused, the old verdict named, until --again.
+    const again = record(repo, "second");
+    expect(again).toContain("already has a verdict (first)");
+    expect(again).toContain("--again");
+    expect(reviewOf(repo)?.verdict).toBe("first");
+    expect(run(repo, ["bun", join(KIT, "review.ts"), repo, "second"]).code).toBe(1);
+    expect(run(repo, ["bun", join(KIT, "review.ts"), repo, "--again", "second"]).code).toBe(0);
+    expect(reviewOf(repo, now)?.verdict).toBe("second");
+  });
+
   test("the verdict keeps the range its reviewer read: HEAD's packet, else the newest HEAD is built on", () => {
     const { repo } = family();
     const sha = (rev: string) => git(repo, "rev-parse", rev).out.trim();
@@ -647,7 +677,7 @@ describe("review", () => {
     expect(reviewOf(repo)?.after).toEqual(r.after);
     // HEAD's own packet first, though an older one would do.
     expect(packet(repo)).not.toBeString();
-    const own = record(repo, "clean");
+    const own = record(repo, "clean", true);
     if (typeof own === "string") throw new Error(own);
     expect(own.tip).toBe(sha("HEAD"));
     // Pushed: next week's commit, its verdict recorded with no new packet, isn't

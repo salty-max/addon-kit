@@ -162,6 +162,9 @@ session once the reviewer has reported, writes
 `<git common dir>/harness/review-<HEAD sha>`, its first line `verdict: …`,
 and the range of the packet the reviewer read (`base:`, `tip:`; 21 October
 2026): the panel counts it only when that range reaches the upstream.
+It refuses on a dirty tracked tree and on a HEAD that already has a record
+(`--again` overwrites, the old verdict printed; 25 October 2026, after a
+verdict landed on ravenpost's previous commit).
 
 **What the "ask" rules hold** (Claude Code's permission docs, 20 October
 2026; the root `.claude/settings.json`):

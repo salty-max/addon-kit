@@ -5,6 +5,11 @@
  *
  *   bun addon-kit/review.ts <repo> "<verdict>"   recorded for HEAD
  *   bun addon-kit/review.ts <repo>               HEAD's verdict, if any
+ *   bun addon-kit/review.ts <repo> --again "<verdict>"   replace HEAD's verdict
+ *
+ * It refuses while tracked files have uncommitted changes (commit first: the
+ * verdict would land on the commit before) and when HEAD already has a verdict
+ * (the old one is printed; --again overwrites).
  *
  *   bun addon-kit/review.ts yonder "clean"
  *   bun addon-kit/review.ts yonder "2 findings, fixed in 1d0646a"
@@ -83,13 +88,17 @@ export function reviewOf(dir: string, sha?: string): Review | undefined {
   return existsSync(file) ? parseReview(readFileSync(file, "utf8")) : undefined;
 }
 
-export function record(dir: string, verdict: string): Review | string {
+export function record(dir: string, verdict: string, again = false): Review | string {
   const head = git(dir, "rev-parse", "--verify", "-q", "HEAD");
   const stamps = stampDir(dir);
   const top = git(dir, "rev-parse", "--show-toplevel");
   if (!head || !stamps || !top) return `${dir}: not a repository with a commit`;
   const one = verdict.replace(/\s+/g, " ").trim();
   if (!one) return "the verdict is empty";
+  // A verdict belongs to a commit: with the fix still uncommitted it would land on the one before.
+  if (git(dir, "status", "--porcelain", "--untracked-files=no")) return "tracked files have uncommitted changes: commit first, the verdict is recorded for HEAD";
+  const old = reviewOf(dir);
+  if (old && !again) return `HEAD ${head.slice(0, 7)} already has a verdict (${old.verdict}): --again to overwrite it`;
   const p = packetFor(top, head);
   const after = p && p.tip !== head ? (git(top, "log", "--format=%h %s", `${p.tip}..${head}`) ?? "").split("\n").filter(Boolean) : [];
   const r: Review = {
@@ -117,9 +126,11 @@ export function record(dir: string, verdict: string): Review | string {
 }
 
 if (import.meta.main) {
-  const [repo, ...words] = process.argv.slice(2);
+  const [repo, ...rest] = process.argv.slice(2);
+  const again = rest.includes("--again");
+  const words = rest.filter((w) => w !== "--again");
   if (!repo) {
-    console.error('usage: bun review.ts <repo> ["<verdict>"]');
+    console.error('usage: bun review.ts <repo> [--again] ["<verdict>"]');
     process.exit(2);
   }
   const dir = isAbsolute(repo) || repo.startsWith(".") ? resolve(repo) : join(familyRoot(), repo);
@@ -127,7 +138,7 @@ if (import.meta.main) {
     const r = reviewOf(dir);
     console.log(r ? `${r.verdict} (${r.at ?? "?"})` : "no verdict for HEAD");
   } else {
-    const r = record(dir, words.join(" "));
+    const r = record(dir, words.join(" "), again);
     if (typeof r === "string") {
       console.error(r);
       process.exit(1);

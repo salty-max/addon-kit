@@ -207,7 +207,7 @@ From `~/code/wow-addons`:
 bun addon-kit/hooks.ts status                  # each repository's hooks and HEAD's check stamp
 bun addon-kit/hooks.ts install yonder          # (or --all); uninstall puts its own hooks back
 bun addon-kit/packet.ts yonder [a..b]          # the reviewer's packet: .cache/review/<sha>.md
-bun addon-kit/review.ts yonder "2 findings"    # the reviewer's verdict, recorded for HEAD
+bun addon-kit/review.ts yonder "2 findings"    # the reviewer's verdict, recorded for HEAD (a clean tree; --again to replace)
 bun addon-kit/board.ts add yonder "Eight riddles" --repos yonder,wow-data   # a session's first write: running
 bun addon-kit/board.ts set yonder-eight-riddles --status waiting-test --try "…"
 bun addon-kit/board.ts set yonder-eight-riddles --on wow-data-trainers     # blocked, waiting on that card
@@ -263,6 +263,9 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   repository no remote has ever seen its whole history) is the one that
   counts. The commits after the tip the reviewer read are written down
   (`after:`) and said, with a louder line when one isn't a fix.
+  review.ts refuses while tracked files have uncommitted changes (the verdict
+  would land on the commit before) and when HEAD already has a verdict (the
+  old one is printed, `--again` replaces it).
 - **board.ts**: one card a task in `~/code/wow-addons/board/`, its
   front matter written only here, whole (beside it, then moved in: a
   reader never sees one cut); a new card is linked in under a name no
