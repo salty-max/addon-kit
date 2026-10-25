@@ -2997,6 +2997,146 @@ function K.movable(window, width, height, place)
   window:Hide()
 end
 
+-- ── the book ─────────────────────────────────────────────────────────────────
+-- A book's window, the family's one: the game's window (the book's portrait,
+-- the title bar), else a plain dialog where the client has no such template,
+-- movable; the count beside the portrait; the list's column on the left and
+-- the page on the right, under the title bar; the search box at the top of
+-- the list's column (its left edge holds the glass); under it the open tab's
+-- own select, if it has one; the tabs along the bottom. Each tab a table of
+-- its own, built on first showing: told which tab shows, refreshed (with
+-- true on showing and on a choice in its select: its picked-out row into
+-- view).
+--   B = K.book({ name = "MealbookFrame", title = "Mealbook", art = the portrait,
+--     titles = { the tabs' }, first = 1, search = "MealbookSearch" (its name),
+--     searchRight = -12 (room beside it: -34 for a button), settle = 0.3,
+--     filter = true (the select under the search: a tab with one) })
+--   B:add(n, { build(frame), show(n), refresh(scroll), chosen() (its tab clicked),
+--     whole (over both panels), filter = { default, options() } })
+--   B:show(n), B:refresh(scroll), B:open(n), B:toggle(), B:window() (made on
+--   first use), B:changed() (a refresh settle seconds later, while shown),
+--   B:filterOf(n), B:setFilter(n, value), B.frame (left, sheet, search, count, filter)
+function K.book(o)
+  local B = { tabs = {} }
+  function B:add(n, tab) self.tabs[n] = tab end
+  function B:refresh(scroll)
+    local f = self.frame
+    local tab = f and self.tabs[f.selectedTab]
+    if tab and tab.built then tab.refresh(scroll) end
+  end
+  -- A tab's choice in its select, else its default; kept for the session.
+  function B:filterOf(n)
+    local tab = self.tabs[n]
+    if not (tab and tab.filter) then return nil end
+    if tab.filterValue == nil then return tab.filter.default end
+    return tab.filterValue
+  end
+  function B:setFilter(n, value)
+    if self.tabs[n] and self.tabs[n].filter then self.tabs[n].filterValue = value end
+  end
+  -- The tab n shown (built on first showing).
+  function B:show(n)
+    local f = self.frame
+    if not f then return end
+    f.selectedTab = n
+    if PanelTemplates_SetTab then PanelTemplates_SetTab(f, n) end
+    local tab = self.tabs[n]
+    if not tab.built then
+      tab.build(f)
+      tab.built = true
+    end
+    -- (a tab over both panels, an achievements' board: the list, the sheet,
+    -- the search and the select put away)
+    f.left:SetShown(not tab.whole)
+    f.sheet:SetShown(not tab.whole)
+    f.search:SetShown(not tab.whole)
+    if f.filter and tab.filter and not tab.whole then
+      f.filter:SetOptions(tab.filter.options())
+      f.filter:SetValue(self:filterOf(n))
+      f.filter:Show()
+    elseif f.filter then
+      f.filter:Hide()
+    end
+    -- (each tab told once, one registered under two numbers too)
+    local told = {}
+    for _, t in ipairs(self.tabs) do
+      if t.built and not told[t] then
+        told[t] = true
+        t.show(n)
+      end
+    end
+    self:refresh(true)
+  end
+  local function build()
+    local window = K.gameWindow(o.name, o.title, o.art)
+    local f = window or K.dialog(o.name, o.title)
+    B.frame = f
+    K.movable(f, 780, 560)
+    local edge = window and 8 or 14
+    f.count = K.label(f, K.BODY_FONT, 11, T.gold)
+    f.count:SetPoint("TOPLEFT", 64, -36)
+    f.left = K.panel(f, true)
+    f.left:SetPoint("TOPLEFT", edge, -58)
+    f.left:SetPoint("BOTTOMLEFT", edge, edge)
+    f.left:SetWidth(244)
+    f.sheet = K.panel(f)
+    f.sheet:SetPoint("TOPLEFT", f.left, "TOPRIGHT", 4, 32)
+    f.sheet:SetPoint("BOTTOMRIGHT", -edge, edge)
+    f.search = CreateFrame("EditBox", o.search, f, "SearchBoxTemplate")
+    f.search:SetHeight(20)
+    f.search:SetPoint("TOPLEFT", f.left, "TOPLEFT", 18, -10)
+    f.search:SetPoint("TOPRIGHT", f.left, "TOPRIGHT", o.searchRight or -12, -10)
+    f.search:HookScript("OnTextChanged", function() B:refresh() end)
+    if o.filter then
+      f.filter = K.select(f.left, 220, "")
+      f.filter:SetPoint("TOPLEFT", f.left, "TOPLEFT", 12, -38)
+      f.filter.onChange = function(value)
+        B.tabs[f.selectedTab].filterValue = value
+        B:refresh(true)
+      end
+      f.filter:Hide()
+    end
+    f.selectedTab = o.first or 1
+    f:SetScript("OnShow", function() B:show(f.selectedTab) end)
+    K.tabs(f, o.titles, function(n)
+      local chosen = B.tabs[n].chosen
+      if chosen then chosen() end
+      B:show(n)
+    end)
+  end
+  function B:window()
+    if not self.frame then build() end
+    return self.frame
+  end
+  function B:toggle()
+    local f = self:window()
+    f:SetShown(not f:IsShown())
+  end
+  -- The book open at a tab (the page it shows chosen by the caller).
+  function B:open(n)
+    local f = self:window()
+    f.selectedTab = n
+    if f:IsShown() then
+      self:show(n)
+    else
+      f:Show() -- (its OnShow shows the tab)
+    end
+  end
+  -- What the game tells while the book is open shows a moment later (a batch
+  -- of events, one refresh).
+  local pending = false
+  function B:changed()
+    local f = self.frame
+    if not (f and f:IsShown()) or pending then return end
+    pending = true
+    C_Timer.After(o.settle or 0.3, function()
+      pending = false
+      B:refresh()
+    end)
+  end
+  return B
+end
+
 -- ── the minimap button ───────────────────────────────────────────────────────
 -- The book's button on the minimap: click to open the book, right-click for
 -- its settings, drag to move it around the minimap; made of the game's own

@@ -9,7 +9,10 @@ windows are made of (the list on the left, the page on the right and every part
 of a page, a board of achievements, a strip of figures, a select), the banners
 that tell of a deed done (in the game's own stack of alerts), each character's
 settings (copied from another character or by a code) and the welcome page that
-offers them. And what every addon does the same way: the slash command
+offers them. And what every addon does the same way: the book's window
+(`K.book`: the game's window, its two panels, the search and a tab's select,
+the tabs, a refresh that waits for a batch of events), its list (`K.list`),
+places by the client's names (`K.places`, `K.areaName`), the slash command
 (`K.commands`: alone it opens the book, an unknown word prints the usage, the
 replies capitalised), the Options page (`K.options`), the achievements
 (`K.deeds`, `K.deedsTab`: the game's fanfare and alert behind a switch, a chat
