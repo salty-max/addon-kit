@@ -89,8 +89,10 @@ as the app's notes).
     line;
   - a CLI child: `bun addon-kit/session.ts close <id>`.
 
-  Refused as busy (it has just sent its report): SendMessage to it with
-  `notify_when_idle: true` and close on the notice. Refused for anything
+  Refused as busy (it has just sent its report): a desktop child's end of
+  turn reaches this session as the app's note, close on it (SendMessage's
+  `notify_when_idle` doesn't reach desktop sessions); a CLI child: SendMessage
+  to it with `notify_when_idle: true` and close on the notice. Refused for anything
   else: tell the user why. `--force` (or an archive past a refusal) only
   on the user's word.
 - **Dropped** (its card done, nothing pushed, the user's call): check its
