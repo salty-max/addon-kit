@@ -845,15 +845,16 @@ end
 -- out (and kept in view). style(row, kind) places a row's parts for its kind
 -- and returns its height; each tab has its own kinds. rows: the pool of rows
 -- (made at the tab's load, for the tests); filtered: under the select of a
--- tab with one.
---   l = K.list(parent, style, rows, filtered)
+-- tab with one; name: the scroll area's global name, if wanted.
+--   l = K.list(parent, style, rows, filtered, name)
 --   l:begin(), l:add(kind, text, count) (a row), l:grow(row, by), l:gap(by),
---   l:pick(row) (the one the page shows), l:finish()
+--   l:pick(row) (the one the page shows), l:finish(scroll) (scroll false:
+--   the picked row left where it is, out of view or not: a fold clicked)
 K.ROW_WIDTH = 204
 local List = {}
 
-function K.list(parent, style, rows, filtered)
-  local l = extend(K.scrollArea(parent, K.ROW_WIDTH), List)
+function K.list(parent, style, rows, filtered, name)
+  local l = extend(K.scrollArea(parent, K.ROW_WIDTH, name), List)
   l.rows, l.style = rows or {}, style
   l:SetPoint("TOPLEFT", parent, "TOPLEFT", 12, filtered and -70 or -40)
   l:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -18, 12)
@@ -920,19 +921,27 @@ function List:pick(r)
   self.selectedY = self.y
 end
 
-function List:finish()
+function List:finish(scroll)
   self.child:SetHeight(self.y + 8)
   self:UpdateThumb()
   local y = self.selectedY
-  if y then
+  if y and scroll ~= false then
     local top, height = self:GetVerticalScroll(), self:GetHeight()
     if y - 18 < top or y > top + height then self:ScrollTo(y - height / 2) end
   end
 end
 
--- A row's fold mark: open (minus) or folded (plus).
+-- A row's fold mark, or a button's (a fold-all beside the search): open
+-- (minus) or folded (plus).
 local PLUS, MINUS = "Interface\\Buttons\\UI-PlusButton-Up", "Interface\\Buttons\\UI-MinusButton-Up"
-function K.fold(r, open) r.fold:SetTexture(open and MINUS or PLUS) end
+function K.fold(r, open)
+  local mark = open and MINUS or PLUS
+  if type(r.fold) == "table" then
+    r.fold:SetTexture(mark)
+  else
+    r:SetNormalTexture(mark)
+  end
+end
 
 -- ── the page ─────────────────────────────────────────────────────────────────
 -- The sheet on the right of a book: a header (a round portrait and its medal,
