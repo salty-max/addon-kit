@@ -450,6 +450,32 @@ folder and prints the new session's id and how to attach. What it holds:
 - Tests (`session.test.ts`) run it whole with a stub `claude` on the PATH
   that records what it was given: no real session.
 
+**Reports and closing** (25 October 2026, the user: children should tell
+their opener when they are done and when they pushed, and the opener
+should close them once it has checked their work). The opener's address
+comes from Claude Code's session registry (`~/.claude/sessions/<pid>.json`:
+`messagingSocketPath`, `name`), read by session.ts in place of `claude
+agents --json`: the child's prompt has it report by SendMessage (to
+`uds:<socket>`, else the name) each time its card stops running and once
+pushed, never close itself, and write nothing after the last report.
+Children had reported before when told in the moment (the usage counter
+fix to the kit audit, the opusplan correction answered), never by rule.
+Each opening leaves `<family>/.cache/harness/opened/<id>.json` (opener,
+title, repositories). `session.ts children [--all]` lists them with their
+state (the registry's status, or closed) and cards, `close <id>` decides
+by `verdict()` and runs `claude stop` (the conversation kept, `claude
+attach` resumes it, usage.ts still reads it). Never closed: a child busy
+or waiting (a just-sent report leaves it busy for a moment: the opener
+subscribes to its idle notice, SendMessage `notify_when_idle`, and closes
+then). Closed only with `--force`, the user's word: one this session
+didn't open (the first try closed the long-lived kit audit session, idle
+and its card done, from a command meant to show a refusal), one with no
+card or an open card, a repository with commits unpushed or uncommitted
+changes that no other open card explains (one that does is a note: those
+may be the other card's). A child waiting on the user stays open: the
+user answers there. A repository with no upstream is a note: its
+unpushed commits can't be told.
+
 **The panel**: a session opened this way is in Claude Code's registry like
 any other (`kind: "bg"`, `entrypoint: "cli"`, its `-n` name), so the
 Sessions box shows it with its card (by its id, once the card is written).

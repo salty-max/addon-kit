@@ -217,6 +217,8 @@ bun addon-kit/board.ts held [yonder]           # who holds what; exit 1 when ano
 bun addon-kit/board.ts may yonder              # exit 1 unless this session's running card may write it (pre-commit asks)
 bun addon-kit/session.ts "Eight riddles" --repos yonder,wow-data --kind code -- "<the task>"
                                                # a new task in a session of its own (--dry-run, --plan)
+bun addon-kit/session.ts children [--all]      # the sessions this one opened, and what keeps each open
+bun addon-kit/session.ts close <id> [--force]  # a finished child closed (claude stop), once checked
 bun addon-kit/usage.ts [--since d] [--baseline]  # what the cards cost: dollars per session, card and commit (docs/usage-baseline.md)
 bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the same for Python)
 bun addon-kit/events.ts [n]                    # the harness's last n events, as the panel's log reads them
@@ -313,8 +315,17 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   a design settled first (Opus plans, then one stop for the user's
   approval, which leaving plan mode always asks; no card shows that wait,
   so the output says it, for the opener to tell the user). `--dry-run` prints the
-  command and the prompt and starts nothing. Tests stub `claude` on the
-  PATH (`session.test.ts`).
+  command and the prompt and starts nothing. The prompt gives the child
+  its opener's address (the socket in Claude Code's session registry,
+  else its name): it reports by SendMessage each time its card stops
+  running and once it has pushed. Each opening leaves
+  `.cache/harness/opened/<id>.json`; `children` lists this session's,
+  `close <id>` runs `claude stop` (the conversation kept) and drops the
+  record. It refuses a child that is busy or waiting (always), and,
+  without `--force` (the user's word), one this session didn't open, one
+  with no card or an open one, or a repository of it with commits
+  unpushed or uncommitted changes no other open card explains. Tests stub
+  `claude` on the PATH (`session.test.ts`).
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
   directory, else up from the repository's main checkout (so a worktree
   anywhere finds `addon-kit/` and `wow-data/`). Each addon carries a copy in

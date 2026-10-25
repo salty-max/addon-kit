@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { cleanEnv, command, idOf, openerOf, parse, prompt } from "./session";
+import { type Live, cleanEnv, command, idOf, openerOf, parse, prompt, registry, verdict } from "./session";
 
 describe("session: its parts", () => {
   test("the title, the repositories, the kind and the task after --", () => {
@@ -36,7 +36,7 @@ describe("session: its parts", () => {
   });
 
   test("the prompt: the maps, the card, the model, the task, in that order", () => {
-    const p = prompt({ title: 'The "Duskwood" riddles', repos: ["yonder", "wow-data"], kind: "code", plan: false, task: "Five riddles." }, "The kit audited");
+    const p = prompt({ title: 'The "Duskwood" riddles', repos: ["yonder", "wow-data"], kind: "code", plan: false, task: "Five riddles." }, { name: "The kit audited" });
     const at = (s: string) => p.indexOf(s);
     expect(p.startsWith('A new task from the user. The session "The kit audited" opened this one for it')).toBe(true);
     expect(p).toContain("bun addon-kit/board.ts add yonder \"The \\\"Duskwood\\\" riddles\" --repos yonder,wow-data --status running");
@@ -85,9 +85,78 @@ describe("session: its parts", () => {
     expect(openerOf("s1", undefined, [...list, { session: "s1", status: "waiting-test" as const, title: "Waiting", updated: "2026-10-25T11:00:00+01:00" }])).toBe("Waiting");
   });
 
+  test("the registry: live rows read, dead pids and junk skipped, a missing folder nothing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "registry-test-"));
+    try {
+      writeFileSync(join(dir, `${process.pid}.json`), JSON.stringify({ pid: process.pid, sessionId: "e5a0fd61-0b4d", kind: "bg", jobId: "e5a0fd61", name: "kit-addon-audit", status: "idle", messagingSocketPath: "/tmp/cc-socks/1.sock" }));
+      writeFileSync(join(dir, "2.json"), JSON.stringify({ pid: process.pid, sessionId: "971e2d60-df57" }));
+      writeFileSync(join(dir, "3.json"), JSON.stringify({ pid: 2147483000, sessionId: "dead" }));
+      writeFileSync(join(dir, "4.json"), "{ not json");
+      writeFileSync(join(dir, "5.json"), JSON.stringify({ pid: "x" }));
+      writeFileSync(join(dir, "notes.txt"), "x");
+      const rows = registry(dir);
+      expect(rows).toHaveLength(2);
+      expect(rows.find((r) => r.sessionId === "e5a0fd61-0b4d")).toEqual({ pid: process.pid, sessionId: "e5a0fd61-0b4d", job: "e5a0fd61", name: "kit-addon-audit", status: "idle", socket: "/tmp/cc-socks/1.sock" });
+      // (no jobId: the short id is the session id's first 8)
+      expect(rows.find((r) => r.sessionId === "971e2d60-df57")?.job).toBe("971e2d60");
+      expect(registry(join(dir, "missing"))).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the prompt: the report to the opener, before the background paragraph", () => {
+    const a = { title: "T", repos: ["a"], kind: "code" as const, plan: false, task: "x" };
+    const both = prompt(a, { name: "kit-addon-audit", socket: "/tmp/cc-socks/56581.sock" });
+    expect(both).toContain('Report to the session that opened you with SendMessage, to "uds:/tmp/cc-socks/56581.sock" (else to its name, "kit-addon-audit"): a few lines each time your card stops running');
+    expect(both).toContain("never close it yourself, and after that last report write nothing more.");
+    expect(both.indexOf("Report to the session")).toBeLessThan(both.indexOf("You run in the background"));
+    expect(both.indexOf("The task:")).toBeLessThan(both.indexOf("Report to the session"));
+    expect(prompt(a, { name: "kit-addon-audit" })).toContain('SendMessage, to "kit-addon-audit": a few lines');
+    expect(prompt(a, { socket: "/tmp/s.sock" })).toContain('SendMessage, to "uds:/tmp/s.sock": a few lines');
+    expect(prompt(a, { socket: "/tmp/s.sock" })).toContain("Another session opened this one");
+    expect(prompt(a)).not.toContain("Report to the session");
+    expect(prompt(a, {})).not.toContain("Report to the session");
+  });
+
   test("the short id from claude's answer", () => {
     expect(idOf("backgrounded · 1f8f36b9 · Harness: sessions opened by sessions\n  claude agents             list sessions")).toBe("1f8f36b9");
     expect(idOf("Error: unknown model")).toBeUndefined();
+  });
+});
+
+describe("session: whether a child may close", () => {
+  const live = (status: string): Live => ({ pid: 1, sessionId: "abc12345-x", job: "abc12345", status });
+  const card = (status: string, id = "c1") => ({ id, status }) as never;
+  const clean = { repo: "yonder", ahead: 0, dirty: false, others: [] as string[] };
+  const ok = { live: live("idle"), cards: [card("done")], repos: [clean], force: false };
+
+  test("idle, done, clean: closable", () => {
+    expect(verdict(ok)).toEqual({ ok: true, why: [], notes: [] });
+  });
+
+  test("a busy or waiting child is never closed, --force or not", () => {
+    expect(verdict({ ...ok, live: live("busy") })).toMatchObject({ ok: false, why: ["it is busy: mid-turn"] });
+    expect(verdict({ ...ok, live: live("waiting"), force: true })).toMatchObject({ ok: false, why: ["it is waiting"] });
+  });
+
+  test("no card, an open card, unpushed commits, changes: refused, and --force goes past them", () => {
+    expect(verdict({ ...ok, cards: [] }).why).toEqual(["it wrote no card"]);
+    expect(verdict({ ...ok, cards: [card("running", "kit-x")] }).why).toEqual(["card kit-x is running"]);
+    expect(verdict({ ...ok, repos: [{ ...clean, ahead: 2 }] }).why).toEqual(["yonder: 2 commits unpushed"]);
+    expect(verdict({ ...ok, repos: [{ ...clean, ahead: 1, dirty: true }] }).why).toEqual(["yonder: 1 commit unpushed, uncommitted changes"]);
+    expect(verdict({ ...ok, repos: [{ ...clean, dirty: true }] }).why).toEqual(["yonder: uncommitted changes"]);
+    const forced = verdict({ ...ok, cards: [], repos: [{ ...clean, dirty: true }], force: true });
+    expect(forced.ok).toBe(true);
+    expect(forced.why).toEqual([]);
+  });
+
+  test("notes: already closed, another card there, no upstream", () => {
+    expect(verdict({ ...ok, live: undefined })).toEqual({ ok: true, why: [], notes: ["already closed"] });
+    const near = verdict({ ...ok, repos: [{ ...clean, ahead: 2, others: ["kit-y"] }] });
+    expect(near.ok).toBe(true);
+    expect(near.notes).toEqual(["yonder: 2 commits unpushed, kit-y is open there too: check they aren't this session's"]);
+    expect(verdict({ ...ok, repos: [{ ...clean, ahead: -1 }] })).toEqual({ ok: true, why: [], notes: ["yonder: no upstream to compare"] });
   });
 });
 
@@ -97,6 +166,8 @@ describe("session: a run, claude stubbed", () => {
   let bin: string;
   let seen: string;
   let events: string;
+  let config: string;
+  const row = (name: string, o: Record<string, unknown>) => writeFileSync(join(config, "sessions", name), JSON.stringify({ pid: process.pid, ...o }));
 
   beforeAll(() => {
     tmp = realpathSync(mkdtempSync(join(tmpdir(), "session-test-")));
@@ -111,6 +182,22 @@ describe("session: a run, claude stubbed", () => {
       join(root, "board", "addon-kit-store-pages.md"),
       '---\nrepo: addon-kit\ntitle: Store pages\nstatus: done\nsession: s-opener\nupdated: "2026-10-25T19:30:00+01:00"\n---\n## Try\n\nx\n',
     );
+    // (a tmp git repo for the child's work: clean, one commit, no upstream)
+    const git = (...a: string[]) => expect(Bun.spawnSync(["git", "-C", join(root, "wow-data"), ...a]).exitCode).toBe(0);
+    git("init", "-q");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "--no-verify", "-m", "x");
+    // (Claude Code's registry: the opener alone; a pid that runs, so it counts as live)
+    config = join(tmp, "config");
+    mkdirSync(join(config, "sessions"), { recursive: true });
+    row(`${process.pid}.json`, { sessionId: "s-opener", kind: "interactive", name: "kit-addon-audit", status: "busy", messagingSocketPath: "/tmp/cc-socks/56581.sock" });
+    writeFileSync(
+      join(root, "board", "wow-data-the-child.md"),
+      '---\nrepo: wow-data\ntitle: The child\nstatus: done\nsession: abc12345-6789-aaaa\nupdated: "2026-10-25T20:00:00+01:00"\nrepos: wow-data\n---\n## Try\n\nx\n',
+    );
+    writeFileSync(
+      join(root, "board", "wow-data-the-slow-one.md"),
+      '---\nrepo: wow-data\ntitle: The slow one\nstatus: running\nsession: def67890-1111-bbbb\nupdated: "2026-10-25T20:00:00+01:00"\nrepos: wow-data\nsince: "wow-data@2026-10-25T20:00:00.000+01:00"\n---\n## Try\n\nx\n',
+    );
     bin = join(tmp, "bin");
     mkdirSync(bin);
     seen = join(tmp, "seen.json");
@@ -120,9 +207,9 @@ describe("session: a run, claude stubbed", () => {
       join(bin, "claude"),
       `#!${process.execPath}
 const { writeFileSync } = require("node:fs");
-if (process.argv[2] === "agents") {
-  if (process.env.STUB_AGENTS === "none") process.exit(1);
-  console.log(JSON.stringify([{ id: "e5a0fd61", sessionId: "s-opener", name: "kit-addon-audit" }, { sessionId: "s-other", name: "Other" }]));
+if (process.argv[2] === "stop") {
+  writeFileSync(process.env.STUB_SEEN, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), env: process.env }));
+  if (process.env.STUB === "stopfail") { console.error("error: no such job"); process.exit(4); }
   process.exit(0);
 }
 writeFileSync(process.env.STUB_SEEN, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), env: process.env }));
@@ -149,6 +236,7 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
         CLAUDECODE: "1",
         CLAUDE_CODE_SESSION_ID: "s-opener",
         CLAUDE_JOB_DIR: "/jobs/opener",
+        CLAUDE_CONFIG_DIR: config,
         CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: "1",
         ...more,
       },
@@ -167,6 +255,7 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     expect(g.argv).toHaveLength(6);
     expect(g.argv[5]).toContain('The session "kit-addon-audit" opened this one');
     expect(g.argv[5]).toContain("Write eight riddles.");
+    expect(g.argv[5]).toContain('Report to the session that opened you with SendMessage, to "uds:/tmp/cc-socks/56581.sock" (else to its name, "kit-addon-audit")');
     expect(g.cwd).toBe(root);
     expect(g.env.CLAUDE_CODE_SESSION_ID).toBeUndefined();
     expect(g.env.CLAUDECODE).toBeUndefined();
@@ -178,10 +267,84 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     // (the opener's card holds yonder: the new session will block on it)
     expect(r.err).toContain("note: yonder is held by addon-kit-the-kit-audited (running)");
     expect(readFileSync(events, "utf8")).toContain("\tsession\tok\tyonder\tEight riddles opened (opusplan) as abc12345");
+    const rec = JSON.parse(readFileSync(join(root, ".cache", "harness", "opened", "abc12345.json"), "utf8"));
+    expect(rec).toMatchObject({ id: "abc12345", title: "Eight riddles", repos: ["yonder"], kind: "code", plan: false, opener: "s-opener", openerName: "kit-addon-audit" });
+    expect(Number.isNaN(Date.parse(rec.at))).toBe(false);
+  });
+
+  test("children: the ones this session opened, their state and what keeps them open", () => {
+    expect(run(["Eight riddles", "--repos", "wow-data", "--kind", "code", "--", "x"]).code).toBe(0);
+    // (the child lives, idle, with its card done)
+    row("424242.json", { sessionId: "abc12345-6789-aaaa", kind: "bg", jobId: "abc12345", status: "idle" });
+    const r = run(["children"]);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("abc12345  idle  Eight riddles  [done]  → close: bun addon-kit/session.ts close abc12345");
+    // (another opener's record is not listed, unless --all)
+    const dir = join(root, ".cache", "harness", "opened");
+    writeFileSync(join(dir, "def67890.json"), JSON.stringify({ id: "def67890", title: "Slow", repos: ["wow-data"], kind: "code", plan: false, opener: "s-else", openerName: null, at: "2026-10-25T20:00:00.000Z" }));
+    expect(run(["children"]).out).not.toContain("def67890");
+    expect(run(["children", "--all"]).out).toContain("def67890  closed  Slow  [running]  card wow-data-the-slow-one is running");
+    expect(run(["children"], { CLAUDE_CODE_SESSION_ID: "s-nobody" }).out.trim()).toBe("no children");
+    rmSync(join(dir, "def67890.json"));
+  });
+
+  test("close: a finished idle child is stopped and its record dropped", () => {
+    expect(run(["Eight riddles", "--repos", "wow-data", "--kind", "code", "--", "x"]).code).toBe(0);
+    row("424242.json", { sessionId: "abc12345-6789-aaaa", kind: "bg", jobId: "abc12345", status: "idle" });
+    const r = run(["close", "abc12345"]);
+    expect(r.err).toBe("");
+    expect(r.code).toBe(0);
+    expect(given().argv).toEqual(["stop", "abc12345"]);
+    expect(given().cwd).toBe(root);
+    expect(existsSync(join(root, ".cache", "harness", "opened", "abc12345.json"))).toBe(false);
+    expect(r.out).toContain('closed "Eight riddles" (abc12345)');
+    expect(r.out).toContain("note: wow-data: no upstream to compare");
+    expect(readFileSync(events, "utf8")).toContain("\tsession\tok\twow-data\tEight riddles closed (abc12345)");
+  });
+
+  test("close: a card still running refuses, --force closes, a busy child never", () => {
+    const dir = join(root, ".cache", "harness", "opened");
+    writeFileSync(join(dir, "def67890.json"), JSON.stringify({ id: "def67890", title: "Slow", repos: ["wow-data"], kind: "code", plan: false, opener: "s-opener", openerName: null, at: "2026-10-25T20:00:00.000Z" }));
+    row("515151.json", { sessionId: "def67890-1111-bbbb", kind: "bg", jobId: "def67890", status: "idle" });
+    const no = run(["close", "def67890"]);
+    expect(no.code).toBe(1);
+    expect(no.err).toContain("not closed: card wow-data-the-slow-one is running");
+    expect(existsSync(seen)).toBe(false);
+    expect(existsSync(join(dir, "def67890.json"))).toBe(true);
+    expect(readFileSync(events, "utf8")).toContain("\tsession\tfail\twow-data\tSlow not closed (def67890)");
+    row("515151.json", { sessionId: "def67890-1111-bbbb", kind: "bg", jobId: "def67890", status: "busy" });
+    const busy = run(["close", "def67890", "--force"]);
+    expect(busy.code).toBe(1);
+    expect(busy.err).toContain("it is busy: mid-turn");
+    expect(existsSync(seen)).toBe(false);
+    row("515151.json", { sessionId: "def67890-1111-bbbb", kind: "bg", jobId: "def67890", status: "idle" });
+    // (a stop that fails keeps the record)
+    expect(run(["close", "def67890", "--force"], { STUB: "stopfail" }).code).toBe(4);
+    expect(existsSync(join(dir, "def67890.json"))).toBe(true);
+    const yes = run(["close", "def67890", "--force"]);
+    expect(yes.code).toBe(0);
+    expect(given().argv).toEqual(["stop", "def67890"]);
+    expect(existsSync(join(dir, "def67890.json"))).toBe(false);
+  });
+
+  test("close: a session this one didn't open refuses (--force on the user's word), a bad id the usage", () => {
+    const r = run(["close", "aaaaaaaa"]);
+    expect(r.code).toBe(1);
+    expect(r.err).toContain("not closed: this session didn't open it (no record from session.ts)");
+    expect(r.err).toContain("it wrote no card");
+    // (another session's child: its opener checks it)
+    const dir = join(root, ".cache", "harness", "opened");
+    writeFileSync(join(dir, "fed00000.json"), JSON.stringify({ id: "fed00000", title: "Theirs", repos: ["wow-data"], kind: "code", plan: false, opener: "s-else", openerName: "Else", at: "2026-10-25T20:00:00.000Z" }));
+    const theirs = run(["close", "fed00000"]);
+    expect(theirs.code).toBe(1);
+    expect(theirs.err).toContain("not closed: another session opened it (Else)");
+    expect(existsSync(join(dir, "fed00000.json"))).toBe(true);
+    expect(run(["close", "fed00000", "--force"]).out).toContain("note: forced past: another session opened it (Else)");
+    expect(run(["close", "x/../y"]).code).toBe(2);
   });
 
   test("no display name: the opener's open card names it, not the one it finished last", () => {
-    expect(run(["T", "--repos", "yonder", "--kind", "code", "--", "x"], { STUB_AGENTS: "none" }).code).toBe(0);
+    expect(run(["T", "--repos", "yonder", "--kind", "code", "--", "x"], { CLAUDE_CONFIG_DIR: join(tmp, "empty") }).code).toBe(0);
     expect(given().argv[5]).toContain('The session "The kit audited" opened this one');
   });
 
