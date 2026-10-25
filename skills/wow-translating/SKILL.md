@@ -53,9 +53,16 @@ translation keeps its paragraph marks and records its English's hash.
   genders the reader. Dangers: Ruhig, Bewacht, Gefährlich, Tödlich,
   Umkämpft. Most Classic city names stay English on a German client.
 - **Spanish** (flagged until a native reader): neutral, tú; one esES
-  catalog shared by esMX, which keeps its own game names (regional files:
-  `i18n/esMX/regional.json` or `prose-names.json`, explicit and not
-  cascading) and metadata (decimal point). Second Wind: informe, combate
+  catalog shared by esMX. esMX's game names are wow-data's, held once: where
+  its client has none, wow-data lends esES's (source `esES`); an addon never
+  types one. `i18n/esMX/regional.json` is `{ "names": [esES game names],
+  "words": { esES: esMX } }`: `names` lists the esES spelling only,
+  `bun scripts/root.ts --run addon-kit/regional.ts` fills esMX's from the
+  databases into `regional.resolved.json` (what the loaders swap; fails on
+  a name wow-data lacks or gives two ways, and on a word that is a game
+  name); `words` keeps only what is no game name (prose words, a name with
+  its article or ending, a form the translation itself wrote). Metadata
+  (decimal point) stays the addon's. Second Wind: informe, combate
   casi mortal, recursos de emergencia. Keyring: minimapa, botón, cajón,
   llave, opciones. Hearthtale: diario, entrada, Salón de los Caídos.
 - **Every language**: no semicolons (gender tokens' own `;` aside); tile

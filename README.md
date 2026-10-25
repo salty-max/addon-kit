@@ -150,6 +150,21 @@ project with `--vercel <dir>`; it checks the token's shape first
 prints the value. Their pure parts are tested in `tools.test.ts` (`bun
 test`).
 
+## Regional names
+
+A game name is held once, in wow-data (26 October 2026): esMX takes esES's
+name where its client has none (source `esES`), and an addon that reads
+esES's prose for esMX never types a game name of esMX's. `regional.ts`
+resolves the addon's `i18n/esMX/regional.json` (`names`: esES game names;
+`words`: what is no game name) against the databases into
+`regional.resolved.json`, which the addon's loaders swap:
+
+```bash
+bun scripts/root.ts --run addon-kit/regional.ts            # write it
+bun scripts/root.ts --run addon-kit/regional.ts --check    # stale? (the addon's check)
+bun scripts/root.ts --run addon-kit/regional.ts --migrate  # words that are game names move to names, once
+```
+
 ## Saved ids
 
 A table naming the ids a saved file keeps (a journal's creatures, quests,
