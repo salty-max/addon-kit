@@ -65,7 +65,8 @@ its own.
   tells the user its name and how to attach and writes nothing for it.
   Small follow-ups of the same thread stay. "No session hands writing work
   to another session" still holds for a task's own work: no session
-  delegates its own task, and the helpers stay read-only.
+  delegates its own task, except to the one `builder` helper (the family's
+  CLAUDE.md lists its conditions), and the other helpers stay read-only.
 - **claude-mem** keeps running but skips Read, Bash, Grep and Glob.
 - **A spring cleanup** of every folder, last.
 
