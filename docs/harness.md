@@ -35,6 +35,13 @@ its own.
 - **Models by kind.** `opusplan` for code and mechanical work (this build
   included), full Opus for prose, voices, translations and design. Helpers
   unchanged: reviewer Opus, data-scout and prose-reader Sonnet.
+- **Sessions open sessions** (25 October 2026, the user: "It would be
+  handy for you to open the sessions"). A new task asked in a session that
+  has its own is opened by that session (`session.ts`, G below), which
+  tells the user its name and how to attach and writes nothing for it.
+  Small follow-ups of the same thread stay. "No session hands writing work
+  to another session" still holds for a task's own work: no session
+  delegates its own task, and the helpers stay read-only.
 - **claude-mem** keeps running but skips Read, Bash, Grep and Glob.
 - **A spring cleanup** of every folder, last.
 
@@ -368,6 +375,52 @@ worktrees and branches, stray root files (old reviews, a portfolio .docx,
 a German review), the old memory folder. List first. Delete only what is
 generated or plainly superseded. Anything else goes to the user as a
 list, with a recommendation for each.
+
+### G. Sessions opened by sessions (addon-kit) — 25 October 2026
+
+Until then only the user opened sessions, so a new task asked in a busy
+session either broke "one session per task" (the store pages, done in the
+kit audit's session that day) or waited on the user. The CLI opens them:
+`claude --bg -n <name> --model <m> "<prompt>"` starts a background session
+and prints `backgrounded · <short id> · <name>`; `claude agents` (`--json`)
+lists them, `claude attach <id or part of the name>` joins one, `claude
+logs <id>` shows its output.
+
+**Built.** `bun addon-kit/session.ts "<card title>" --repos a,b --kind
+code|prose [--plan] [--dry-run] -- "<the task>"` runs that from the family
+folder and prints the new session's id and how to attach. What it holds:
+
+- **A clean environment.** The opener's `CLAUDECODE` and every `CLAUDE_*`
+  are dropped (`CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR` and a user's
+  `CLAUDE_CONFIG_DIR` kept): the board's lock and the pre-commit hook tell
+  sessions apart by `CLAUDE_CODE_SESSION_ID`, and a session carrying the
+  opener's would write its card, and pass the lock, as the opener. Tried
+  first by hand (the kit audit's session opened this build's session so):
+  the new card's `session` was the new session's own id.
+- **The prompt** begins with the maps (the family's CLAUDE.md, each
+  repository's), then the card as its first write (the exact `board.ts
+  add`, these `--repos`) and the check that its `session` is its own id,
+  then its model, then the task, then "end with a `result:` line". The
+  opener's name comes from its newest card.
+- **The model by kind**: code `opusplan`, prose `opus`. `opusplan` is in
+  the CLI's own list of aliases (its `--help` names three examples only):
+  Opus in plan mode, Sonnet otherwise (the CLI: "Opus in plan mode, else
+  Sonnet"). A background session that never plans runs Sonnet throughout,
+  so its prompt tells it to plan in plan mode first when the task needs a
+  plan (the user approves the plan, then it writes, its card first).
+  `--plan` starts it in plan mode (`--permission-mode plan`): Opus first
+  whatever the task, at the cost of a stop for the user's approval.
+- **Notes** on stderr: a repository another session's running card holds
+  (the new session will block on it), a name that is no family folder yet.
+  The opening goes in the event log (`session`).
+- Tests (`session.test.ts`) run it whole with a stub `claude` on the PATH
+  that records what it was given: no real session.
+
+**The panel**: a session opened this way is in Claude Code's registry like
+any other (`kind: "bg"`, `entrypoint: "cli"`, its `-n` name), so the
+Sessions box shows it with its card (by its id, once the card is written).
+Its row's last cell said "terminal", like every background session's: it
+says "bg" now (`claude attach` joins it by its name).
 
 ## Working rules for the build sessions
 

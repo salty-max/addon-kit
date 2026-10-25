@@ -13,7 +13,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | The Lua kit (books' look, list, page, board, banners, settings, welcome) | `Kit.lua` (its header lists what it holds), `Media/` |
 | How the kit reaches the addons (copies, stamps, kit:sync) | `README.md`, `sync.ts` |
 | Every repository at once: status, one command each, secrets | `README.md` "Every repository at once"; `status.ts`, `each.ts`, `secret.ts` |
-| The harness: q, hooks, packet, review, board, root finders, ask rules, the event log | `README.md` "The harness"; the plan and what was built: `docs/harness.md`; `events.ts` |
+| The harness: q, hooks, packet, review, board, sessions opened by sessions, root finders, ask rules, the event log | `README.md` "The harness"; the plan and what was built: `docs/harness.md`; `session.ts`, `events.ts` |
 | The desktop panel and status line (piece D, a Claude Code mod) | `harness-view/README.md` |
 | The family's procedures as skills (riddles, translating, releasing, store pages, data audits) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
 | Before a release: everything a script can tell, nothing changed | `README.md` "Before a release"; `preflight.ts` |
@@ -35,7 +35,8 @@ From `~/code/wow-addons`: `bun addon-kit/status.ts`, `bun addon-kit/each.ts
 [--kit|--all|--only a,b] -- <command>`, `bun addon-kit/hooks.ts
 status|install <repo>`, `bun addon-kit/packet.ts <repo> [range]`, `bun
 addon-kit/review.ts <repo> "<verdict>"`, `bun addon-kit/board.ts
-add|set|list`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
+add|set|list`, `bun addon-kit/session.ts "<title>" --repos a,b --kind
+code|prose -- "<task>"`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
 --all|--ui`, `bun addon-kit/preflight.ts [repo…]`. Usage of each in
 `README.md`.
 

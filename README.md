@@ -215,6 +215,8 @@ bun addon-kit/board.ts set yonder-eight-riddles --status ready-to-push --committ
 bun addon-kit/board.ts list [--all]            # what waits on the user first
 bun addon-kit/board.ts held [yonder]           # who holds what; exit 1 when another session holds one named
 bun addon-kit/board.ts may yonder              # exit 1 unless this session's running card may write it (pre-commit asks)
+bun addon-kit/session.ts "Eight riddles" --repos yonder,wow-data --kind code -- "<the task>"
+                                               # a new task in a session of its own (--dry-run, --plan)
 bun addon-kit/root.ts [wow-data]               # the family folder (root.py: the same for Python)
 bun addon-kit/events.ts [n]                    # the harness's last n events, as the panel's log reads them
 ```
@@ -294,6 +296,20 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   running card of that session names the repository and no other
   session's card came to hold it first (`board.ts may`); a person's own
   commit and CI's are never asked.
+- **session.ts**: a new task asked in a session that has its own is
+  opened by that session in one of its own (the family's one session per
+  task), which writes nothing for it: `claude --bg -n <card title> --model
+  <by kind: code opusplan, prose opus>` from the family folder, without the
+  running session's `CLAUDECODE` and `CLAUDE_*` (the lock tells sessions
+  apart by `CLAUDE_CODE_SESSION_ID`; `CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR`
+  and `CLAUDE_CONFIG_DIR` kept). Its prompt: the maps, the card as its first
+  write (`board.ts add`, these `--repos`), its model, the task. It prints
+  the session's short id, `claude attach <id>` and `claude logs <id>`, and
+  says which of its repositories another card holds. `opusplan` runs Sonnet
+  outside plan mode: the prompt has the session plan there first when its
+  task needs a plan, `--plan` starts it there. `--dry-run` prints the
+  command and the prompt and starts nothing. Tests stub `claude` on the
+  PATH (`session.test.ts`).
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
   directory, else up from the repository's main checkout (so a worktree
   anywhere finds `addon-kit/` and `wow-data/`). Each addon carries a copy in
