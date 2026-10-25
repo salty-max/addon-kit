@@ -944,5 +944,75 @@ do
   Minimap = nil
 end
 
+-- The slash command: alone it opens, an unknown word the usage, replies said.
+do
+  SlashCmdList = {}
+  local K = load()
+  local said, opened, hidden, own = {}, 0, false, nil
+  local print0 = print
+  print = function(line) table.insert(said, line) end
+  K.commands({
+    names = { "/kt", "/kittest" },
+    key = "KITTEST",
+    name = "Kit Test",
+    prefix = "Kit: ",
+    profiles = { import = function(_, code) return code == "KT1:h1" end },
+    open = function() opened = opened + 1 end,
+    usage = "/kt opens the book.",
+    settings = function() return false end,
+    minimap = { get = function() return hidden end, set = function(_, v) hidden = v end },
+    commands = { where = function(raw) own = raw end },
+  })
+  local run = SlashCmdList.KITTEST
+  run("")
+  run("nonsense")
+  run("import KT1:h1")
+  run("import nope")
+  run("settings")
+  run("minimap")
+  run("WHERE")
+  print = print0
+  check(SLASH_KITTEST1 == "/kt" and SLASH_KITTEST2 == "/kittest" and opened == 1, "commands: its names, alone it opens")
+  check(said[1] == "Kit: /kt opens the book.", "commands: an unknown word, the usage")
+  check(said[2] == "Kit: Settings imported for this character.", "commands: an import, capitalised")
+  check(said[3] == "Kit: That isn't a Kit Test settings code (/kt export makes one).", "commands: a code refused, how to make one")
+  check(said[4] == "Kit: The game's Options have no page for addons here.", "commands: no settings page, said")
+  check(hidden and said[5] == "Kit: Minimap button hidden (/kt minimap shows it again).", "commands: the minimap button hidden, said")
+  check(own == "WHERE", "commands: the addon's own, as typed")
+  SlashCmdList, SLASH_KITTEST1, SLASH_KITTEST2 = nil, nil, nil
+end
+
+-- A book's achievements: kept quietly at the login, earned with a line and
+-- the fanfare, the alert behind the addon's switch.
+do
+  local K = load()
+  local saved, said, sounds, alertOn, shown = {}, {}, {}, false, 0
+  time = time or os.time
+  UnitLevel = function() return 12 end
+  PlaySound = function(id) table.insert(sounds, id) return true end
+  local A = K.deeds({
+    saved = function() return saved end,
+    name = "Kit Test",
+    prefix = "Kit: ",
+    kicker = "Kit achievement",
+    alert = function() return alertOn end,
+    banners = { show = function() shown = shown + 1 end },
+  })
+  local n = 0
+  A:add("g", "one", "First", "Do one.", function() return n, 1 end)
+  A:add("g", "hidden", "Secret", "Do it.", function() return 0, 1 end, function() return false end)
+  n = 1
+  A:check(true)
+  check(saved.one and saved.one.retro and saved.one.level == 12, "deeds: quietly kept at the login")
+  saved = {}
+  local print0 = print
+  print = function(line) table.insert(said, line) end
+  A:check()
+  print = print0
+  check(said[1] == "Kit: Achievement earned: |cffffd100[First]|r." and sounds[1] == 12891, "deeds: a line, the fanfare")
+  check(shown == 0, "deeds: no alert while its switch is off")
+  check(A:count() == 1 and #A:items() == 1, "deeds: counted, the hidden one left out")
+end
+
 print(failures == 0 and "all good" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)

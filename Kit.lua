@@ -380,8 +380,9 @@ function K.panel(parent, book)
 end
 
 -- A small card's backing (a banner's, a pinned card's): Forever's card, else
--- the game's tooltip edge on the theme's shade (f made with BackdropTemplate).
-function K.backing(f, alpha)
+-- the game's tooltip edge on the theme's shade, or a colour of its own (f
+-- made with BackdropTemplate).
+function K.backing(f, alpha, colour)
   if ns.forever then
     f.art = K.card(f)
     f.art:SetAllPoints()
@@ -395,7 +396,8 @@ function K.backing(f, alpha)
     edgeSize = 16,
     insets = { left = 4, right = 4, top = 4, bottom = 4 },
   })
-  f:SetBackdropColor(T.shade[1], T.shade[2], T.shade[3], alpha or 0.95)
+  local c = colour or T.shade
+  f:SetBackdropColor(c[1], c[2], c[3], alpha or 0.95)
   f:SetBackdropBorderColor(unpack(T.ring))
 end
 
@@ -1916,6 +1918,146 @@ function K.achievements(o)
   return A
 end
 
+-- ── a book's achievements ────────────────────────────────────────────────────
+-- The achievements of an addon, the family's one way (the user's call, 24
+-- October 2026): earned as the game's own are, its fanfare and its own alert
+-- (K.achievements: the book's banner where the client lacks it), behind a
+-- switch of the addon's options; a line in chat with its link; those already
+-- deserved when the book first looks (an old character, at the login) kept
+-- quietly. Each character earns its own, when and at what level.
+--   A = K.deeds({
+--     saved = function() return the character's table of earned ones (made) or nil end,
+--     name = "Mealbook", prefix = ns.PREFIX, art = an icon for the alert,
+--     kicker = L["Mealbook achievement"], -- the alert's line above the title
+--     alert = function() return ns.option("achievementToast") end, -- the switch (none: always)
+--     open = function(id) end,           -- the alert's click, the link's
+--     link = function(d) return a chat link to it end, -- (none: its title in the quest yellow)
+--     picture = function(d) return its alert's picture end, -- (none: art)
+--     fallback = function() return a sound id where there's no fanfare end,
+--     banners = an addon's K.banners (none: one made, the alert's stand-in),
+--     changed = function() end,         -- after a check earned some
+--   })
+--   A:add(group, id, title, text, progress, visible) (progress: done, need;
+--   visible: shown before earned, none: always), A:earned(id), A:visible(d),
+--   A:count() (earned, shown), A:check(quiet), A:items() (K.board's), A.list, A.byId
+function K.deeds(o)
+  local A = { list = {}, byId = {} }
+  local alerts
+  function A:add(group, id, title, text, progress, visible)
+    local d = { group = group, id = id, title = title, text = text, progress = progress, visible = visible }
+    table.insert(self.list, d)
+    self.byId[id] = d
+    return d
+  end
+  function A:earned(id)
+    local t = o.saved()
+    return t and t[id]
+  end
+  function A:visible(d) return self:earned(d.id) ~= nil or not d.visible or d.visible() end
+  function A:count()
+    local n, shown = 0, 0
+    for _, d in ipairs(self.list) do
+      if self:earned(d.id) then n = n + 1 end
+      if self:visible(d) then shown = shown + 1 end
+    end
+    return n, shown
+  end
+  local function announce(d)
+    local link = o.link and o.link(d) or ("|cffffd100[%s]|r"):format(d.title)
+    print((o.prefix or "") .. L["Achievement earned: %s."]:format(link))
+    K.fanfare(o.fallback and o.fallback())
+    if o.alert and not o.alert() then return end
+    alerts = alerts
+      or K.achievements({
+        banners = o.banners or K.banners({ name = o.name:gsub("%W", "") .. "DeedBanner", art = o.art }),
+        art = o.art,
+        say = function(m) print((o.prefix or "") .. m) end,
+      })
+    alerts:show({
+      picture = o.picture and o.picture(d) or o.art,
+      kicker = o.kicker,
+      title = d.title,
+      tip = L["Click to see your achievements"],
+      click = function()
+        if o.open then o.open(d.id) end
+      end,
+      achievement = d.id,
+    })
+  end
+  -- quiet: kept without a word (reached before the book looked: the login)
+  function A:check(quiet)
+    local t = o.saved()
+    if not t then return false end
+    local earned = false
+    for _, d in ipairs(self.list) do
+      if not t[d.id] and self:visible(d) then
+        local done, need = d.progress()
+        if need and need > 0 and (done or 0) >= need then
+          t[d.id] = { at = time(), level = UnitLevel("player"), retro = quiet or nil }
+          earned = true
+          if not quiet then announce(d) end
+        end
+      end
+    end
+    if earned and o.changed then o.changed() end
+    return earned
+  end
+  -- (the board's rows: every one shown, earned or not)
+  function A:items()
+    local out = {}
+    for _, d in ipairs(self.list) do
+      if self:visible(d) then
+        table.insert(out, {
+          id = d.id,
+          group = d.group,
+          title = d.title,
+          text = d.text,
+          earned = self:earned(d.id),
+          progress = d.progress,
+        })
+      end
+    end
+    return out
+  end
+  return A
+end
+
+-- The book's tab of them, over both panels: the kit's board, the count above.
+--   T = K.deedsTab(A, { name = the board's scroll name, groups = K.board's, figures = (none: "all" earned),
+--     rows = a pool for the tests })
+--   ns.addTab(n, T.tab); T:pick(id) before opening it at one (picked out, in view)
+function K.deedsTab(A, o)
+  local T = {}
+  local book, panel, board, picked
+  local figures = o.figures or { { "all", L["earned"] } }
+  T.tab = {
+    whole = true,
+    build = function(b)
+      book = b
+      panel = K.panel(book)
+      panel:SetPoint("TOPLEFT", book.left, "TOPLEFT")
+      panel:SetPoint("BOTTOMRIGHT", book.sheet, "BOTTOMRIGHT")
+      board = K.board({
+        parent = panel,
+        name = o.name,
+        groups = o.groups,
+        figures = figures,
+        items = function() return A:items() end,
+        rows = o.rows,
+      })
+      T.board, T.panel = board, panel
+    end,
+    show = function(n) panel:SetShown(n == o.n) end,
+    refresh = function()
+      local n, all = A:count()
+      book.count:SetText(L["%d of %d achievements"]:format(n, all))
+      board:refresh(picked)
+    end,
+  }
+  function T:pick(id) picked = id end
+  return T
+end
+
 -- ── choosing ─────────────────────────────────────────────────────────────────
 -- A select: the game's own dropdown, in a box the caller places: the menu
 -- system's (WowStyle1DropdownTemplate), which every client the family ships
@@ -2865,6 +3007,166 @@ function K.minimapChoice(get, set)
     get = function() return not get("minimapHidden") end,
     set = function(v) set("minimapHidden", not v) end,
   }
+end
+
+-- ── the slash command ────────────────────────────────────────────────────────
+-- The addon's slash command, one way for the whole family (the user's call,
+-- 24 October 2026): alone it opens the book; an unknown word prints the
+-- usage (a typo teaches the commands, never hides them); the replies are
+-- sentences, capitalised, after the addon's coloured prefix.
+--   K.commands({
+--     names = { "/codex", "/lorekeeper" }, key = "LOREKEEPERSCODEX", -- SLASH_<key>n, SlashCmdList[key]
+--     name = "Lorekeeper's Codex", prefix = ns.PREFIX, profiles = P,
+--     open = fn,                  -- the command alone
+--     usage = L["..."],           -- its help (help, an unknown word)
+--     settings = fn,              -- settings, options: true when a page opened
+--     welcome = fn(mode),         -- welcome, export ("export")
+--     minimap = { get = fn(k), set = fn(k, v) }, -- minimap: the button shown or hidden, said
+--     commands = { [word] = fn(raw), ... }, -- the addon's own (exact words, "reset yes" too)
+--     match = fn(msg, raw),       -- anything else of its own; true when handled
+--   })
+function K.commands(o)
+  for i, name in ipairs(o.names) do
+    _G["SLASH_" .. o.key .. i] = name
+  end
+  local slash = o.names[1]
+  local function say(text) print((o.prefix or "") .. text) end
+  local function usage() say(o.usage) end
+  SlashCmdList[o.key] = function(msg)
+    local raw = strtrim(msg or "") -- (a code's letters as typed)
+    msg = raw:lower()
+    if msg == "" then
+      if o.open then o.open() end
+    elseif msg == "help" then
+      usage()
+    elseif (msg == "settings" or msg == "options") and o.settings then
+      if not o.settings() then say(L["The game's Options have no page for addons here."]) end
+    elseif msg == "welcome" and o.welcome then
+      o.welcome()
+    elseif msg == "export" and o.welcome then
+      o.welcome("export")
+    elseif msg:match("^import%s") and o.profiles then
+      if o.profiles:import(raw:match("^%a+%s+(.+)$")) then
+        say(L["Settings imported for this character."])
+      else
+        say(L["That isn't a %s settings code (%s export makes one)."]:format(o.name, slash))
+      end
+    elseif msg == "minimap" and o.minimap then
+      local hidden = not o.minimap.get("minimapHidden")
+      o.minimap.set("minimapHidden", hidden)
+      say(
+        hidden and L["Minimap button hidden (%s minimap shows it again)."]:format(slash) or L["Minimap button shown."]
+      )
+    elseif o.commands and o.commands[msg] then
+      o.commands[msg](raw)
+    elseif not (o.match and o.match(msg, raw)) then
+      usage()
+    end
+  end
+end
+
+-- ── the Options page ─────────────────────────────────────────────────────────
+-- The addon's page in the game's Options (AddOns), where the client has the
+-- Settings panel: boxes, a slider, a choice, the opt-in, another character's
+-- settings to take; every setting redrawn after a copy or an import.
+--   O = K.options({ title = "Lorekeeper's Codex", key = "LOREKEEPERSCODEX",
+--     get = ns.option, set = ns.setOption, defaults = DEFAULTS,
+--     profiles = P, slash = "/codex", prefix = ns.PREFIX })
+--   O:check(key, text, tip, inverted)   (inverted: the box ticked when the setting is false: minimapHidden)
+--   O:slider(key, text, tip, min, max, step, label)  (label(value): the value as shown)
+--   O:choice(key, text, tip, options, after)  (options(): { { value, text }, ... }; after(value): once chosen)
+--   O:collect(C), O:copy(), O:done() (the page registered), O:open() (true when it opened), O.category
+function K.options(o)
+  local O = { variables = {} }
+  local category
+  local ok = Settings and Settings.RegisterVerticalLayoutCategory and Settings.RegisterProxySetting
+  if ok then
+    category = Settings.RegisterVerticalLayoutCategory(o.title)
+    O.category = category
+  end
+  local function variable(key) return ("%s_%s"):format(o.key, key:upper()) end
+  local function register(key, kind, text, default, get, set)
+    local v = variable(key)
+    table.insert(O.variables, v)
+    return Settings.RegisterProxySetting(category, v, kind, text, default, get, set)
+  end
+  function O:check(key, text, tip, inverted)
+    if not category then return end
+    inverted = inverted and true or false
+    local setting = register(
+      key,
+      Settings.VarType.Boolean,
+      text,
+      (o.defaults[key] and true or false) ~= inverted,
+      function() return (o.get(key) and true or false) ~= inverted end,
+      function(value) o.set(key, value ~= inverted) end
+    )
+    Settings.CreateCheckbox(category, setting, tip)
+  end
+  function O:slider(key, text, tip, min, max, step, label)
+    if not (category and Settings.CreateSliderOptions) then return end
+    local setting = register(
+      key,
+      Settings.VarType.Number,
+      text,
+      o.defaults[key],
+      function() return o.get(key) end,
+      function(value) o.set(key, value) end
+    )
+    local options = Settings.CreateSliderOptions(min, max, step)
+    if label and MinimalSliderWithSteppersMixin then
+      options:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, label)
+    end
+    Settings.CreateSlider(category, setting, options, tip)
+  end
+  function O:choice(key, text, tip, list, after)
+    if not (category and Settings.CreateDropdown and Settings.CreateControlTextContainer) then return end
+    local kind = type(o.defaults[key]) == "number" and Settings.VarType.Number or Settings.VarType.String
+    local setting = register(key, kind, text, o.defaults[key], function() return o.get(key) end, function(value)
+      o.set(key, value)
+      if after then after(value) end
+    end)
+    Settings.CreateDropdown(category, setting, function()
+      local c = Settings.CreateControlTextContainer()
+      for _, opt in ipairs(list()) do
+        c:Add(opt[1], opt[2])
+      end
+      return c:GetData()
+    end, tip)
+  end
+  function O:collect(C)
+    if category then K.collectSetting(category, o.key .. "_SHARE", C) end
+  end
+  function O:copy()
+    if not category then return end
+    K.copySetting(
+      category,
+      o.key .. "_COPYFROM",
+      o.profiles,
+      L["Another character's choices, for this one (of this game: Classic and Forever keep their own). From elsewhere: %s export there, then %s import CODE here."]:format(
+        o.slash,
+        o.slash
+      ),
+      function(other) print((o.prefix or "") .. L["%s's settings copied."]:format(other)) end
+    )
+  end
+  function O:done()
+    if category then Settings.RegisterAddOnCategory(category) end
+  end
+  function O:open()
+    if category then Settings.OpenToCategory(category:GetID()) end
+    return category ~= nil
+  end
+  -- (a copy or an import changes them under the page: each one redrawn)
+  if o.profiles and o.profiles.onTaken then
+    o.profiles:onTaken(function()
+      if not (category and Settings.NotifyUpdate) then return end
+      for _, v in ipairs(O.variables) do
+        pcall(Settings.NotifyUpdate, v)
+      end
+    end)
+  end
+  return O
 end
 
 -- ── the welcome ──────────────────────────────────────────────────────────────
