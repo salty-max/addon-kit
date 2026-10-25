@@ -61,6 +61,8 @@ export function parse(argv: string[]): Ask | string {
   }
   if (!title) return "the card's title first";
   if (repos.length === 0) return "--repos names every repository the task writes";
+  const odd = repos.find((r) => !/^[\w.-]+$/.test(r));
+  if (odd) return `--repos takes folder names, a comma between them (not ${JSON.stringify(odd)})`;
   if (!(kind in KINDS)) return "--kind is code or prose";
   if (!task) return "the task after --, in the user's words";
   return { title, repos, kind: kind as Kind, plan, dryRun, task };
@@ -154,7 +156,10 @@ if (import.meta.main) {
   const id = idOf(out);
   if (run.exitCode !== 0 || !id) {
     if (out) console.error(out);
-    console.error(run.exitCode !== 0 ? `claude --bg failed (exit ${run.exitCode ?? run.signalCode})` : "no session id in claude's answer: `claude agents` lists the sessions");
+    // (claude said yes without an id: the session may run all the same, a second try would open it twice)
+    const why = run.exitCode !== 0 ? `claude --bg failed (exit ${run.exitCode ?? run.signalCode})` : "claude --bg answered without a session id";
+    console.error(run.exitCode === 0 ? `${why}: it may have started all the same. Look in \`claude agents\` before opening it again` : why);
+    logEvent("session", "fail", a.repos[0], `${a.title}: ${why}`);
     process.exit(run.exitCode || 1);
   }
   logEvent("session", "ok", a.repos[0], `${a.title} opened (${KINDS[a.kind]}${a.plan ? ", plan mode" : ""}) as ${id}`);

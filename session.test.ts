@@ -24,6 +24,9 @@ describe("session: its parts", () => {
     expect(parse(["T", "--repos", "a", "--model", "haiku", "--", "x"])).toBe("unknown option --model");
     expect(parse(["T", "U", "--repos", "a", "--kind", "code", "--", "x"])).toBe("one title (a second: U); the task goes after --");
     expect(parse(["T", "--repos"])).toBe("--repos takes a value");
+    // (a space for a comma would put a broken board.ts add in the prompt)
+    expect(parse(["T", "--repos", "yonder wow-data", "--kind", "code", "--", "x"])).toBe('--repos takes folder names, a comma between them (not "yonder wow-data")');
+    expect(parse(["T", "--repos", "yonder,$(x)", "--kind", "code", "--", "x"])).toBe('--repos takes folder names, a comma between them (not "$(x)")');
   });
 
   test("the model by kind, plan mode on demand", () => {
@@ -173,7 +176,8 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     const noid = run(["T", "--repos", "yonder", "--kind", "code", "--", "x"], { STUB: "noid" });
     expect(noid.code).toBe(1);
     expect(noid.err).toContain("something else");
-    expect(noid.err).toContain("no session id in claude's answer");
+    expect(noid.err).toContain("claude --bg answered without a session id: it may have started all the same. Look in `claude agents` before opening it again");
+    expect(readFileSync(events, "utf8")).toContain("\tsession\tfail\tyonder\tT: claude --bg answered without a session id");
   });
 
   test("a bad ask is refused with the usage, nothing started", () => {
