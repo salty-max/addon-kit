@@ -2026,6 +2026,7 @@ function K.deeds(o)
           text = type(d.text) == "function" and d.text() or d.text, -- (a line the reader's book words)
           earned = self:earned(d.id),
           progress = d.progress,
+          unit = d.unit, -- (a count without an end: "pages")
         })
       end
     end
