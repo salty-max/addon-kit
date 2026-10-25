@@ -174,6 +174,7 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
     expect(g.env.CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR).toBe("1");
     expect(r.out).toContain('opened "Eight riddles" (opusplan) as abc12345');
     expect(r.out).toContain("claude attach abc12345");
+    expect(r.out).not.toContain("waits for your approval");
     // (the opener's card holds yonder: the new session will block on it)
     expect(r.err).toContain("note: yonder is held by addon-kit-the-kit-audited (running)");
     expect(readFileSync(events, "utf8")).toContain("\tsession\tok\tyonder\tEight riddles opened (opusplan) as abc12345");
@@ -185,7 +186,10 @@ console.log("backgrounded · abc12345 · " + name + "\\n  claude agents         
   });
 
   test("plan mode on demand, prose on Opus", () => {
-    expect(run(["T", "--repos", "yonder", "--kind", "code", "--plan", "--", "x"]).code).toBe(0);
+    const plan = run(["T", "--repos", "yonder", "--kind", "code", "--plan", "--", "x"]);
+    expect(plan.code).toBe(0);
+    // (it writes no card while it plans: the user hears of the wait here)
+    expect(plan.out).toContain("it waits for your approval of its plan before it writes anything, its card too: claude attach abc12345");
     expect(given().argv.slice(4, 8)).toEqual(["opusplan", "--permission-mode", "plan", given().argv[7]]);
     expect(run(["T", "--repos", "yonder", "--kind", "prose", "--", "x"]).code).toBe(0);
     expect(given().argv[4]).toBe("opus");

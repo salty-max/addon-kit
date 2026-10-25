@@ -310,7 +310,8 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   helper looking before it locks, and nothing waits on the user. `--plan`
   is the opener's call, never the user's: plan mode for a task that needs
   a design settled first (Opus plans, then one stop for the user's
-  approval, which leaving plan mode always asks). `--dry-run` prints the
+  approval, which leaving plan mode always asks; no card shows that wait,
+  so the output says it, for the opener to tell the user). `--dry-run` prints the
   command and the prompt and starts nothing. Tests stub `claude` on the
   PATH (`session.test.ts`).
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working

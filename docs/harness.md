@@ -412,7 +412,9 @@ folder and prints the new session's id and how to attach. What it holds:
   its prompt has it settle its own plan, the architect helper (Opus)
   looking before it locks, without stopping for the user. `--plan` starts
   it in plan mode (`--permission-mode plan`): Opus plans, then one stop
-  for the user's approval (the CLI's exit from plan mode always asks). It
+  for the user's approval (the CLI's exit from plan mode always asks).
+  It writes nothing meanwhile, its card included, so no card shows the
+  wait: session.ts's output says it, for the opener to tell the user. It
   is the opener's call, never a question for the user (the user, 25
   October 2026: "you should add --plan yourself when needed I should not
   have to intervene"): for a task that needs a design settled first, left

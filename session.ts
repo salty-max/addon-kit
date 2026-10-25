@@ -18,7 +18,9 @@
  *             session in plan mode when its task needs a design settled
  *             first. It plans on Opus and writes nothing, its card
  *             included, until the user approves the plan (leaving plan mode
- *             always asks): one stop, so only when the design is worth it
+ *             always asks): one stop, so only when the design is worth it.
+ *             No card shows that wait: the output says it, for the opener
+ *             to tell the user
  *   dry-run   print the command and the prompt, start nothing
  *   the task  in the user's words, with what the opener knows
  *
@@ -189,4 +191,6 @@ if (import.meta.main) {
   claude attach ${id}    join it (Ctrl+Z leaves it running)
   claude logs ${id}      its recent output
   its card, once written: bun addon-kit/board.ts list`);
+  // (plan mode writes nothing, its card included: the board can't show it waits, so the user is told here)
+  if (a.plan) console.log(`  it waits for your approval of its plan before it writes anything, its card too: claude attach ${id}`);
 }
