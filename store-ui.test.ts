@@ -95,6 +95,29 @@ describe("the store pages' page", () => {
     expect((await ask(h, "/apply", { key: KEY, body: { repo: "nope", hash: "x" } })).status).toBe(400);
   });
 
+  test("check: one not on CurseForge yet said, one unread never a ✓", async () => {
+    const f = fake();
+    const h = handler(
+      {
+        ...f,
+        addons: () => ["/x/yonder", "/x/yours-truly", "/x/broken"],
+        inspect: async (repo) => {
+          if (repo.endsWith("yours-truly")) throw new Error("no X-Curse-Project-ID in /x/yours-truly/addon's TOCs");
+          if (repo.endsWith("broken")) throw new Error("Wago's page carries no page data");
+          return f.inspect(repo);
+        },
+      },
+      KEY,
+      PORT,
+    );
+    const out = await lines(await ask(h, "/check", { key: KEY, body: {} }));
+    const logs = out.map((l) => l.log ?? "").join("\n");
+    expect(logs).toContain("yours-truly: not on CurseForge yet");
+    expect(logs).toContain("broken: ✗ Wago's page carries no page data");
+    expect(logs).toContain("✗ 1 not read.");
+    expect(out.filter((l) => l.error).length).toBe(1);
+  });
+
   test("the page's script parses", async () => {
     const page = await (await ask(handler(fake(), KEY, PORT), "/", { method: "GET" })).text();
     for (const m of page.matchAll(/<script>([\s\S]*?)<\/script>/g)) expect(() => new Function(m[1])).not.toThrow();

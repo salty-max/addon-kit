@@ -121,6 +121,7 @@ export function handler(deps: Deps, key: string, port: number) {
       return stream(async (send) => {
         send({ log: `Checking ${chosen.length === 1 ? chosen[0][0] : `${chosen.length} addons`}: nothing is saved.` });
         let toDo = 0;
+        let unread = 0;
         await Promise.all(
           chosen.map(async ([name, repo]) => {
             try {
@@ -133,12 +134,19 @@ export function handler(deps: Deps, key: string, port: number) {
               send({ view: v });
             } catch (err) {
               const message = err instanceof Error ? err.message : String(err);
+              // (an addon not on CurseForge yet: said, no error)
+              if (message.startsWith("no X-Curse-Project-ID")) {
+                send({ log: `${name}: not on CurseForge yet (no X-Curse-Project-ID in its TOCs)` });
+                return;
+              }
+              unread++;
               send({ log: `${name}: ✗ ${message}` });
               send({ error: { repo: name, message } });
             }
           }),
         );
-        send({ log: toDo ? `${toDo} to put up. Nothing was saved.` : "✓ every page is its file." });
+        const put = toDo ? `${toDo} to put up. Nothing was saved.` : "✓ every page read is its file.";
+        send({ log: unread ? `✗ ${unread} not read. ${toDo ? put : "Nothing was saved."}` : toDo ? put : "✓ every page is its file." });
         send({ done: { checked: chosen.length, due: toDo } });
       });
     }

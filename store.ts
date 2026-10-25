@@ -401,21 +401,27 @@ if (import.meta.main) {
     process.exit(0);
   }
   const reports: Report[] = [];
-  let failed = false;
+  const unread: string[] = [];
   for (const repo of repos) {
-    // (every addon: one not on CurseForge yet, or one that can't be read,
-    // said and passed by, never a stop for the others)
+    // (every addon: one not on CurseForge yet said and passed by; one that
+    // can't be read said, the others still read; a session that fails, the
+    // run with it)
+    if (all) {
+      try {
+        projectId(repo);
+      } catch {
+        console.log(`${basename(repo)}: not on CurseForge yet (no X-Curse-Project-ID in its TOCs)`);
+        continue;
+      }
+    }
     let r: Report;
     try {
       r = await inspect(repo);
     } catch (e) {
-      if (!all) throw e;
-      const why = (e as Error).message;
-      if (why.startsWith("no X-Curse-Project-ID")) console.log(`${basename(repo)}: not on CurseForge yet (no X-Curse-Project-ID in its TOCs)`);
-      else {
-        console.log(`✗ ${basename(repo)}: ${why}`);
-        failed = true;
-      }
+      const why = e instanceof Error ? e.message : String(e);
+      if (!all || /^(no session|CurseForge said 40[13]:)/.test(why)) throw e;
+      console.log(`✗ ${basename(repo)}: ${why}`);
+      unread.push(basename(repo));
       continue;
     }
     reports.push(r);
@@ -424,16 +430,21 @@ if (import.meta.main) {
 
   const todo = reports.filter((r) => due(r).length);
   if (!todo.length) {
-    console.log(reports.some((r) => typeof r.wago === "string") ? "✓ every page read is its file (Wago not read)" : "✓ every page is its file");
-    process.exit(failed ? 1 : 0);
+    if (unread.length) console.log(`✗ ${unread.length} not read: ${unread.join(", ")}`);
+    else console.log(reports.some((r) => typeof r.wago === "string") ? "✓ every page read is its file (Wago not read)" : "✓ every page is its file");
+    process.exit(unread.length ? 1 : 0);
   }
   if (!args.includes("--apply")) {
     console.log(`(nothing saved: --apply puts ${todo.length} of them up${reports.some((r) => r.summary !== undefined) ? ". A summary is changed by hand, on the General page" : ""})`);
-    process.exit(failed ? 1 : 0);
+    if (unread.length) console.log(`✗ ${unread.length} not read: ${unread.join(", ")}`);
+    process.exit(unread.length ? 1 : 0);
   }
   for (const r of todo) {
     console.log(r.page.title);
     await apply(r);
   }
-  if (failed) process.exit(1);
+  if (unread.length) {
+    console.log(`✗ ${unread.length} not read: ${unread.join(", ")}`);
+    process.exit(1);
+  }
 }
