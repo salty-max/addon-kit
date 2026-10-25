@@ -9,7 +9,16 @@ windows are made of (the list on the left, the page on the right and every part
 of a page, a board of achievements, a strip of figures, a select), the banners
 that tell of a deed done (in the game's own stack of alerts), each character's
 settings (copied from another character or by a code) and the welcome page that
-offers them. See `Kit.lua`'s header for what it holds.
+offers them. And what every addon does the same way: the slash command
+(`K.commands`: alone it opens the book, an unknown word prints the usage, the
+replies capitalised), the Options page (`K.options`), the achievements
+(`K.deeds`, `K.deedsTab`: the game's fanfare and alert behind a switch, a chat
+line with its link, the tab's board), the minimap button (`K.minimapButton`,
+each addon's place in `K.MINIMAP_ANGLES`), the sounds (`K.SOUNDS`,
+`K.playSound`, `K.fanfare`), tooltips and chat links (`K.onUnitTooltip`,
+`K.onItemTooltip`, `K.links`), the game's names by id (`K.npcId`,
+`K.spellName`, `K.itemIcon`), and a translation's grammar (`K.translate`,
+`K.agree`, `K.swap`). See `Kit.lua`'s header for what it holds.
 
 Each addon keeps a committed copy (`addon/<Addon>/Kit.lua`, listed in its TOC
 before the files that use it), loaded into the addon's own namespace as
@@ -23,7 +32,10 @@ Every word the kit shows goes through `K.L` (its addon's too, as `ns.L`),
 English by default: a missing word is its own English. An addon's language
 file fills it before anything is drawn, with the language's plural rule
 (`K.isOne`, used by `K.plural`) and its month names (`K.day`). The kit's
-words are few: the welcome's, the board's, a tooltip's.
+words are translated once, in `i18n/<locale>.json` (French, German,
+Spanish), copied into each addon's `i18n/kit/`: its `scripts/locales.ts`
+(on the languages' core, `locales-lib.ts`) writes them into its language
+files with its own.
 
 `Media/` holds the kit's pictures: `Ring.tga`, the game's bronze ring
 (`COMMON/BlueMenuRing`) with the shadow baked into its file removed, worn by
@@ -38,7 +50,8 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
   which a push asks for.
 - In each addon: `bun run kit:sync`, then its own checks. The copy's stamp
   is the kit's last commit that touched what it copies (`Kit.lua`, `Media/`,
-  `root.ts`, `root.py`): a harness commit moves none. The sync refuses
+  `root.ts`, `root.py`, `locales-lib.ts`, `package-lib.ts`, `i18n/`,
+  `wow.yml`, `stylua.toml`): a harness commit moves none. The sync refuses
   uncommitted kit code (`--dirty`: a trial, stamped `<sha>+`, which the check
   and preflight refuse). `bun run kit:check` compares each copy with the kit
   at its stamp (a copy edited by hand, a stamp made up, fail), then the stamp
@@ -47,7 +60,14 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
   the kit dropped leaves the addon's `Media/` at the next sync. The sync also
   copies `root.ts` (and `root.py`, beside Python scripts) into the addon's
   `scripts/`, stamped the same way: its scripts find the kit and wow-data
-  through them, from a worktree too.
+  through them, from a worktree too. Beside them the languages' core
+  (`locales-lib.ts`, beside `scripts/locales.ts`) and the package's
+  (`package-lib.ts`, beside `scripts/package.ts`), copies because CI runs
+  them without the family folder; at the root `wow.yml` (the game's globals
+  for selene, the addon's own in its `<addon>.yml`) and `stylua.toml`.
+  Keyring, without the Lua kit, takes the scripts alone (`sync.ts
+  --scripts`).
+
 - A visual change is checked first against the game's own textures and code
   (Gethe/wow-ui-textures and wow-ui-source), rendered at the sizes it's drawn.
 
@@ -66,6 +86,28 @@ once and kept in `wow-folder.txt`. CRLF line endings: batch files need them.
 
 Conventions: Conventional Commits, lowercase subjects, no AI co-author
 trailers; commit locally, ask before any push.
+
+## Packaging and releasing
+
+Every addon packages and releases the same way. `scripts/package.ts` names
+its games and the files only each loads, and calls `package-lib.ts` (the
+kit's copy): each TOC's interface first (the interfaces are the lib's, one
+place for a game's patch; preflight checks them against wow-data's pins),
+the TOCs alike but for their own files, every file they load there and
+carried by git, every Lua file loaded, no TOC a game doesn't name; then
+`dist/<Addon>` and its zip, `<Addon>-<git describe>.zip`. Yonder's handover
+folder ships beside it through `also`.
+
+`scripts/release.sh` calls the kit's `release.sh` with the addon's folders
+(through `scripts/root.ts`: a release runs here, never in CI). Before
+anything changes: main, clean, in sync with origin; the saved ids against
+the last release tag (`ids.ts --last-release`); HOLD_STORES read (gh must
+answer). Then the bump, the whole check through q, the stamp of that very
+tree confirmed, the commit, origin's main checked again (a daily data merge
+during the check stops it), the tag, HOLD_STORES set or cleared, and one
+atomic push: main and the tag together or neither. A stop anywhere before
+the push puts everything back (the bump, the commit, the tag, the
+variable). `release.test.ts` plays each case in scratch repositories.
 
 ## Every repository at once
 

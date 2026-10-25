@@ -21,7 +21,8 @@
  * The family folder's finders go into the repository's scripts/ the same
  * way: root.ts as scripts/root.ts, and root.py as scripts/root.py when a
  * Python script is there; the languages' core (locales-lib.ts) beside the
- * addon's scripts/locales.ts. The kit's words, translated once
+ * addon's scripts/locales.ts, the package's (package-lib.ts) beside its
+ * scripts/package.ts. The kit's words, translated once
  * (addon-kit/i18n/<locale>.json), go into the addon's i18n/kit/. At the
  * repository's root: wow.yml, the game's globals for selene (beside a
  * selene.toml, whose std is "wow+<addon>": the addon's own globals its
@@ -31,8 +32,8 @@
  * root.py left behind once the last Python script went fails the check.
  *
  * The stamp is the last commit of the kit's that touched what is copied
- * (Kit.lua, Media/, root.ts, root.py, locales-lib.ts, i18n/, wow.yml,
- * stylua.toml): a commit of the harness alone moves
+ * (Kit.lua, Media/, root.ts, root.py, locales-lib.ts, package-lib.ts,
+ * i18n/, wow.yml, stylua.toml): a commit of the harness alone moves
  * no stamp. The sync refuses uncommitted kit code (--dirty: a trial, its
  * stamp "+", which the check and preflight refuse). The check compares each
  * copy with the kit at its stamp (a hand edit, a stamp made up, fail), then
@@ -44,7 +45,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { join } from "node:path";
 
 const KIT = new URL(".", import.meta.url).pathname;
-const COPIED = ["Kit.lua", "Media", "root.ts", "root.py", "locales-lib.ts", "i18n", "wow.yml", "stylua.toml"];
+const COPIED = ["Kit.lua", "Media", "root.ts", "root.py", "locales-lib.ts", "package-lib.ts", "i18n", "wow.yml", "stylua.toml"];
 
 function git(...args: string[]): string | undefined {
   const p = Bun.spawnSync(["git", ...args], { cwd: KIT, stderr: "ignore" });
@@ -167,10 +168,12 @@ if (import.meta.main) {
 
   // The finders of the family folder, in the repository's scripts/ (the
   // working directory's): root.ts always, root.py beside Python scripts,
-  // the languages' core beside scripts/locales.ts.
+  // the languages' core beside scripts/locales.ts, the package's beside
+  // scripts/package.ts.
   const scripts = "scripts";
   const finders: [string, string][] = [["root.ts", "//"]];
   if (existsSync(join(scripts, "locales.ts"))) finders.push(["locales-lib.ts", "//"]);
+  if (existsSync(join(scripts, "package.ts"))) finders.push(["package-lib.ts", "//"]);
   if (existsSync(scripts) && readdirSync(scripts).some((f) => f.endsWith(".py") && f !== "root.py")) finders.push(["root.py", "#"]);
   if (check && existsSync(join(scripts, "root.py")) && !finders.some(([n]) => n === "root.py"))
     fail(`${join(scripts, "root.py")}: no Python script beside it any more (remove the copy)`);

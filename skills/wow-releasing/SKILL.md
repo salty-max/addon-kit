@@ -56,11 +56,20 @@ From the repository, main in sync with origin and clean:
 scripts/release.sh [--version X.Y.Z] [--hold] NOTES.md
 ```
 
-- It bumps the TOCs' version, runs the whole check through q on the bumped
-  tree (the stamp the push needs), commits `chore(release): vX.Y.Z`, tags
-  with NOTES.md as the message (the changelog on GitHub, CurseForge and
-  Wago), and pushes main and the tag. Actions' `release.yml` runs the
-  BigWigs packager: `<Addon>-vX.Y.Z.zip`.
+- Every addon's is the kit's (`addon-kit/release.sh`, called with the
+  addon's folders). First the saved ids against the last release tag
+  (`ids.ts --last-release`) and HOLD_STORES read (gh must answer). Then it
+  bumps the TOCs' version, runs the whole check through q on the bumped
+  tree and confirms that tree's stamp (the one the push needs), commits
+  `chore(release): vX.Y.Z`, checks origin's main hasn't moved (a daily data
+  merge during the check stops it: run it again), tags with NOTES.md as the
+  message (the changelog on GitHub, CurseForge and Wago), sets or clears
+  HOLD_STORES, and pushes main and the tag atomically: both or neither.
+  Actions' `release.yml` runs the BigWigs packager: `<Addon>-vX.Y.Z.zip`.
+- A release that stops before the push says "nothing published" and puts
+  everything back itself (the bump, the commit, the tag, HOLD_STORES as it
+  was): fix what it said and run it again. Only if it couldn't (it says
+  "put HOLD_STORES back by hand") is there a step left, the one it names.
 - `--hold`: GitHub alone (repository variable HOLD_STORES=true), for the
   user's test in the game first. The stores later, only at the user's word:
   `gh workflow run release.yml -R salty-max/<repo> -f tag=vX.Y.Z`.
