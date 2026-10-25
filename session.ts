@@ -283,8 +283,7 @@ const git = (dir: string, ...args: string[]) => Bun.spawnSync(["git", "-C", dir,
 /**
  * Each repository's state for `id`: HEAD's commits on no remote at all
  * (`--not --remotes`, never other local branches) committed since the child
- * started (the earliest of its record's time and its cards' `since` there;
- * unknown: all), -1 with no remote; dirty; other sessions' cards there.
+ * started (its record's time; no record: every one), -1 with no remote; dirty; other sessions' cards there.
  */
 export function repoStates(repos: string[], id: string, all: Card[], notes: string[], at?: string): RepoState[] {
   const out: RepoState[] = [];
@@ -294,8 +293,8 @@ export function repoStates(repos: string[], id: string, all: Card[], notes: stri
       notes.push(`${repo}: no such folder here`);
       continue;
     }
-    const times = [at, ...all.filter((c) => c.session.startsWith(id)).map((c) => c.since[repo])].filter((t): t is string => !!t && !Number.isNaN(Date.parse(t)));
-    const start = times.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
+    // (not its cards' `since`: a card stops holding, and keeps none, once done)
+    const start = at && !Number.isNaN(Date.parse(at)) ? at : undefined;
     const remote = git(dir, "remote");
     const hasRemote = remote.exitCode === 0 && remote.stdout.toString().trim() !== "";
     const ahead = hasRemote ? git(dir, "rev-list", "--count", ...(start ? [`--since=${start}`] : []), "HEAD", "--not", "--remotes") : undefined;

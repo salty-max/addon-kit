@@ -472,8 +472,8 @@ didn't open (the first try closed the long-lived kit audit session, idle
 and its card done, from a command meant to show a refusal), one with no
 card or an open card, a repository with commits on no remote (`HEAD
 --not --remotes`: a branch never pushed and a detached HEAD count, other
-local branches don't) committed since it started (its record's time or
-its card's `since` there), whatever other card is open there (the reason
+local branches don't) committed since it started (its record's time; with no
+record, every one), whatever other card is open there (the reason
 names it), or uncommitted changes no other running card explains (one
 that does is a note). The reviewer's first pass found the first cut
 taking `@{u}..HEAD` (no upstream was a note) and letting any open card

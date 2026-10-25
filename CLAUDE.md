@@ -15,7 +15,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | Every repository at once: status, one command each, secrets | `README.md` "Every repository at once"; `status.ts`, `each.ts`, `secret.ts` |
 | The harness: q, hooks, packet, review, board, sessions opened by sessions, root finders, ask rules, the event log | `README.md` "The harness"; the plan and what was built: `docs/harness.md`; `session.ts`, `events.ts` |
 | The desktop panel and status line (piece D, a Claude Code mod) | `harness-view/README.md` |
-| The family's procedures as skills (riddles, translating, releasing, store pages, data audits) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
+| The family's procedures as skills (riddles, translating, releasing, store pages, data audits, opening and closing child sessions) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
 | Before a release: everything a script can tell, nothing changed | `README.md` "Before a release"; `preflight.ts` |
 | Store pages on CurseForge, Wago and GitHub | `README.md` "The store page"; `store.ts`, `store-ui.ts` |
 | Game names for translations (glossary, building areas) | `glossary.py`, `subzones.py` (their docstrings) |

@@ -46,7 +46,8 @@ and once it has pushed.
   the user answers there.
 - **Pushed**: check its work before closing it:
   - its card is done: `bun addon-kit/board.ts list --all`;
-  - the range is on origin: `git -C <repo> log --oneline origin/main -5`;
+  - the range is on origin: `git -C <repo> log --oneline @{u} -5` (its
+    branch's upstream, main as a rule);
   - CI: `bun addon-kit/status.ts`;
   - the change's shape: `git -C <repo> show --stat <range>`.
 
@@ -54,6 +55,10 @@ and once it has pushed.
   Refused as busy (it has just sent its report): SendMessage to it with
   `notify_when_idle: true`, close on the notice. Refused for anything else:
   tell the user why. `--force` only on the user's word.
+- **Dropped** (its card done, nothing pushed, the user's call): check its
+  repositories hold nothing of it (`git -C <repo> status`, no commits of it
+  on no remote), then close it; anything left is the user's to keep or
+  throw away, `--force` on their word.
 - Before wrapping up a turn: `bun addon-kit/session.ts children`, for a
   finished child not closed yet.
 
