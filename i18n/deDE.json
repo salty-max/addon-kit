@@ -51,9 +51,9 @@
   "The book by the minimap": "Das Buch an der Minikarte",
   "The code's choices are this character's now.": "Die Einstellungen des Codes gelten jetzt für diesen Charakter.",
   "The game's Options have no page for addons here.": "Die Optionen des Spiels haben hier keine Seite für Addons.",
+  "The game's achievement alert could not be set up (%s): the book shows its own banner.": "Die Erfolgsmeldung des Spiels ließ sich nicht einrichten (%s): Das Buch zeigt ein eigenes Banner.",
   "Use a code": "Code verwenden",
   "Your choices": "Deine Einstellungen",
   "Zone discovery": "Gebiet entdeckt",
-  "earned": "errungen",
-  "the game's achievement alert could not be set up (%s): the book shows its own banner.": "die Erfolgsmeldung des Spiels ließ sich nicht einrichten (%s): Das Buch zeigt ein eigenes Banner."
+  "earned": "errungen"
 }

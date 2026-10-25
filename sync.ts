@@ -84,6 +84,13 @@ if (import.meta.main) {
   };
   const scriptsOnly = args.includes("--scripts");
   const target = join(folder, "Kit.lua");
+  // (two stamps the same commit, whatever length git abbreviated each to)
+  const sameCommit = (a: string, b: string) => {
+    if (a === b) return true;
+    const full = (stamp: string) => git("rev-parse", "--verify", "-q", `${stamp}^{commit}`)?.trim();
+    const x = full(a);
+    return !!x && x === full(b);
+  };
   const stampOf = (text: string, mark: string) => text.match(new RegExp(`^${mark} addon-kit ([0-9a-f]+\\+?|unversioned)`))?.[1];
   const body = (text: string, mark: string) => text.replace(new RegExp(`^${mark} addon-kit .*\n`), "");
   const newest = kitStamp();
@@ -101,7 +108,7 @@ if (import.meta.main) {
     } else if (text !== was.toString()) {
       return fail(`${copy}: not the kit's at ${stamp} (run kit:sync, or edit the kit, not the copy)`);
     }
-    if (stamp !== newest && newest !== "unversioned") {
+    if (!sameCommit(stamp, newest) && newest !== "unversioned") {
       const msg = `${copy}: stale, the kit's ${stamp}, the kit is at ${newest} (run kit:sync)`;
       if (inCI) console.log(`note: ${msg}`);
       else fail(msg);

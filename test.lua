@@ -1111,5 +1111,105 @@ do
   C_Map = saved
 end
 
+-- The books' window (K.book), the Options page (K.options), an achievements
+-- tab (K.deedsTab): built on first showing, a whole tab over both panels, a
+-- tab's select and its choice, the refresh a moment later and only while
+-- shown; the page's boxes as the game's proxies; the board on its own tab.
+do
+  local K = load()
+  local saved = { CreateFrame = CreateFrame, C_Timer = C_Timer, Settings = Settings, UISpecialFrames = UISpecialFrames }
+  CreateFrame = function() return frame() end
+  UISpecialFrames = {}
+  local timers = {}
+  C_Timer = { After = function(_, fn) table.insert(timers, fn) end }
+  local log = {}
+  local B = K.book({ name = "KitBook", title = "Kit", titles = { "One", "Two" }, search = "KitSearch", filter = true })
+  B:add(1, {
+    build = function() table.insert(log, "build 1") end,
+    show = function(n) table.insert(log, "show 1 at " .. n) end,
+    refresh = function(scroll) table.insert(log, "refresh 1" .. (scroll and " scroll" or "")) end,
+    filter = { default = "all", options = function() return { { value = "all", text = "All" } } end },
+  })
+  B:add(2, {
+    build = function() table.insert(log, "build 2") end,
+    show = function() end,
+    refresh = function() table.insert(log, "refresh 2") end,
+    whole = true,
+  })
+  B:changed()
+  check(#timers == 0, "book: nothing before it's made")
+  B:open(1)
+  local f = B.frame
+  f.scripts.OnShow(f)
+  check(
+    log[1] == "build 1" and log[#log] == "refresh 1 scroll",
+    "book: a tab built on first showing, refreshed to its row"
+  )
+  check(
+    f.left.shown ~= false and f.filter.shown and B:filterOf(1) == "all",
+    "book: the panels, the tab's select, its default"
+  )
+  B:show(2)
+  check(
+    f.left.shown == false and f.sheet.shown == false and f.filter.shown == false,
+    "book: a whole tab puts the panels away"
+  )
+  B:show(1)
+  f.shown = true
+  log = {}
+  B:changed()
+  B:changed()
+  check(#timers == 1 and #log == 0, "book: a batch of changes, one refresh waiting")
+  timers[1]()
+  check(log[1] == "refresh 1", "book: the refresh, a moment later")
+  -- the Options page
+  local registered = {}
+  Settings = {
+    VarType = { Boolean = "b", Number = "n", String = "s" },
+    RegisterVerticalLayoutCategory = function()
+      return { GetID = function() return 7 end }
+    end,
+    RegisterProxySetting = function(_, v, _, _, default, get, set)
+      registered[v] = { default = default, get = get, set = set }
+      return registered[v]
+    end,
+    CreateCheckbox = function() end,
+    RegisterAddOnCategory = function() registered.done = true end,
+    OpenToCategory = function(id) registered.opened = id end,
+  }
+  local values = { banner = true, minimapHidden = false }
+  local O = K.options({
+    title = "Kit",
+    key = "KIT",
+    get = function(k) return values[k] end,
+    set = function(k, v) values[k] = v end,
+    defaults = { banner = true, minimapHidden = false },
+    slash = "/kit",
+  })
+  O:check("banner", "Banner", "A banner.")
+  O:check("minimapHidden", "Minimap button", "The button.", true)
+  O:done()
+  registered.KIT_MINIMAPHIDDEN.set(false)
+  check(
+    registered.KIT_BANNER.get() == true
+      and values.minimapHidden == true
+      and registered.KIT_MINIMAPHIDDEN.default == true,
+    "options: the proxies, an inverted box (ticked: shown)"
+  )
+  check(registered.done and O:open() and registered.opened == 7, "options: the page registered and opened")
+  -- an achievements tab
+  local A = K.deeds({ saved = function() return {} end, name = "Kit" })
+  A:add("g", "one", "One", "Do it.", function() return 0, 1 end)
+  local T = K.deedsTab(A, { name = "KitBoard", groups = { { "g", "G", "x", "all" } }, n = 2 })
+  local book = { left = frame(), sheet = frame(), count = frame() }
+  T.tab.build(book)
+  T.tab.show(1)
+  local hidden = T.panel.shown == false
+  T.tab.show(2)
+  check(hidden and T.panel.shown, "deeds tab: its board on its own tab alone")
+  CreateFrame, C_Timer, Settings, UISpecialFrames =
+    saved.CreateFrame, saved.C_Timer, saved.Settings, saved.UISpecialFrames
+end
+
 print(failures == 0 and "all good" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)

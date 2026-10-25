@@ -113,6 +113,33 @@ export function run(o: {
   for (const f of loaded)
     if (!files.includes(f)) fail(`${f}: a TOC loads it, but git doesn't carry it (ignored?): the package would leave it out`);
 
+  // The release's package (the BigWigs packager, .pkgmeta) carries every
+  // file of the repository its ignore list doesn't name, dotfiles aside: each
+  // root path but addon/, and each of addon/ but the folders shipped, must be
+  // on it (else CI's diff of the package against the folder fails, and the
+  // release with it).
+  const pkgmeta = join(o.root, ".pkgmeta");
+  if (existsSync(pkgmeta)) {
+    const ignored = new Set<string>();
+    let inIgnore = false;
+    for (const line of readFileSync(pkgmeta, "utf8").split("\n")) {
+      if (/^\S/.test(line)) inIgnore = /^ignore:\s*$/.test(line);
+      const item = inIgnore && line.match(/^\s+-\s+(.+?)\s*$/);
+      if (item) ignored.add(item[1].replace(/\/$/, ""));
+    }
+    const shipped = new Set([`addon/${o.name}`, ...(o.also ? [`addon/${o.also.folder}`] : [])]);
+    const tracked = spawnSync("git", ["ls-files", "-z"], { cwd: o.root, encoding: "utf8" }).stdout.split("\0").filter(Boolean);
+    const carried = new Set<string>();
+    for (const f of tracked) {
+      const parts = f.split("/");
+      if (parts[0].startsWith(".")) continue;
+      const top = parts[0] === "addon" && parts.length > 2 ? `addon/${parts[1]}` : parts[0] === "addon" ? f : parts[0];
+      if (top !== "addon" && !shipped.has(top)) carried.add(top);
+    }
+    const stray = [...carried].filter((f) => !ignored.has(f)).sort();
+    if (stray.length) fail(`.pkgmeta's ignore list lacks ${stray.join(", ")}: the release's package would carry it`);
+  }
+
   const version = versionOf(readFileSync(join(SRC, tocs[0].toc), "utf8"));
   if (o.also) o.also.check({ src: join(o.root, "addon", o.also.folder), root: o.root, tocs, version, fail });
   const listed = tocs.map((t) => t.toc).join(", ") + (o.also ? `; ${o.also.folder}` : "");

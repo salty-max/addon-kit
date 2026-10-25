@@ -43,7 +43,11 @@ git fetch -q origin --tags
 [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || die "not on main"
 [ -z "$(git status --porcelain)" ] || die "the working tree isn't clean"
 FETCHED=$(git rev-parse origin/main)
-[ "$(git rev-parse HEAD)" = "$FETCHED" ] || die "main isn't in sync with origin/main"
+if [ "$(git rev-parse HEAD)" != "$FETCHED" ]; then
+  git merge-base --is-ancestor HEAD "$FETCHED" &&
+    die "main is behind origin/main (a daily data merge?): git pull --ff-only, then run the release again"
+  die "main isn't in sync with origin/main"
+fi
 
 TOCS=()
 for d in $FOLDERS; do
@@ -74,10 +78,16 @@ echo "release $TAG: addon $current → $VERSION$([ "$HOLD" = 1 ] && echo ", GitH
 [ "$DRY" = 1 ] && { echo "(dry run: nothing changed)"; exit 0; }
 
 # From here, a stop before the push puts everything back.
-pushed=0 touched=0
+pushed=0 pushing=0 touched=0
 restore() {
   local code=$?
   [ "$code" = 0 ] || [ "$pushed" = 1 ] && return
+  # (a push whose answer the client lost may have landed all the same: then
+  # it's out, and nothing is put back)
+  if [ "$pushing" = 1 ] && [ -n "$(git ls-remote origin "refs/tags/$TAG" 2>/dev/null)" ]; then
+    echo "release: the push failed on this side, but $TAG is on origin: published, nothing put back" >&2
+    exit "$code"
+  fi
   echo "release: stopped before the push, nothing published: putting the repository back" >&2
   git tag -d "$TAG" >/dev/null 2>&1 || true
   git reset -q --hard "$FETCHED"
@@ -104,7 +114,7 @@ stamps="$(git rev-parse --path-format=absolute --git-common-dir)/harness"
 git diff --cached --quiet || git commit -q -m "chore(release): $TAG"
 # origin's main still the one checked (a daily data merge may land meanwhile)
 [ "$(git ls-remote origin refs/heads/main | cut -f1)" = "$FETCHED" ] ||
-  die "origin/main moved while the check ran (a data merge?): run the release again"
+  die "origin/main moved while the check ran (a data merge?): git pull --ff-only, then run the release again"
 git tag -a "$TAG" --cleanup=verbatim -F "$NOTES"
 # The stores held back or not: read by the release's workflow, so set first.
 if [ "$HOLD" = 1 ]; then
@@ -113,6 +123,7 @@ elif [ -n "$held" ]; then
   touched=1
   gh variable delete HOLD_STORES >/dev/null
 fi
+pushing=1
 git push --atomic -q origin main "$TAG"
 pushed=1
 echo "pushed $TAG"

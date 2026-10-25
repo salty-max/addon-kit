@@ -62,13 +62,16 @@ scripts/release.sh [--version X.Y.Z] [--hold] NOTES.md
   bumps the TOCs' version, runs the whole check through q on the bumped
   tree and confirms that tree's stamp (the one the push needs), commits
   `chore(release): vX.Y.Z`, checks origin's main hasn't moved (a daily data
-  merge during the check stops it: run it again), tags with NOTES.md as the
+  merge during the check stops it: `git pull --ff-only`, then run it
+  again), tags with NOTES.md as the
   message (the changelog on GitHub, CurseForge and Wago), sets or clears
   HOLD_STORES, and pushes main and the tag atomically: both or neither.
   Actions' `release.yml` runs the BigWigs packager: `<Addon>-vX.Y.Z.zip`.
 - A release that stops before the push says "nothing published" and puts
   everything back itself (the bump, the commit, the tag, HOLD_STORES as it
-  was): fix what it said and run it again. Only if it couldn't (it says
+  was): fix what it said and run it again. A push that failed on this side
+  after origin took it says so ("published, nothing put back"): look at the
+  release's run, nothing to redo. Only if it couldn't (it says
   "put HOLD_STORES back by hand") is there a step left, the one it names.
 - `--hold`: GitHub alone (repository variable HOLD_STORES=true), for the
   user's test in the game first. The stores later, only at the user's word:

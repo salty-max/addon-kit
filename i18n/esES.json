@@ -17,7 +17,7 @@
   "Click it to open the book, or drag it around the minimap.": "Haz clic para abrir el libro o arrastra el botón alrededor del minimapa.",
   "Click to open the book, right-click for the settings. Drag to move this button.": "Haz clic para abrir el libro o clic derecho para ver las opciones. Arrastra el botón para moverlo.",
   "Click to see your achievements": "Haz clic para ver tus logros",
-  "Copy settings from": "Copiar ajustes de",
+  "Copy settings from": "Copiar opciones de",
   "Copy their choices": "Copiar sus opciones",
   "Dec": "dic",
   "Feb": "feb",
@@ -51,9 +51,9 @@
   "The book by the minimap": "El libro junto al minimapa",
   "The code's choices are this character's now.": "Este personaje usa ahora las opciones del código.",
   "The game's Options have no page for addons here.": "Las opciones del juego no tienen aquí una página para addons.",
+  "The game's achievement alert could not be set up (%s): the book shows its own banner.": "No se ha podido preparar la alerta de logros del juego (%s). El libro mostrará su propio aviso.",
   "Use a code": "Usar un código",
   "Your choices": "Tus opciones",
   "Zone discovery": "Descubrimiento de zona",
-  "earned": "obtenidos",
-  "the game's achievement alert could not be set up (%s): the book shows its own banner.": "no se ha podido preparar la alerta de logros del juego (%s). El libro mostrará su propio aviso."
+  "earned": "obtenidos"
 }

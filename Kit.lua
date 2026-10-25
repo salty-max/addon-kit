@@ -646,7 +646,7 @@ function K.spellName(id, fallback)
   elseif GetSpellInfo then
     name = GetSpellInfo(id)
   end
-  return type(name) == "string" and name ~= "" and not K.secret(name) and name or fallback
+  return type(name) == "string" and not K.secret(name) and name ~= "" and name or fallback
 end
 function K.spellIcon(id)
   if not id or K.secret(id) then return nil end
@@ -662,7 +662,7 @@ end
 -- the client has none.
 function K.areaName(id)
   local name = id and C_Map and C_Map.GetAreaInfo and C_Map.GetAreaInfo(id)
-  return type(name) == "string" and name ~= "" and not K.secret(name) and name or nil
+  return type(name) == "string" and not K.secret(name) and name ~= "" and name or nil
 end
 -- Places by the names the client gives, back to their ids: an area's (the
 -- client's own name for each id known, the lowest id for a name some share;
@@ -685,7 +685,9 @@ function K.places(o)
     areas, insides = {}, {}
     for id in pairs(o.names() or {}) do
       local own = info and info(id)
-      if type(own) == "string" and own ~= "" and (not areas[own] or id < areas[own]) then areas[own] = id end
+      if type(own) == "string" and not K.secret(own) and own ~= "" and (not areas[own] or id < areas[own]) then
+        areas[own] = id
+      end
     end
     for id, own in pairs(fixes or {}) do
       areas[own] = areas[own] or id
@@ -694,7 +696,7 @@ function K.places(o)
       if not insides[own] or id < insides[own] then insides[own] = id end
     end
   end
-  local function usable(name) return type(name) == "string" and name ~= "" and not K.secret(name) end
+  local function usable(name) return type(name) == "string" and not K.secret(name) and name ~= "" end
   function Pl:area(name)
     if not usable(name) then return nil end
     built()
@@ -755,17 +757,19 @@ K.SOUNDS = {
 }
 local DISCOVERY =
   { Human = 4140, Orc = 4141, Scourge = 4142, Tauren = 4143, Troll = 4144, NightElf = 4145, Gnome = 4146, Dwarf = 4147 }
+-- (on the game's sound-effects channel, as the addons always played: the
+-- player's own volume for them, muted with the rest)
 function K.playSound(id)
   if id == -1 then
     local _, race = UnitRace("player")
     id = DISCOVERY[race] or DISCOVERY.Human
   end
-  if id and id > 0 and PlaySound then pcall(PlaySound, id, "Master") end
+  if id and id > 0 and PlaySound then pcall(PlaySound, id) end
 end
 local FANFARE = 12891
 -- (the trophy where the client lacks the fanfare: never a stop to what comes after)
 function K.fanfare(fallback)
-  local ok, willPlay = pcall(PlaySound, FANFARE, "Master")
+  local ok, willPlay = pcall(PlaySound, FANFARE)
   if not (ok and willPlay) then K.playSound(fallback or 878) end
 end
 
@@ -1959,7 +1963,7 @@ function K.achievements(o)
       failed = true
       if o.say then
         o.say(
-          L["the game's achievement alert could not be set up (%s): the book shows its own banner."]:format(
+          L["The game's achievement alert could not be set up (%s): the book shows its own banner."]:format(
             tostring(err)
           )
         )
@@ -2111,7 +2115,7 @@ end
 
 -- The book's tab of them, over both panels: the kit's board, the count above.
 --   T = K.deedsTab(A, { name = the board's scroll name, groups = K.board's, figures = (none: "all" earned),
---     rows = a pool for the tests })
+--     rows = a pool for the tests, n = the tab's number (its panel shows on it alone) })
 --   ns.addTab(n, T.tab); T:pick(id) before opening it at one (picked out, in view)
 function K.deedsTab(A, o)
   local tab = {}

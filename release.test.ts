@@ -161,6 +161,11 @@ describe("a release that stops puts everything back", () => {
     putBack(s);
     expect(remoteTags(s)).toBe("");
     expect(existsSync(s.vars)).toBe(false); // (never set: it stopped before)
+    // (the rerun: behind origin now, the pull named, nothing changed)
+    const again = release(s, []);
+    expect(again.code).not.toBe(0);
+    expect(again.out).toContain("git pull --ff-only, then run the release again");
+    expect(version(s)).toBe("1.0.0");
   });
   test("a refused push: neither main nor the tag, HOLD_STORES as it was", () => {
     const s = scratch();
