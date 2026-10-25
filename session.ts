@@ -10,10 +10,15 @@
  *             first its repo
  *   kind      the family's models by kind: code (and mechanical work)
  *             opusplan, prose (voices, translations, design) opus. opusplan
- *             is Opus in plan mode and Sonnet otherwise: the session is told
- *             to plan in plan mode first when its task needs a plan
- *   plan      start the session in plan mode: it plans (on Opus) and writes
- *             nothing, its card included, until the user approves the plan
+ *             is Opus in plan mode and Sonnet otherwise: without --plan the
+ *             session settles its own plan, the architect helper (Opus)
+ *             looking before it locks, and never stops for the user's
+ *             approval of it
+ *   plan      the opener's call, never a question for the user: start the
+ *             session in plan mode when its task needs a design settled
+ *             first. It plans on Opus and writes nothing, its card
+ *             included, until the user approves the plan (leaving plan mode
+ *             always asks): one stop, so only when the design is worth it
  *   dry-run   print the command and the prompt, start nothing
  *   the task  in the user's words, with what the opener knows
  *
@@ -83,7 +88,7 @@ export function prompt(a: Pick<Ask, "title" | "repos" | "kind" | "plan" | "task"
         : "You run on Opus (prose, voices, translations, design)."
       : a.plan
         ? "You run on opusplan and start in plan mode: Opus plans, nothing is written (your card included) until the user approves the plan, then Sonnet carries it out."
-        : "You run on opusplan: Sonnet, and Opus in plan mode. If the task needs a plan (a design to settle, a change across files), plan it in plan mode first and write once the user approves it."
+        : "You run on opusplan: Sonnet, and Opus in plan mode. Settle your own plan without stopping for the user's approval of it, and where it needs a design settled (a change across files), have the architect helper look before it locks."
   return [
     `A new task from the user. ${opener ? `The session "${opener}"` : "Another session"} opened this one for it (the family's one session per task).`,
     `Read ~/code/wow-addons/CLAUDE.md first, then the CLAUDE.md of each repository you write (${a.repos.join(", ")}).`,

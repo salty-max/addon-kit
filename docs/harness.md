@@ -408,11 +408,15 @@ folder and prints the new session's id and how to attach. What it holds:
 - **The model by kind**: code `opusplan`, prose `opus`. `opusplan` is in
   the CLI's own list of aliases (its `--help` names three examples only):
   Opus in plan mode, Sonnet otherwise (the CLI: "Opus in plan mode, else
-  Sonnet"). A background session that never plans runs Sonnet throughout,
-  so its prompt tells it to plan in plan mode first when the task needs a
-  plan (the user approves the plan, then it writes, its card first).
-  `--plan` starts it in plan mode (`--permission-mode plan`): Opus first
-  whatever the task, at the cost of a stop for the user's approval.
+  Sonnet"). A background session that never plans runs Sonnet throughout:
+  its prompt has it settle its own plan, the architect helper (Opus)
+  looking before it locks, without stopping for the user. `--plan` starts
+  it in plan mode (`--permission-mode plan`): Opus plans, then one stop
+  for the user's approval (the CLI's exit from plan mode always asks). It
+  is the opener's call, never a question for the user (the user, 25
+  October 2026: "you should add --plan yourself when needed I should not
+  have to intervene"): for a task that needs a design settled first, left
+  off for work already specified.
 - **Notes** on stderr: a repository another session's running card holds
   (the new session will block on it), a name that is no family folder yet.
   The opening goes in the event log (`session`).

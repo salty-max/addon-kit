@@ -306,8 +306,11 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   write (`board.ts add`, these `--repos`), its model, the task. It prints
   the session's short id, `claude attach <id>` and `claude logs <id>`, and
   says which of its repositories another card holds. `opusplan` runs Sonnet
-  outside plan mode: the prompt has the session plan there first when its
-  task needs a plan, `--plan` starts it there. `--dry-run` prints the
+  outside plan mode: the session settles its own plan, the architect
+  helper looking before it locks, and nothing waits on the user. `--plan`
+  is the opener's call, never the user's: plan mode for a task that needs
+  a design settled first (Opus plans, then one stop for the user's
+  approval, which leaving plan mode always asks). `--dry-run` prints the
   command and the prompt and starts nothing. Tests stub `claude` on the
   PATH (`session.test.ts`).
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working

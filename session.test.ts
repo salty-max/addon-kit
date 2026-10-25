@@ -43,6 +43,9 @@ describe("session: its parts", () => {
     expect(p).toContain("(yonder, wow-data)");
     expect(p).toContain("not the opener's");
     expect(p).toContain("opusplan: Sonnet, and Opus in plan mode");
+    // (without --plan, nothing waits on the user: the architect is its Opus)
+    expect(p).toContain("without stopping for the user's approval");
+    expect(p).toContain("architect helper");
     expect(at("CLAUDE.md")).toBeLessThan(at("board.ts add"));
     expect(at("board.ts add")).toBeLessThan(at("opusplan"));
     expect(at("opusplan")).toBeLessThan(at("Five riddles."));
