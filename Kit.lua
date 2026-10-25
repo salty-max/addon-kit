@@ -2027,10 +2027,10 @@ end
 --     rows = a pool for the tests })
 --   ns.addTab(n, T.tab); T:pick(id) before opening it at one (picked out, in view)
 function K.deedsTab(A, o)
-  local T = {}
+  local tab = {}
   local book, panel, board, picked
   local figures = o.figures or { { "all", L["earned"] } }
-  T.tab = {
+  tab.tab = {
     whole = true,
     build = function(b)
       book = b
@@ -2045,7 +2045,7 @@ function K.deedsTab(A, o)
         items = function() return A:items() end,
         rows = o.rows,
       })
-      T.board, T.panel = board, panel
+      tab.board, tab.panel = board, panel
     end,
     show = function(n) panel:SetShown(n == o.n) end,
     refresh = function()
@@ -2054,8 +2054,8 @@ function K.deedsTab(A, o)
       board:refresh(picked)
     end,
   }
-  function T:pick(id) picked = id end
-  return T
+  function tab:pick(id) picked = id end
+  return tab
 end
 
 -- ── choosing ─────────────────────────────────────────────────────────────────
@@ -3027,6 +3027,8 @@ end
 --   })
 function K.commands(o)
   for i, name in ipairs(o.names) do
+    -- (the game reads a slash command's words from these globals)
+    -- selene: allow(global_usage)
     _G["SLASH_" .. o.key .. i] = name
   end
   local slash = o.names[1]
@@ -3037,8 +3039,6 @@ function K.commands(o)
     msg = raw:lower()
     if msg == "" then
       if o.open then o.open() end
-    elseif msg == "help" then
-      usage()
     elseif (msg == "settings" or msg == "options") and o.settings then
       if not o.settings() then say(L["The game's Options have no page for addons here."]) end
     elseif msg == "welcome" and o.welcome then
@@ -3057,9 +3057,9 @@ function K.commands(o)
       say(
         hidden and L["Minimap button hidden (%s minimap shows it again)."]:format(slash) or L["Minimap button shown."]
       )
-    elseif o.commands and o.commands[msg] then
+    elseif msg ~= "help" and o.commands and o.commands[msg] then
       o.commands[msg](raw)
-    elseif not (o.match and o.match(msg, raw)) then
+    elseif msg == "help" or not (o.match and o.match(msg, raw)) then
       usage()
     end
   end
