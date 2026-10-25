@@ -42,11 +42,14 @@ Write nothing for the task here: no card, no file, no helper.
      `use_worktree: false`, the title, a short `name`, `prompt` what
      `--desktop` printed (all of it), `background` one line on the
      family's harness and where this task comes from. The model: `code`
-     passes a Sonnet id (`claude-sonnet-5-5`); `prose` passes none (it
-     inherits this session's Opus: from a Sonnet session, open a prose
-     child with session.ts instead); `plan` passes none and
-     `permission_mode: "plan"` (Opus plans), and once the child says its
-     plan is approved, `set_session_model` moves it to Sonnet. It shows in
+     passes a Sonnet id (`claude-sonnet-5-5`); `prose` passes an Opus id
+     (`claude-opus-5-5`); `plan` passes the Opus id and `permission_mode:
+     "plan"`, and once the child says its plan is approved,
+     `set_session_model` moves it to Sonnet. The tool takes only this
+     session's model or a cheaper one (the family's default, `opusplan`,
+     may not count as Opus): after a prose or plan start, `get_session`
+     on the child, and if it isn't on Opus, `set_session_model` to the
+     Opus id (the app asks the user: say why in a line). It shows in
      the sidebar under this session. The app starts one only on a turn the
      user typed (`/child` always is): on a turn another session's message
      or an event began, it refuses, so propose it instead (`initiation:
@@ -66,9 +69,11 @@ as the app's notes).
 
 - **Waiting on the user** (a test, a review, a push's go): tell the user in
   one line what it wants and where. It stays open: the user answers there.
-  A push go the user gives here is this session's to carry out: push the
-  child's checked, reviewed commits itself (`git -C <repo> push origin
-  <sha>:main`, its range only), then tell the child to set its card done.
+  A push go the user gives here is this session's to carry out (the
+  family's CLAUDE.md): `git -C <repo> log --oneline origin/main..<sha>`
+  first, and if commits of another card sit below the child's, name them
+  to the user before pushing (they go out too). Then `git -C <repo> push
+  origin <sha>:main` and tell the child to set its card done.
 - **Pushed**: check its work before closing it:
   - its card is done: `bun addon-kit/board.ts list --all`;
   - the range is on origin: `git -C <repo> log --oneline @{u} -5` (its
@@ -78,8 +83,10 @@ as the app's notes).
 
   Then close it, and one line to the user:
   - a desktop child: `bun addon-kit/session.ts check <local_id>`, then
-    `archive_session` (it is this session's: `list_sessions` with
-    `linked: true` shows it, `startedBy` this one);
+    `archive_session` once `list_sessions` with `linked: true` shows it
+    `startedBy` this session (check can't tell whose it is). Outside auto
+    mode the app asks the user to approve the archive: say so in the
+    line;
   - a CLI child: `bun addon-kit/session.ts close <id>`.
 
   Refused as busy (it has just sent its report): SendMessage to it with

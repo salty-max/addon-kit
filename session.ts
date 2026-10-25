@@ -385,7 +385,7 @@ function check(argv: string[]): void {
     for (const n of notes) console.error(n);
     process.exit(1);
   }
-  console.log(`may close "${rec?.title ?? g.own[0]?.title ?? row?.name ?? given}" (${given}): archive it`);
+  console.log(`may close "${rec?.title ?? g.own[0]?.title ?? row?.name ?? given}" (${given}): archive it if list_sessions links it to you`);
   for (const n of notes) console.log(n);
 }
 
@@ -454,6 +454,7 @@ if (import.meta.main) {
   const cmd = command(a);
   for (const n of notes(a.repos)) console.error(n);
   if (a.desktop) {
+    logEvent("session", "info", a.repos[0], `${a.title}: prompt for a desktop child`);
     console.log(text);
     process.exit(0);
   }
