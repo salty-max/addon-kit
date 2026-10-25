@@ -150,7 +150,7 @@ export function sessionFiles(dirs: string[], sid: string): { file: string; kind:
 
 /** How many `git commit` segments a shell command holds (split on && ; | and newlines), an --amend too: it is a window to search, git does the counting. `each.ts -- git commit` is one segment that commits in many repositories, which is why the count is only the fallback. */
 export function commitSegments(command: string): number {
-  const seg = /^\s*(?:(?:bun\s+)?\S*each\.ts\b.*?--\s+)?git(?:\s+-\S+(?:\s+\S+)?)*\s+commit\b/;
+  const seg = /^\s*(?:(?:bun\s+)?\S*each\.ts\b.*?--\s+)?git(?:\s+(?:-[Cc]\s+\S+|--?[\w-]+(?:=\S+)?))*\s+commit\b/;
   return command.split(/&&|\|\||[;|\n]/).filter((s) => seg.test(s)).length;
 }
 export const isCommit = (command: string) => commitSegments(command) > 0;
@@ -192,25 +192,24 @@ export const commitCount = (lines: Iterable<string>) => commitRuns(lines).reduce
 
 const PAD = 3000;
 /**
- * The commits the session made, from git itself: in each of the card's repositories, the commits by the repository's own user (not the data jobs' bot) whose commit time falls in a commit command's run (padded a few seconds), over every branch. The board's lock means no other session committed there meanwhile, and a time window per command, not per session, keeps the rest of the day out. Counted by sha, so two repositories in one command are two, a command that failed after its commit still counts, a hook's refusal (no commit) counts nothing, and an --amend replaces the commit it amended (the old one is no longer reachable). Undefined when no repository answers (the caller falls back to the transcript's count).
+ * The commits the session made, from git itself: in each of the card's repositories, the commits by the repository's own user (not the data jobs' bot) whose author time falls in a commit command's run (padded a few seconds; the committer time moves with a rebase or a pull, the author time stays, and an amend keeps it, so an amended commit counts once), over every branch. The board's lock means no other session committed there meanwhile, and a time window per command, not per session, keeps the rest of the day out. Counted by sha, so two repositories in one command are two, a command that failed after its commit still counts, a hook's refusal (no commit) counts nothing, and an --amend replaces the commit it amended (the old one is no longer reachable). Undefined when no repository answers (the caller falls back to the transcript's count).
  */
 export function gitCommits(repos: string[], runs: CommitRun[], pad = PAD): number | undefined {
   if (!runs.length) return 0;
   const shas = new Set<string>();
   let asked = 0;
   const lo = Math.min(...runs.map((r) => r.from)) - pad;
-  const hi = Math.max(...runs.map((r) => r.to)) + pad;
-  for (const dir of repos) {
+    for (const dir of repos) {
     const git = (...a: string[]) => Bun.spawnSync(["git", "-C", dir, ...a], { stdout: "pipe", stderr: "pipe" });
     const who = git("config", "user.email");
-    const log = git("log", "--all", "--no-merges", `--since=${new Date(lo).toISOString()}`, `--until=${new Date(hi).toISOString()}`, "--format=%H %ct %ce");
+    const log = git("log", "--all", "--no-merges", `--since=${new Date(lo).toISOString()}`, "--format=%H %at %ce");
     if (who.exitCode !== 0 || log.exitCode !== 0) continue;
     asked++;
     const me = who.stdout.toString().trim();
     for (const row of log.stdout.toString().split("\n")) {
-      const [sha, ct, email] = row.split(" ");
+      const [sha, at, email] = row.split(" ");
       if (!sha || email !== me) continue;
-      const t = Number(ct) * 1000;
+      const t = Number(at) * 1000;
       if (runs.some((r) => t >= r.from - pad && t <= r.to + pad)) shas.add(`${dir}|${sha}`);
     }
   }

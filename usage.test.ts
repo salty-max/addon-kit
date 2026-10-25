@@ -34,6 +34,8 @@ describe("usage", () => {
     expect(commitSegments("bun addon-kit/each.ts --all -- git commit -qm x")).toBe(1);
     expect(commitSegments('cat <<E\ngit(repo, "commit", "-m")\nE')).toBe(0);
     expect(commitSegments("git log --oneline | grep commit")).toBe(0);
+    expect(commitSegments("git --no-pager log --grep commit")).toBe(0);
+    expect(commitSegments("git -c user.name=t commit -qm x")).toBe(1);
   });
 
   const at = (s: number) => new Date(Date.UTC(2026, 9, 25, 10, 0, s)).toISOString();
@@ -60,7 +62,7 @@ describe("usage", () => {
   describe("gitCommits: git counts what the commands made", () => {
     const base = Math.floor(Date.UTC(2026, 9, 25, 10, 0, 0) / 1000);
     const dirs: string[] = [];
-    const repo = (name: string, commits: { s: number; email?: string; amend?: boolean; merge?: boolean }[]) => {
+    const repo = (name: string, commits: { s: number; email?: string; amend?: boolean; commitAt?: number }[]) => {
       const dir = mkdtempSync(join(tmpdir(), `usage-${name}-`));
       dirs.push(dir);
       const git = (env: Record<string, string>, ...a: string[]) => {
@@ -72,7 +74,7 @@ describe("usage", () => {
       git({}, "config", "user.name", "me");
       commits.forEach((c, i) => {
         const when = `${base + c.s} +0000`;
-        const env = { GIT_COMMITTER_DATE: when, GIT_AUTHOR_DATE: when, GIT_COMMITTER_EMAIL: c.email ?? "me@x", GIT_AUTHOR_EMAIL: c.email ?? "me@x", GIT_COMMITTER_NAME: "n", GIT_AUTHOR_NAME: "n" };
+        const env = { GIT_COMMITTER_DATE: `${base + (c.commitAt ?? c.s)} +0000`, GIT_AUTHOR_DATE: when, GIT_COMMITTER_EMAIL: c.email ?? "me@x", GIT_AUTHOR_EMAIL: c.email ?? "me@x", GIT_COMMITTER_NAME: "n", GIT_AUTHOR_NAME: "n" };
         writeFileSync(join(dir, "f"), String(i));
         git(env, "add", "f");
         git(env, "commit", "-q", ...(c.amend ? ["--amend"] : []), "-m", `c${i}`);
@@ -96,8 +98,12 @@ describe("usage", () => {
       expect(gitCommits(rs, [run(4, 12)])).toBe(9);
     });
     test("an --amend replaces the commit it amended", () => {
-      const a = repo("a", [{ s: 5 }, { s: 20, amend: true }]);
-      expect(gitCommits([a], [run(4, 6), run(19, 21)])).toBe(2 - 1);
+      const a = repo("a", [{ s: 5 }, { s: 5, commitAt: 20, amend: true }]);
+      expect(gitCommits([a], [run(4, 6), run(19, 21)])).toBe(1);
+    });
+    test("a rebased commit (committer time moved) still counts", () => {
+      const a = repo("a", [{ s: 5, commitAt: 300 }]);
+      expect(gitCommits([a], [run(4, 8)])).toBe(1);
     });
     test("a hook's refusal committed nothing", () => {
       const a = repo("a", []);

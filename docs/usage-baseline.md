@@ -20,8 +20,8 @@ The commits above were counted from the transcripts as one per `git commit` *com
 ended in an error counted none. One command can commit in several repositories (`git -C a commit && git -C b
 commit`, `each.ts -- git commit`) and can fail after its commit landed, so 261 was too low and every
 $/commit too high. `usage.ts` now counts from git itself (the user's commits, in the card's repositories,
-made while one of the session's commit commands ran). Recounted over the same 26 sessions and 66 cards
-with the same dollars ($1031): **324 commits, $3.18 a commit** (was 261 and $3.95). Per-card commits and
+whose author time falls in one of the session's commit commands). Recounted over the same 26 sessions and 66 cards
+with the same dollars ($1031): **360 commits, $2.86 a commit** (was 261 and $3.95). Per-card commits and
 $/commit in the table above are the old counts, and so too high in the same way: read them with
 `bun addon-kit/usage.ts`. Everything else here stands as written.
 
