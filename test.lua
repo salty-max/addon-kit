@@ -752,7 +752,10 @@ do
     GetBuildInfo = function() return "x", "1", "d", g[1] end
     local ns = {}
     assert(loadfile("Kit.lua"))("Test", ns)
-    check(ns.kit.GAME == g[2] and ns.forever == (g[2] == "forever") and ns.tbc == (g[2] == "tbc"), "game: " .. g[1] .. " is " .. g[2])
+    check(
+      ns.kit.GAME == g[2] and ns.forever == (g[2] == "forever") and ns.tbc == (g[2] == "tbc"),
+      "game: " .. g[1] .. " is " .. g[2]
+    )
   end
   GetBuildInfo = nil
 end
@@ -775,10 +778,18 @@ do
     return f
   end
   local errors = {}
-  geterrorhandler = function() return function(e) table.insert(errors, e) end end
+  geterrorhandler = function()
+    return function(e) table.insert(errors, e) end
+  end
   local K = load()
   local ready, heard, logged = false, {}, 0
-  local E = K.events({ login = function() logged = logged + 1 error("login broke") end, ready = function() return ready end })
+  local E = K.events({
+    login = function()
+      logged = logged + 1
+      error("login broke")
+    end,
+    ready = function() return ready end,
+  })
   made = E.frame
   E.on("BAG_UPDATE", function() error("first broke") end)
   E.on("BAG_UPDATE", function(n) table.insert(heard, "second " .. n) end)
@@ -801,13 +812,21 @@ do
   ready, heard = false, {}
   fire("PLAYER_LOGOUT")
   check(#heard == 1 and heard[1] == "always", "events: always heard while not ready")
-  check(made.events.BAG_UPDATE and not made.events.NOT_AN_EVENT and not K.knows("NOT_AN_EVENT"), "events: an unknown one never registered")
+  check(
+    made.events.BAG_UPDATE and not made.events.NOT_AN_EVENT and not K.knows("NOT_AN_EVENT"),
+    "events: an unknown one never registered"
+  )
   ready = true
   local got = {}
   E.onUnit("UNIT_HEALTH", "player", function() table.insert(got, "player") end)
   E.onUnit("UNIT_HEALTH", "target", function() table.insert(got, "target") end)
   local playerFrame, targetFrame = frames[#frames - 1], frames[#frames]
-  check(playerFrame ~= targetFrame and playerFrame.units.UNIT_HEALTH == "player" and targetFrame.units.UNIT_HEALTH == "target", "events: a frame a unit")
+  check(
+    playerFrame ~= targetFrame
+      and playerFrame.units.UNIT_HEALTH == "player"
+      and targetFrame.units.UNIT_HEALTH == "target",
+    "events: a frame a unit"
+  )
   targetFrame.scripts.OnEvent(targetFrame, "UNIT_HEALTH", "target")
   check(#got == 1 and got[1] == "target", "events: a unit's listeners alone")
   CreateFrame = function() return frame() end
@@ -816,9 +835,15 @@ end
 -- Words as a search compares them; lowercase beyond ASCII.
 do
   local K = load()
-  check(K.lower("ÉLÉMENTAIRE Ёлка ПРИВЕТ") == "élémentaire ёлка привет", "words: lowercase in Latin-1 and Cyrillic")
+  check(
+    K.lower("ÉLÉMENTAIRE Ёлка ПРИВЕТ") == "élémentaire ёлка привет",
+    "words: lowercase in Latin-1 and Cyrillic"
+  )
   check(K.plain("Comté-de-l’Or") == "comte-de-l'or", "search: accents and the curly apostrophe aside")
-  check(K.finds("Comté-de-l’Or", K.plain("COMTE-DE-L'OR")) and not K.finds("Elwynn", "durotar") and K.finds("x", ""), "search: finds the typed words")
+  check(
+    K.finds("Comté-de-l’Or", K.plain("COMTE-DE-L'OR")) and not K.finds("Elwynn", "durotar") and K.finds("x", ""),
+    "search: finds the typed words"
+  )
 end
 
 -- The family's welcomes take turns: the second waits for the first to close.
@@ -888,7 +913,10 @@ do
     end,
   })
   local ok = pcall(B.refresh, B)
-  check(ok and B.rows[1].status.text == "0/1" and B.rows[2].status.text == "Level 12", "board: no progress, no day: still a row")
+  check(
+    ok and B.rows[1].status.text == "0/1" and B.rows[2].status.text == "Level 12",
+    "board: no progress, no day: still a row"
+  )
 end
 
 -- Words handed over: plurals, gender, Classic's names swapped longest first.
@@ -896,9 +924,15 @@ do
   local K = load()
   UnitSex = function() return 3 end
   K.translate({ locale = "ruRU", plural = "ru", words = { ["You are ready"] = "Vous êtes $gprêt:prête;" } })
-  check(K.L["You are ready"] == "Vous êtes prête" and K.isOne(21) and not K.isOne(11), "words: gender and Russian's plural")
+  check(
+    K.L["You are ready"] == "Vous êtes prête" and K.isOne(21) and not K.isOne(11),
+    "words: gender and Russian's plural"
+  )
   local swaps = { { "Comté", "Comté-de-l'Or" }, { "Comté-de-l'Or", "Elwynn" } }
-  check(K.swap("Comté-de-l'Or et Comté", swaps) == "Elwynn et Comté-de-l'Or", "words: the longest name swapped first")
+  check(
+    K.swap("Comté-de-l'Or et Comté", swaps) == "Elwynn et Comté-de-l'Or",
+    "words: the longest name swapped first"
+  )
   check(K.upper("écrit Привет") == "ÉCRIT ПРИВЕТ", "words: capitals beyond ASCII")
   UnitSex = nil
 end
@@ -906,11 +940,17 @@ end
 -- The game's things by id: a creature's from a GUID (a vehicle's too), a mask.
 do
   local K = load()
-  check(K.npcId("Creature-0-4372-0-21-5824-00005E7A2B") == 5824 and K.npcId("Vehicle-0-4372-0-21-28670-0001") == 28670, "ids: a creature's, a vehicle's")
+  check(
+    K.npcId("Creature-0-4372-0-21-5824-00005E7A2B") == 5824 and K.npcId("Vehicle-0-4372-0-21-28670-0001") == 28670,
+    "ids: a creature's, a vehicle's"
+  )
   check(K.npcId("Player-1-0ABC") == nil and K.npcId(nil) == nil, "ids: none for a player")
   UnitRace = function() return "Dwarf", "Dwarf", 3 end
   UnitClass = function() return "Warrior", "WARRIOR", 1 end
-  check(K.forMe(nil, 0) and K.forMe(4, 1) and not K.forMe(2, 1) and not K.forMe(4, 2), "ids: a mask's races and classes")
+  check(
+    K.forMe(nil, 0) and K.forMe(4, 1) and not K.forMe(2, 1) and not K.forMe(4, 2),
+    "ids: a mask's races and classes"
+  )
   check(K.forMe(2 ^ 31, nil, { [3] = 31 }), "ids: a race of its own bit")
 end
 
@@ -934,7 +974,13 @@ do
   Minimap.GetWidth = function() return 140 end
   CreateFrame = function() return frame() end
   local K = load()
-  local M = K.minimapButton({ name = "TestMinimapButton", icon = "x", title = "Test", get = function(k) return opts[k] end, set = function(k, v) opts[k] = v end })
+  local M = K.minimapButton({
+    name = "TestMinimapButton",
+    icon = "x",
+    title = "Test",
+    get = function(k) return opts[k] end,
+    set = function(k, v) opts[k] = v end,
+  })
   local _, _, _, x, y = M.button:GetPoint()
   check(math.abs(x) < 0.001 and math.abs(y - 80) < 0.001 and M.button.shown, "minimap: placed by its angle, shown")
   opts.minimapHidden = true
@@ -975,9 +1021,15 @@ do
   check(SLASH_KITTEST1 == "/kt" and SLASH_KITTEST2 == "/kittest" and opened == 1, "commands: its names, alone it opens")
   check(said[1] == "Kit: /kt opens the book.", "commands: an unknown word, the usage")
   check(said[2] == "Kit: Settings imported for this character.", "commands: an import, capitalised")
-  check(said[3] == "Kit: That isn't a Kit Test settings code (/kt export makes one).", "commands: a code refused, how to make one")
+  check(
+    said[3] == "Kit: That isn't a Kit Test settings code (/kt export makes one).",
+    "commands: a code refused, how to make one"
+  )
   check(said[4] == "Kit: The game's Options have no page for addons here.", "commands: no settings page, said")
-  check(hidden and said[5] == "Kit: Minimap button hidden (/kt minimap shows it again).", "commands: the minimap button hidden, said")
+  check(
+    hidden and said[5] == "Kit: Minimap button hidden (/kt minimap shows it again).",
+    "commands: the minimap button hidden, said"
+  )
   check(own == "WHERE", "commands: the addon's own, as typed")
   SlashCmdList, SLASH_KITTEST1, SLASH_KITTEST2 = nil, nil, nil
 end
@@ -989,7 +1041,10 @@ do
   local saved, said, sounds, alertOn, shown = {}, {}, {}, false, 0
   time = time or os.time
   UnitLevel = function() return 12 end
-  PlaySound = function(id) table.insert(sounds, id) return true end
+  PlaySound = function(id)
+    table.insert(sounds, id)
+    return true
+  end
   local A = K.deeds({
     saved = function() return saved end,
     name = "Kit Test",
@@ -1012,6 +1067,42 @@ do
   check(said[1] == "Kit: Achievement earned: |cffffd100[First]|r." and sounds[1] == 12891, "deeds: a line, the fanfare")
   check(shown == 0, "deeds: no alert while its switch is off")
   check(A:count() == 1 and #A:items() == 1, "deeds: counted, the hidden one left out")
+end
+
+-- Places by the client's names: the lowest id of a shared name, the fixes
+-- where the client slips, a building's places, the English names of a save;
+-- made again for another client's names; never a secret.
+do
+  local K = load()
+  local saved = C_Map
+  local client = { [12] = "Elwynn Forest", [87] = "Goldshire", [5001] = "Goldshire" }
+  C_Map = { GetAreaInfo = function(id) return client[id] end }
+  local inside = { [41] = "Lion's Pride Inn" }
+  local fixes = { [9] = "Northshire Valley" }
+  local Pl = K.places({
+    names = function() return { [12] = "Elwynn Forest", [87] = "Goldshire", [5001] = "Goldshire", [9] = "Northshire" } end,
+    inside = function() return inside end,
+    fixes = function() return fixes end,
+  })
+  check(
+    Pl:area("Goldshire") == 87 and Pl:area("Elwynn Forest") == 12,
+    "places: an area by the client's name, the lowest id"
+  )
+  check(Pl:area("Northshire Valley") == 9 and Pl:inside("Lion's Pride Inn") == 41, "places: a fix, a building's place")
+  check(Pl:area("") == nil and Pl:area(nil) == nil and Pl:inside("Nowhere") == nil, "places: nothing for none")
+  check(Pl:english("Goldshire") == 87 and Pl:english("Northshire") == 9, "places: an older save's English name")
+  -- (another client: its own names, the list made again)
+  client = { [12] = "Forêt d'Elwynn", [87] = "Comté-de-l'Or" }
+  C_Map = { GetAreaInfo = function(id) return client[id] end }
+  check(
+    Pl:area("Forêt d'Elwynn") == 12 and Pl:area("Elwynn Forest") == nil,
+    "places: made again for another client's names"
+  )
+  check(
+    K.areaName(87) == "Comté-de-l'Or" and K.areaName(4) == nil and K.areaName(nil) == nil,
+    "places: an area's name, none where none"
+  )
+  C_Map = saved
 end
 
 print(failures == 0 and "all good" or (failures .. " failed"))
