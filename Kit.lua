@@ -2060,6 +2060,8 @@ function K.deedsTab(A, o)
       tab.board, tab.panel = board, panel
     end,
     show = function(n) panel:SetShown(n == o.n) end,
+    -- (the tab chosen by a click: nothing picked out any more)
+    chosen = function() picked = nil end,
     refresh = function()
       local n, all = A:count()
       book.count:SetText(L["%d of %d achievements"]:format(n, all))
