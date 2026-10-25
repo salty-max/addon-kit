@@ -54,6 +54,8 @@ export type Repo = {
   unreadable?: boolean;
   /** Calls that gave up after TIMEOUT_MS. */
   timedOut?: string[];
+  /** The fetch failed: ahead and behind are against origin as last fetched. */
+  fetchFailed?: boolean;
 };
 
 // ── helpers, pure (tools.test.ts) ───────────────────────────────────────────
@@ -89,6 +91,7 @@ export function attention(r: Repo): string[] {
   if (r.unreadable) return ["not a readable repository (git rev-parse HEAD failed)"];
   if (r.hooks) out.push(`hooks: ${r.hooks}`);
   for (const t of r.timedOut ?? []) out.push(`${t} gave up after ${TIMEOUT_MS / 1000}s (a stalled remote?)`);
+  if (r.fetchFailed && !r.timedOut?.includes("git fetch")) out.push("git fetch failed: ahead and behind as last fetched");
   if (r.dirty) out.push(`${r.dirty} file${r.dirty > 1 ? "s" : ""} uncommitted`);
   if (!r.upstream) out.push("no upstream (local only)");
   if (r.ahead) out.push(`${r.ahead} commit${r.ahead > 1 ? "s" : ""} to push`);
@@ -216,6 +219,7 @@ export async function read(name: string, fetch: boolean): Promise<Repo> {
     slug: remote.ok ? slugOf(remote.out) : undefined,
   };
   if (fetched?.timedOut) r.timedOut = ["git fetch"];
+  if (fetched && !fetched.ok) r.fetchFailed = true;
   if (!branch.ok) return { ...r, unreadable: true };
   r.check = checkCommand(dir);
   r.hooks = hooksWant(state(dir));

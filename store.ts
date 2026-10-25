@@ -249,11 +249,16 @@ async function applyWago(w: WagoReport, page: Page, say: Say) {
     is_unlisted: a.is_unlisted,
   };
   await wagoFetch(`/developers/projects/create/${w.slug}`, { method: "POST", body: data });
-  const after = (await wagoPage(`/developers/projects/${w.slug}/settings`)).addon;
+  const back = await wagoPage(`/developers/projects/${w.slug}/settings`);
+  const after = back.addon;
   if (after.description !== data.description || after.summary !== data.summary)
     throw new Error(`Wago's ${w.slug}: saved, but the page read back differs from the file: look at it on the site`);
-  for (const k of ["display_name", "slug", "website", "source_url", "is_unlisted", "is_hidden_from_external"])
-    if (after[k] !== a[k]) throw new Error(`Wago's ${w.slug}: ${k} changed in the save: look at it on the site`);
+  // (every other field as it was: one the save didn't send could be wiped,
+  // the thumbnail, a link, the categories; the times aside)
+  const same = (x: unknown, y: unknown) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
+  const changed = Object.keys({ ...a, ...after }).filter((k) => k !== "description" && k !== "summary" && !/_at$/.test(k) && !same(after[k], a[k]));
+  if (!same(back.attachedCategories, w.props.attachedCategories)) changed.push("categories");
+  if (changed.length) throw new Error(`Wago's ${w.slug}: saved, but the save changed ${changed.join(", ")}: look at it on the site`);
   say(`  ✓ Wago's ${w.slug}: the page and summary are the file's`);
 }
 

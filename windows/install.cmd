@@ -74,6 +74,7 @@ for %%z in ("%HERE%*.zip") do (
     if "!seen:;%%d;=!"=="!seen!" (
       set "seen=!seen!%%d;"
       if /i not "%%d"=="!SKIP!" if not "%%d"==".." if exist "!ADDONS!\%%d\" rmdir /s /q "!ADDONS!\%%d"
+      if /i not "%%d"=="!SKIP!" if not "%%d"==".." if exist "!ADDONS!\%%d\" echo   could not remove %%d ^(a window open in it?^): its old files may stay
     )
   )
   if defined SKIP (
@@ -89,7 +90,7 @@ for %%z in ("%HERE%*.zip") do (
   )
 )
 echo.
-echo !n! addon zip^(s^) installed. Start the game, or type /reload if it's running.
+echo !n! addon zip^(s^) installed. Start the game, or restart it if it's running: a /reload misses a new file.
 
 :end
 echo.

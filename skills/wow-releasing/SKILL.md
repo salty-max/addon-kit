@@ -79,6 +79,16 @@ scripts/release.sh [--version X.Y.Z] [--hold] NOTES.md
   macOS and Windows). WoWLocker: its tag is the site's version, `--addon
   X.Y.Z` the addon's; the stores only when the addon's version changed.
 - Release notes: what a player notices, in plain words, no semicolons.
+- A first release: the addon's project ids in every TOC first,
+  `## X-Curse-Project-ID: <id>` (CurseForge's project page, "About") and
+  `## X-Wago-ID: <id>` (Wago's dashboard), the same in each TOC
+  (preflight's "store ids" row checks them), and the repository's
+  `CURSEFORGE_TOKEN` and `WAGO_API_TOKEN` secrets (`bun addon-kit/secret.ts`):
+  without them the packager skips that store and the run stays green.
+- A hotfix is the next patch from main, never a tag on another branch:
+  fix on main, then `scripts/release.sh` (release.sh refuses anything but
+  main in sync; a tag off main, as Second Wind's v0.4.1 was, leaves
+  preflight suggesting a version that already exists).
 
 ## Test builds
 

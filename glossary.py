@@ -165,6 +165,10 @@ def main():
         write_glossary(out, dest)
         print(f"i18n/{locale}/classic.json: {len(write_swaps(locale, out, dest))} Classic names")
         return
+    # (a folder gone or empty would write a gutted glossary: never)
+    for d in args.prose:
+        if not glob.glob(os.path.join(ROOT, d, "**", "*.md"), recursive=True):
+            sys.exit(f"glossary: --prose {d}: no such folder, or no .md file in it (nothing written)")
     pages = sorted(p for d in args.prose for p in glob.glob(os.path.join(ROOT, d, "**", "*.md"), recursive=True))
     prose = "\n".join(open(p, encoding="utf-8").read() for p in pages)
     out = {heading: {} for heading in (*KINDS, "figures")}

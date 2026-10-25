@@ -32,7 +32,9 @@ export type View = {
   due: string[];
 };
 
-const hashOf = (body: string) => createHash("sha256").update(body).digest("hex").slice(0, 16);
+// (the whole page as read: its body and the notes in its comments, the
+// summary and GitHub's description, all put up, all guarded)
+const hashOf = (page: Report["page"]) => createHash("sha256").update(JSON.stringify(page)).digest("hex").slice(0, 16);
 
 export function viewOf(r: Report): View {
   const w = r.wago;
@@ -40,7 +42,7 @@ export function viewOf(r: Report): View {
     repo: basename(r.repo),
     title: r.page.title || basename(r.repo),
     id: r.id,
-    hash: hashOf(r.page.body),
+    hash: hashOf(r.page),
     page: { state: r.state, diff: r.changes },
     summary: { file: r.page.summary, ...(r.summary !== undefined && { curseforge: r.summary }) },
     ...(r.notes !== undefined && { notes: r.notes }),
@@ -99,7 +101,15 @@ export function handler(deps: Deps, key: string, port: number) {
     if (!hosts.has(req.headers.get("host") ?? "")) return new Response("not here", { status: 403 });
     if (req.method === "GET" && url.pathname === "/") {
       const list = [...repos()].map(([name, repo]) => ({ repo: name, title: deps.title(repo) }));
-      return new Response(page(key, list), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+      // (never framed: another page can't click Put up through it)
+      return new Response(page(key, list), {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+          "x-frame-options": "DENY",
+          "content-security-policy": "frame-ancestors 'none'",
+        },
+      });
     }
     if (req.method !== "POST") return new Response("no such page", { status: 404 });
     if (req.headers.get("x-store-key") !== key) return new Response("this page's key, or nothing", { status: 403 });
@@ -140,7 +150,7 @@ export function handler(deps: Deps, key: string, port: number) {
         const say: Say = (l) => send({ log: l });
         say(`${body.repo}: read again before anything is saved…`);
         const r = await deps.inspect(repo);
-        if (hashOf(r.page.body) !== body.hash) {
+        if (hashOf(r.page) !== body.hash) {
           say("✗ its CURSEFORGE.md changed since it was checked: check it again, read the changes, then put it up.");
           send({ view: viewOf(r) });
           return send({ done: { checked: 1, due: due(r).length ? 1 : 0 } });

@@ -162,7 +162,9 @@ describe("preflight", () => {
     expect(verdict(p([{ mark: "✓", label: "git", text: "" }]))).toBe("ready");
     expect(verdict(p([{ mark: "!", label: "review", text: "" }]))).toBe("ready but for 1 to look at");
     expect(verdict(p([{ mark: "✗", label: "CI", text: "" }, { mark: "!", label: "review", text: "" }]))).toBe("1 in the way, 1 to look at");
-    expect(verdict(p([{ mark: "✗", label: "CI", text: "" }], 0))).toBe("nothing ships since v1.0.0");
+    // (nothing to ship, and a ✗ still said)
+    expect(verdict(p([{ mark: "✗", label: "CI", text: "" }], 0))).toBe("nothing ships since v1.0.0, and 1 in the way");
+    expect(verdict(p([{ mark: "!", label: "review", text: "" }], 0))).toBe("nothing ships since v1.0.0");
     expect(verdict(p([], 0, null))).toBe("ready");
   });
 });

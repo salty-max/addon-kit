@@ -249,7 +249,11 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
     repo.ahead && `${repo.ahead} commit${repo.ahead > 1 ? "s" : ""} to push first (with a review)`,
     repo.behind && `${repo.behind} to pull`,
   ].filter((x): x is string => !!x);
-  add(wrong.length ? "✗" : "✓", "git", wrong.length ? `${wrong.join(", ")}: release.sh wants main clean and in sync` : "main, clean, in sync with origin");
+  const unfetched = repo.fetchFailed ? " (not fetched: origin as last fetched)" : "";
+  if (wrong.length) add("✗", "git", `${wrong.join(", ")}${unfetched}: release.sh wants main clean and in sync`);
+  // (a fetch that failed: origin as last fetched, never a green "in sync")
+  else if (repo.fetchFailed) add("!", "git", "not fetched (git fetch failed): main and clean, in sync with origin as last fetched");
+  else add("✓", "git", "main, clean, in sync with origin");
 
   // what ships since the last tag
   const tag = await git(dir, "describe", "--tags", "--abbrev=0", "--match", "v[0-9]*");
@@ -300,6 +304,16 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
   const good = ifaces.filter((r) => r.mark === "✓");
   if (good.length) add("✓", "interface", good.map((r) => r.text).join(" · "));
   for (const r of ifaces.filter((r) => r.mark !== "✓")) rows.push(r);
+  // (the package's own interfaces, package-lib.ts's: its check holds the TOCs to them)
+  const lib = join(dir, "scripts", "package-lib.ts");
+  if (existsSync(lib)) {
+    const { GAMES } = (await import(lib)) as { GAMES: Record<string, { interface: string }> };
+    const stale = (["classic", "forever"] as const)
+      .map((g) => ({ g, want: pinned[g] && interfaceOf(pinned[g]!.build), have: GAMES[g]?.interface }))
+      .filter((x) => x.want && x.have !== x.want);
+    if (stale.length)
+      add("✗", "package", `package-lib.ts's ${stale.map((x) => `${x.g} ${x.have}, the pin's ${x.want}`).join(", ")}: the kit's package-lib.ts, then kit:sync`);
+  }
 
   const curse = [...new Set(store.map((t) => t.curse))];
   const wago = [...new Set(store.map((t) => t.wago))];
@@ -464,8 +478,9 @@ const KINDS: [Kind, string][] = [
 export function verdict(p: Preflight): string {
   const stops = p.rows.filter((r) => r.mark === "✗").length;
   const looks = p.rows.filter((r) => r.mark === "!").length;
-  if (p.tag && !p.ships.length) return `nothing ships since ${p.tag}`;
-  if (stops) return `${stops} in the way${looks ? `, ${looks} to look at` : ""}`;
+  const nothing = p.tag && !p.ships.length ? `nothing ships since ${p.tag}` : "";
+  if (stops) return `${nothing ? `${nothing}, and ` : ""}${stops} in the way${looks ? `, ${looks} to look at` : ""}`;
+  if (nothing) return nothing;
   return looks ? `ready but for ${looks} to look at` : "ready";
 }
 

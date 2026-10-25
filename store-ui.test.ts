@@ -7,13 +7,13 @@ import { handler, type Deps, type View } from "./store-ui";
 const PORT = 4190;
 const KEY = "k3y";
 
-function fake(): Deps & { saved: string[]; file: { body: string } } {
-  const file = { body: "# Yonder\n\nNew words.\n" };
+function fake(): Deps & { saved: string[]; file: { body: string; summary: string } } {
+  const file = { body: "# Yonder\n\nNew words.\n", summary: "Riddles." };
   let live = "# Yonder\n\nOld words.\n";
   const saved: string[] = [];
   const report = (repo: string): Report => ({
     repo,
-    page: { title: "Yonder", summary: "Riddles.", body: file.body },
+    page: { title: "Yonder", summary: file.summary, body: file.body },
     id: 1728396,
     state: live === file.body ? "same" : "changed",
     changes: live === file.body ? "" : "--- the live page\n+++ CURSEFORGE.md\n-Old words.\n+New words.\n",
@@ -52,6 +52,20 @@ describe("the store pages' page", () => {
     expect(page).toContain('id="card-yonder"');
     expect((await ask(h, "/check", { body: {} })).status).toBe(403);
     expect((await ask(h, "/check", { key: "wrong", body: {} })).status).toBe(403);
+    // (never framed by another page)
+    const res = await ask(h, "/", { method: "GET" });
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+    expect(res.headers.get("content-security-policy")).toBe("frame-ancestors 'none'");
+  });
+
+  test("put up: a summary changed alone (a comment of the file) is refused too", async () => {
+    const f = fake();
+    const h = handler(f, KEY, PORT);
+    const checked = (await lines(await ask(h, "/check", { key: KEY, body: {} }))).find((l) => l.view).view as View;
+    f.file.summary = "Riddles, and a summary no one read.";
+    const refused = await lines(await ask(h, "/apply", { key: KEY, body: { repo: "yonder", hash: checked.hash } }));
+    expect(refused.some((l) => l.log?.includes("changed since it was checked"))).toBe(true);
+    expect(f.saved).toEqual([]);
   });
 
   test("check: the log and each addon's card, what differs and what would go up; nothing saved", async () => {
