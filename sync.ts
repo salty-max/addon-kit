@@ -40,9 +40,15 @@
  * no stamp. The sync refuses uncommitted kit code (--dirty: a trial, its
  * stamp "+", which the check and preflight refuse). The check compares each
  * copy with the kit at its stamp (a hand edit, a stamp made up, fail), then
- * the stamp with the kit's newest: behind it, the copy is stale (CI only
+ * the stamp with the kit's newest *on origin/main* (fetched first; offline,
+ * the last fetched one, said so): behind it, the copy is stale (CI only
  * says so: an addon's daily job never fails between a kit push and the
- * addon's sync; the check before a push or a release stops it).
+ * addon's sync; the check before a push or a release stops it). A kit commit
+ * that sits here unpushed makes nobody stale, and a stamp that is not on
+ * origin/main fails the check: a copy must point at a commit others can have.
+ * The sync refuses a kit whose HEAD isn't on origin/main (push the kit
+ * first); a kit with no origin at all (a scratch kit in the tests) is its own
+ * source, and --dirty, a trial the check refuses anyway, skips the rule.
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -54,8 +60,27 @@ function git(...args: string[]): string | undefined {
   const p = Bun.spawnSync(["git", ...args], { cwd: KIT, stderr: "ignore" });
   return p.exitCode === 0 ? p.stdout.toString() : undefined;
 }
-/** The kit's last commit touching what is copied (committed: the working files aside). */
-export const kitStamp = () => git("log", "-1", "--format=%h", "--", ...COPIED)?.trim() || "unversioned";
+/** The kit's last commit touching what is copied, on a ref (committed: the working files aside). */
+export const kitStamp = (ref = "HEAD") => git("log", "-1", "--format=%h", ref, "--", ...COPIED)?.trim() || "unversioned";
+/**
+ * The kit's origin/main after a fetch: `ref` is what to measure against, `note`
+ * what to say when the fetch failed (the last fetched ref stands in), `none`
+ * when the kit has no origin/main at all (no remote: nothing to be ahead of);
+ * `unknown` when there is an origin whose main was never fetched (a sync can't
+ * tell that it's pushed).
+ */
+export function kitOrigin(): { ref?: string; note?: string; unknown?: boolean } {
+  if (git("remote", "get-url", "origin") === undefined) return {};
+  const f = Bun.spawnSync(["git", "fetch", "-q", "origin", "main"], { cwd: KIT, stderr: "pipe", stdout: "ignore", timeout: 30_000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+  const have = git("rev-parse", "--verify", "-q", "origin/main^{commit}") !== undefined;
+  if (f.exitCode === 0 && have) return { ref: "origin/main" };
+  const why = f.stderr.toString().trim().split("\n").pop() || "no answer";
+  return have
+    ? { ref: "origin/main", note: `note: couldn't fetch the kit's origin (${why}): measuring against the last fetched origin/main` }
+    : { unknown: true, note: `note: the kit's origin/main isn't known (${why}): measuring against the kit's own HEAD` };
+}
+/** Whether a commit is on the kit's origin/main. */
+export const onOrigin = (sha: string, ref = "origin/main") => Bun.spawnSync(["git", "merge-base", "--is-ancestor", sha, ref], { cwd: KIT, stderr: "ignore" }).exitCode === 0;
 /** Whether what is copied differs from the kit's last commit. */
 export const kitDirty = () => (git("status", "--porcelain", "--", ...COPIED) ?? "").trim() !== "";
 /** A file of the kit as its commit holds it (undefined: no such commit here, a shallow clone, say). */
@@ -93,7 +118,10 @@ if (import.meta.main) {
   };
   const stampOf = (text: string, mark: string) => text.match(new RegExp(`^${mark} addon-kit ([0-9a-f]+\\+?|unversioned)`))?.[1];
   const body = (text: string, mark: string) => text.replace(new RegExp(`^${mark} addon-kit .*\n`), "");
-  const newest = kitStamp();
+  const origin = kitOrigin();
+  if (origin.note) console.error(origin.note);
+  // (what a copy is measured against: origin's kit, so a local kit commit stales no addon)
+  const newest = kitStamp(origin.ref ?? "HEAD");
 
   // A copy against the kit at its stamp: the kit's working file where the
   // stamp's commit isn't here (a shallow clone in CI), said so.
@@ -108,6 +136,10 @@ if (import.meta.main) {
     } else if (text !== was.toString()) {
       return fail(`${copy}: not the kit's at ${stamp} (run kit:sync, or edit the kit, not the copy)`);
     }
+    // a stamp the kit's origin doesn't have: synced to a commit nobody else can fetch
+    const mine = git("rev-parse", "--verify", "-q", `${stamp}^{commit}`)?.trim();
+    if (origin.ref && mine && !onOrigin(mine, origin.ref))
+      return fail(`${copy}: its stamp ${stamp} isn't on the kit's origin/main (push the kit, then kit:sync again)`);
     if (!sameCommit(stamp, newest) && newest !== "unversioned") {
       const msg = `${copy}: stale, the kit's ${stamp}, the kit is at ${newest} (run kit:sync)`;
       if (inCI) console.log(`note: ${msg}`);
@@ -118,7 +150,15 @@ if (import.meta.main) {
   const dirty = kitDirty();
   if (!check && dirty && !args.includes("--dirty"))
     fail(`the kit has uncommitted changes to what it copies (${COPIED.join(", ")}): commit them first, or --dirty for a trial copy`);
-  const commit = dirty && !check ? `${newest}+` : newest;
+  // The sync copies the kit's HEAD, so HEAD has to be where the addons can fetch it.
+  if (!check && !args.includes("--dirty") && (origin.ref || origin.unknown)) {
+    const head = git("rev-parse", "HEAD")?.trim();
+    if (head && !(origin.ref && onOrigin(head, origin.ref)))
+      fail(`the kit's HEAD ${head.slice(0, 7)} isn't on origin/main${origin.unknown ? " (or origin can't be asked)" : ""}: push the kit first (git -C ${KIT} push), then kit:sync`);
+  }
+  // (the stamp is HEAD's: it is the working files that are copied)
+  const here = kitStamp();
+  const commit = dirty && !check ? `${here}+` : here;
 
   const before = existsSync(target) ? stampOf(readFileSync(target, "utf8"), "--") : undefined;
   if (scriptsOnly) {

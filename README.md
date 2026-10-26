@@ -58,8 +58,12 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
   uncommitted kit code (`--dirty`: a trial, stamped `<sha>+`, which the check
   and preflight refuse). `bun run kit:check` compares each copy with the kit
   at its stamp (a copy edited by hand, a stamp made up, fail), then the stamp
-  with the kit's newest: behind it, the copy is stale (in CI only said, so a
-  daily job never fails between a kit push and the addon's sync). A picture
+  with the kit's newest *on origin/main* (fetched first, offline the last
+  fetched one, said so): behind it, the copy is stale (in CI only said, so a
+  daily job never fails between a kit push and the addon's sync). A kit
+  commit still local stales nobody, and a stamp origin/main lacks fails. The
+  sync refuses a kit whose HEAD isn't on origin/main: push the kit first
+  (`--dirty` trials skip it). A picture
   the kit dropped leaves the addon's `Media/` at the next sync. The sync also
   copies `root.ts` (and `root.py`, beside Python scripts) into the addon's
   `scripts/`, stamped the same way: its scripts find the kit and wow-data

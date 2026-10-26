@@ -196,6 +196,54 @@ describe("sync", () => {
     expect([existsSync(join(dir, "addon", "X", "Media", "Ring.tga")), existsSync(join(dir, "addon", "X", "Media", "Other.tga"))]).toEqual([false, true]);
   });
 
+  test("with an origin: the check measures against origin/main, the sync refuses a kit HEAD that isn't there", () => {
+    const k = kit();
+    const bare = temp();
+    expect(run(bare, ["git", "init", "-q", "--bare", "-b", "main", "."]).exitCode).toBe(0);
+    expect(run(k, ["git", "remote", "add", "origin", bare]).exitCode).toBe(0);
+    const go = (cwd: string, ...args: string[]) => run(cwd, ["bun", join(k, "sync.ts"), ...args]);
+    const dir = repo(false);
+    // the kit's first commit isn't pushed: nothing syncs from it
+    const first = go(dir, "addon/X");
+    expect([first.exitCode, first.stderr.toString().includes("isn't on origin/main")]).toEqual([1, true]);
+    expect(run(k, ["git", "push", "-q", "origin", "main"]).exitCode).toBe(0);
+    expect(go(dir, "addon/X").exitCode).toBe(0);
+    expect(go(dir, "--check", "addon/X").exitCode).toBe(0);
+    // a local, unpushed kit commit stales nobody, and the sync from it is refused
+    writeFileSync(join(k, "Kit.lua"), `${readFileSync(join(k, "Kit.lua"), "utf8")}-- local\n`);
+    commitAll(k, "kit, local");
+    expect(go(dir, "--check", "addon/X").exitCode).toBe(0);
+    const refused = go(dir, "addon/X");
+    expect([refused.exitCode, refused.stderr.toString().includes("push the kit first")]).toEqual([1, true]);
+    // a trial is not a sync: --dirty goes past it (and the check refuses its copy)
+    const synced = readFileSync(join(dir, "addon", "X", "Kit.lua"), "utf8");
+    const finder = readFileSync(join(dir, "scripts", "root.ts"), "utf8");
+    writeFileSync(join(k, "Kit.lua"), `${readFileSync(join(k, "Kit.lua"), "utf8")}-- trial\n`);
+    expect(go(dir, "--dirty", "addon/X").exitCode).toBe(0);
+    expect(go(dir, "--check", "addon/X").stderr.toString()).toContain("a trial copy");
+    writeFileSync(join(dir, "addon", "X", "Kit.lua"), synced);
+    writeFileSync(join(dir, "scripts", "root.ts"), finder);
+    // pushed, the kit's commit makes the old copy stale; a copy stamped on a commit origin lacks fails
+    commitAll(k, "kit, trial kept");
+    expect(run(k, ["git", "push", "-q", "origin", "main"]).exitCode).toBe(0);
+    const stale = go(dir, "--check", "addon/X");
+    expect([stale.exitCode, stale.stderr.toString().includes("stale")]).toEqual([1, true]);
+    expect(go(dir, "addon/X").exitCode).toBe(0);
+    expect(go(dir, "--check", "addon/X").exitCode).toBe(0);
+    // a copy stamped on a commit origin never had (the kit reset, a branch dropped)
+    expect(run(k, ["git", "reset", "-q", "--hard", "HEAD~1"]).exitCode).toBe(0);
+    writeFileSync(join(k, "Kit.lua"), `${readFileSync(join(k, "Kit.lua"), "utf8")}-- other\n`);
+    commitAll(k, "kit, a commit origin never gets");
+    const local = run(k, ["git", "rev-parse", "--short", "HEAD"]).stdout.toString().trim();
+    writeFileSync(join(dir, "addon", "X", "Kit.lua"), `-- addon-kit ${local}: a copy (kit:sync); edit the addon-kit repository's Kit.lua instead\n${readFileSync(join(k, "Kit.lua"), "utf8")}`);
+    const lost = go(dir, "--check", "addon/X");
+    expect([lost.exitCode, lost.stderr.toString().includes("isn't on the kit's origin/main")]).toEqual([1, true]);
+    // offline: the last fetched origin/main stands in, said so
+    expect(run(k, ["git", "remote", "set-url", "origin", join(bare, "gone")]).exitCode).toBe(0);
+    const off = go(dir, "--check", "addon/X");
+    expect(off.stderr.toString()).toContain("measuring against the last fetched origin/main");
+  });
+
   test("root.py only where a Python script is, a stale one refused", () => {
     const dir = repo(false);
     expect(sync(dir, "addon/X").exitCode).toBe(0);

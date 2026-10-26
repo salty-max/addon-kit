@@ -35,6 +35,10 @@ builder's brief.
 4. Commit (`feat(kit): …`, `fix(kit): …`). The sync refuses uncommitted kit
    code: `kit:sync --dirty` makes a trial copy (stamp `<sha>+`) for a test
    in one addon, which its check and preflight refuse, so never commit it.
+5. Push the kit (it asks the user's go) before syncing any addon: `kit:sync`
+   refuses a kit whose HEAD isn't on origin/main, and `kit:check` measures
+   staleness against origin/main, so a commit that stays local breaks no
+   addon's check and no addon points at it.
 
 ## In each addon
 
