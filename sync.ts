@@ -141,7 +141,8 @@ if (import.meta.main) {
     if (origin.ref && mine && !onOrigin(mine, origin.ref))
       return fail(`${copy}: its stamp ${stamp} isn't on the kit's origin/main (push the kit, then kit:sync again)`);
     if (!sameCommit(stamp, newest) && newest !== "unversioned") {
-      const msg = `${copy}: stale, the kit's ${stamp}, the kit is at ${newest} (run kit:sync)`;
+      const behind = origin.ref && kitStamp() !== newest && !sameCommit(kitStamp(), newest);
+      const msg = `${copy}: stale, the kit's ${stamp}, the kit is at ${newest} (${behind ? `this kit checkout is behind origin/main: git -C ${KIT} pull --ff-only, then ` : ""}run kit:sync)`;
       if (inCI) console.log(`note: ${msg}`);
       else fail(msg);
     } else console.log(`✓ ${copy}: the kit's ${stamp}`);
@@ -158,6 +159,9 @@ if (import.meta.main) {
   }
   // (the stamp is HEAD's: it is the working files that are copied)
   const here = kitStamp();
+  // A kit checkout behind origin/main (a commit pushed from elsewhere) would sync an old copy the check calls stale.
+  if (!check && !args.includes("--dirty") && origin.ref && onOrigin("HEAD", origin.ref) && here !== kitStamp(origin.ref) && !sameCommit(here, kitStamp(origin.ref)))
+    fail(`the kit is behind origin/main (${kitStamp(origin.ref)} is newer than ${here}): git -C ${KIT} pull --ff-only, then kit:sync`);
   const commit = dirty && !check ? `${here}+` : here;
 
   const before = existsSync(target) ? stampOf(readFileSync(target, "utf8"), "--") : undefined;

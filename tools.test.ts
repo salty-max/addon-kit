@@ -230,6 +230,19 @@ describe("sync", () => {
     expect([stale.exitCode, stale.stderr.toString().includes("stale")]).toEqual([1, true]);
     expect(go(dir, "addon/X").exitCode).toBe(0);
     expect(go(dir, "--check", "addon/X").exitCode).toBe(0);
+    // a kit checkout behind origin/main (a commit pushed from elsewhere): the sync says pull, not a copy the check calls stale
+    const elsewhere = temp();
+    expect(run(elsewhere, ["git", "clone", "-q", bare, "."]).exitCode).toBe(0);
+    writeFileSync(join(elsewhere, "Kit.lua"), `${readFileSync(join(elsewhere, "Kit.lua"), "utf8")}-- from elsewhere\n`);
+    commitAll(elsewhere, "kit, from elsewhere");
+    expect(run(elsewhere, ["git", "push", "-q", "origin", "main"]).exitCode).toBe(0);
+    const behind = go(dir, "addon/X");
+    expect([behind.exitCode, behind.stderr.toString().includes("pull --ff-only")]).toEqual([1, true]);
+    const behindCheck = go(dir, "--check", "addon/X");
+    expect([behindCheck.exitCode, behindCheck.stderr.toString().includes("behind origin/main")]).toEqual([1, true]);
+    expect(run(k, ["git", "pull", "-q", "--ff-only", "origin", "main"]).exitCode).toBe(0);
+    expect(go(dir, "addon/X").exitCode).toBe(0);
+    expect(go(dir, "--check", "addon/X").exitCode).toBe(0);
     // a copy stamped on a commit origin never had (the kit reset, a branch dropped)
     expect(run(k, ["git", "reset", "-q", "--hard", "HEAD~1"]).exitCode).toBe(0);
     writeFileSync(join(k, "Kit.lua"), `${readFileSync(join(k, "Kit.lua"), "utf8")}-- other\n`);
