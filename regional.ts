@@ -13,8 +13,12 @@
  *                                          ("este ordenador"), a name with
  *                                          its article or an ending ("del
  *                                          Sindicato"), a form the addon's
- *                                          own translation wrote, a name the
- *                                          databases lack
+ *                                          own translation wrote, a part of
+ *                                          a longer name ("Bolvar Fordragon"
+ *                                          of "Alto Señor Bolvar Fordragon").
+ *                                          A name the databases lack is not
+ *                                          a word: it goes into wow-data's
+ *                                          build, not into an addon
  *   i18n/<locale>/regional.resolved.json   generated, { from: to } both
  *                                          together: what the loaders swap
  *
@@ -59,7 +63,17 @@ const query = (db: ReturnType<typeof openDb>, name: string) =>
     )
     .all(locale, lender, name) as { to_name: string }[];
 const dbs = [openDb("forever"), openDb("classic")];
-const given = (name: string): string[] => [...new Set(dbs.flatMap((db) => query(db, name).map((r) => r.to_name)))];
+const exact = (name: string): string[] => [...new Set(dbs.flatMap((db) => query(db, name).map((r) => r.to_name)))];
+// (a name in the middle of a sentence, its first letter lower case: the name's, as written there)
+const given = (name: string): string[] => {
+  const found = exact(name);
+  if (found.length || name[0] === name[0].toUpperCase()) return found;
+  const cap = name[0].toUpperCase() + name.slice(1);
+  return [...new Set(exact(cap).map((t) => t[0].toLowerCase() + t.slice(1)))];
+};
+// (esMX has none of its own and takes esES's: nothing to write)
+const lent = (name: string): boolean =>
+  dbs.some((db) => (db.query(`SELECT 1 FROM name e JOIN name m ON m.kind = e.kind AND m.id = e.id AND m.locale = ? AND m.source = 'esES' WHERE e.locale = ? AND e.name = ? LIMIT 1`).get(locale, lender, name)));
 
 const migrate = args.includes("--migrate");
 const moved: string[] = [];
@@ -67,7 +81,8 @@ const problems: string[] = [];
 const resolved: Record<string, string> = {};
 for (const name of names) {
   const to = given(name);
-  if (to.length === 0) problems.push(`names: "${name}": no ${locale} name in wow-data for it (a prose word or a form of the addon's own: words)`);
+  if (to.length === 0 && lent(name)) problems.push(`names: "${name}": ${locale} has no name of its own and wow-data lends ${lender}'s: drop it, or give wow-data ${locale}'s name`);
+  else if (to.length === 0) problems.push(`names: "${name}": no ${locale} name in wow-data for it (a prose word, a form or a part of a name the addon's own: words; a game name wow-data lacks: wow-data's build)`);
   else if (to.length > 1) problems.push(`names: "${name}": wow-data gives it ${to.length} ways (${to.map((t) => `"${t}"`).join(", ")}): words, the one this addon means`);
   else if (to[0] === name) problems.push(`names: "${name}": ${locale} writes it the same, it does nothing`);
   else if (name in resolved) problems.push(`names: "${name}" twice`);
@@ -81,6 +96,9 @@ for (const [from, to] of Object.entries(words)) {
       continue;
     }
     problems.push(`words: "${from}" is a game name as wow-data gives it, "${to}": names (--migrate moves them)`);
+  } else if (game.length === 1 && !game[0].includes(to) && !to.includes(game[0])) {
+    // (a game name written otherwise than wow-data writes it: a typo, a second spelling; "la Hermandad" for "Hermandad" is an article)
+    problems.push(`words: "${from}" is a game name, wow-data gives "${game[0]}", not "${to}"`);
   }
   if (from in resolved) problems.push(`words: "${from}" is in names too`);
   else resolved[from] = to;
