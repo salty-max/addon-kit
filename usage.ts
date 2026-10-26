@@ -192,13 +192,14 @@ export const commitCount = (lines: Iterable<string>) => commitRuns(lines).reduce
 
 const PAD = 3000;
 /**
- * The commits the session made, from git itself: in each of the card's repositories, the commits by the repository's own user (not the data jobs' bot) whose author time falls in a commit command's run (padded a few seconds; the committer time moves with a rebase or a pull, the author time stays, and an amend keeps it, so an amended commit counts once), over every branch. The board's lock means no other session committed there meanwhile, and a time window per command, not per session, keeps the rest of the day out. Counted by sha, so two repositories in one command are two, a command that failed after its commit still counts, a hook's refusal (no commit) counts nothing, and an --amend replaces the commit it amended (the old one is no longer reachable). Undefined when no repository answers (the caller falls back to the transcript's count).
+ * The commits the session made, from git itself: in each of the card's repositories, the commits by the repository's own user (not the data jobs' bot) whose author time falls in a commit command's run (padded a few seconds; the committer time moves with a rebase or a pull, the author time stays, and an amend keeps it, so an amended commit counts once), over every branch. The board's lock means no other session committed there meanwhile, and a time window per command, not per session, keeps the rest of the day out. Counted by sha, so two repositories in one command are two, a command that failed after its commit still counts, a hook's refusal (no commit) counts nothing, and an --amend replaces the commit it amended (the old one is no longer reachable). A run with no time (a transcript line without its timestamp) can't be placed: its segments count as the transcript says, unless it failed. Undefined when no repository answers or no run has a time (the caller falls back to the transcript's count).
  */
 export function gitCommits(repos: string[], all: CommitRun[], pad = PAD): number | undefined {
   if (!all.length) return 0;
-  // (a transcript line with no timestamp gives a run no window: git can't place it, the transcript's count stands in)
   const runs = all.filter((r) => Number.isFinite(r.from) && Number.isFinite(r.to));
   if (!runs.length) return undefined;
+  // (a run git can't place counts as the transcript does)
+  const untimed = all.filter((r) => !runs.includes(r)).reduce((n, r) => n + (r.failed ? 0 : r.segments), 0);
   const shas = new Set<string>();
   let asked = 0;
   const lo = Math.min(...runs.map((r) => r.from)) - pad;
@@ -216,7 +217,7 @@ export function gitCommits(repos: string[], all: CommitRun[], pad = PAD): number
       if (runs.some((r) => t >= r.from - pad && t <= r.to + pad)) shas.add(`${dir}|${sha}`);
     }
   }
-  return asked ? shas.size : undefined;
+  return asked ? shas.size + untimed : undefined;
 }
 
 /** A session's spend, from its transcripts (undefined when it has none). */
