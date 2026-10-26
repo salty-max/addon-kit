@@ -390,8 +390,9 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   Claude Code mod; `harness-view/README.md`), loaded through the link
   `~/.claude/skills/harness-view`. Its tests run in `bun run check`.
 - **skills/**: the family's procedures as Claude Code skills (`wow-riddles`,
-  `wow-translating`, `wow-releasing`, `wow-store-pages`, `wow-data-audit`,
-  and `child`: `/child <task>` opens it as a child session, `/child` alone
+  `wow-translating`, `wow-releasing` (with its push waves),
+  `wow-store-pages`, `wow-data-audit`, `wow-kit-change`, `wow-game-test`,
+  `wow-new-addon`, and `child`: `/child <task>` opens it as a child session, `/child` alone
   makes the session the dispatch), each linked into `~/.claude/skills/` so every session finds them. A fresh
   machine links them again:
   `for s in ~/code/wow-addons/addon-kit/skills/*; do ln -sfn "$s" ~/.claude/skills/; done`

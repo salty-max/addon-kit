@@ -1,6 +1,6 @@
 ---
 name: wow-releasing
-description: Release an addon (or Ravenpost, or WoWLocker) or push its main: preflight.ts and the reviewer first, the user's go, scripts/release.sh with or without --hold, the stores later by workflow_dispatch, watching the runs, the test zip in iCloud, batching several addons' hand steps. Use whenever a push of code, a tag, a release or a store upload is on the table.
+description: Release an addon (or Ravenpost, or WoWLocker) or push its main: preflight.ts and the reviewer first, the user's go, scripts/release.sh with or without --hold, the stores later by workflow_dispatch, watching the runs, the test zip in iCloud, batching several addons' hand steps, push waves across several repositories in order. Use whenever a push of code, a tag, a release or a store upload is on the table.
 ---
 
 # Releasing and pushing
@@ -27,7 +27,8 @@ hook checks the stamp, not the user's go.
    packet's range starts on the upstream: a narrower one (`HEAD~1..HEAD`
    with more unpushed) shows `partial`.
 3. A kit change goes out first: addon-kit pushed before the addons whose
-   copies carry its stamp. wow-data before the addons that read its new data.
+   copies carry its stamp. wow-data before the addons that read its new data
+   (the order and the database's wait: "Push waves" below).
 4. A board card says what is ready: `bun addon-kit/board.ts add <repo>
    "<title>" --status ready-to-push --committed "<shas>" --try "…"`, or
    `set <card id> …` for the task's card.
@@ -110,3 +111,37 @@ hand steps once for both: CurseForge and Wago projects, each token set on
 every repo from one clipboard read (`bun addon-kit/secret.ts NAME`), one
 inbox deploy with every new addon, one pass over the siblings' "Other
 addons" sections, the store pages (the `wow-store-pages` skill).
+
+## Push waves
+
+Several repositories pushed together: a kit change and its syncs, a
+wow-data change and the addons reading it, children's work landing at
+once. Each push needs the user's go, and one go may cover several
+repositories when the ask names them all.
+
+1. **The order**: addon-kit first (the addons' stamps name its commits),
+   then wow-data. If wow-data's push touches `db.yml`'s paths, it
+   publishes the databases by itself (`db-<commit12>`): watch that run to
+   the end before pushing any addon (`gh run list -R salty-max/wow-data -w
+   db.yml -L 1` for its id, then `gh run watch <id> -R
+   salty-max/wow-data`). An addon's daily `game-data.yml` waits at most ten
+   minutes for a database still publishing, then builds from the old one
+   and opens a pull request reverting the new names. If the push doesn't
+   touch those paths, go straight on. Then the addons, in any order.
+2. **What rides along**, before each push: `git -C <repo> log --oneline
+   origin/main..<sha>`. Commits of another card below this one go out
+   with it: name them to the user (the board's `note:` says which cards)
+   and push only on a go that covers them.
+3. **A range, by sha**: `git -C <repo> push origin <sha>:main`, never a
+   bare `git push` (it would carry commits made after the go). The pre-push
+   hook wants the check stamp of that very tree.
+4. **CI, per repository**: watch each push's run in the background (`gh
+   run list -R salty-max/<repo> -L 1` for its id, `gh run watch <id> -R
+   salty-max/<repo> --exit-status`), then `bun addon-kit/status.ts`. The
+   next wave waits until every run of this one is green.
+5. **The cards**: this session's own cards whose commits went out, set
+   done (`board.ts set <id> --status done`). A child's card: SendMessage
+   the child to set its card done, then close it once it has (the `child`
+   skill). A push go the user gives in the session that opened a child is
+   that session's to carry out (the family CLAUDE.md): it pushes the
+   child's checked commits itself, rather than passing the go down.
