@@ -34,7 +34,8 @@ stylua Kit.lua                                 # format (the addons' stylua.toml
 From `~/code/wow-addons`: `bun addon-kit/status.ts`, `bun addon-kit/each.ts
 [--kit|--all|--only a,b] -- <command>`, `bun addon-kit/hooks.ts
 status|install <repo>`, `bun addon-kit/packet.ts <repo> [range]`, `bun
-addon-kit/review.ts <repo> "<verdict>"`, `bun addon-kit/board.ts
+addon-kit/review.ts <repo> "<verdict>"`, `bun addon-kit/coldread.ts <repo>
+"<verdict>" [lang…]`, `bun addon-kit/board.ts
 add|set|list`, `bun addon-kit/session.ts "<title>" --repos a,b --kind
 code|prose -- "<task>"`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
 --all|--ui`, `bun addon-kit/preflight.ts [repo…]`. Usage of each in

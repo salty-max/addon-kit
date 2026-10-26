@@ -80,6 +80,8 @@ translation keeps its paragraph marks and records its English's hash.
    translation was read against its changed English.
 2. The `prose-reader` helper reads the changed text cold in that language
    before the user does (give it the files, the language and the voice
-   rules above). Fix what it finds that holds up.
+   rules above). Fix what it finds that holds up, commit, then record the
+   read: `bun addon-kit/coldread.ts <repo> "<verdict>" [lang…]`
+   (preflight's cold-read flag counts from it).
 3. The user tests in the game in that language: a test zip in iCloud and
    a board card saying what to look at.

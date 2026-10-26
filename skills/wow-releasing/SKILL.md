@@ -42,9 +42,12 @@ every ✗ (it exits 1 while one stands) and look at every !:
 - `live`: `store.ts --apply` due. The dry run (`bun addon-kit/store.ts
   <repo>`), then `--apply` on the user's go, or `--ui`. Read the page against
   what ships first: a count or a feature it names may have moved.
-- `cold read`: each language whose authored text changed since the tag
-  (French, German, Spanish: whichever it lists), read by the `prose-reader`
-  helper before the release.
+- `cold read`: each language whose authored text changed since its last
+  recorded cold read, or the tag when none (French, German, Spanish:
+  whichever it lists), read by the `prose-reader` helper before the release.
+  Once read and what it found is fixed and committed, record it: `bun
+  addon-kit/coldread.ts <repo> "<verdict>" [lang…]` (every language by
+  default), which clears the flag until authored text changes again.
 - `version`: a first release keeps the TOCs' (`--version X.Y.Z` with that
   number). The suggested version: a feature a minor step, else a patch.
   `release.sh` has no default: it refuses without `--version X.Y.Z`

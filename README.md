@@ -229,6 +229,7 @@ bun addon-kit/hooks.ts status                  # each repository's hooks and HEA
 bun addon-kit/hooks.ts install yonder          # (or --all); uninstall puts its own hooks back
 bun addon-kit/packet.ts yonder [a..b]          # the reviewer's packet: .cache/review/<sha>.md
 bun addon-kit/review.ts yonder "2 findings"    # the reviewer's verdict, recorded for HEAD (a clean tree; --again to replace)
+bun addon-kit/coldread.ts yonder "read, fixed" [frFR deDE]  # a cold read of every language (or those named), recorded for HEAD: preflight's flag counts from here, not the tag
 bun addon-kit/board.ts add yonder "Eight riddles" --repos yonder,wow-data   # a session's first write: running
 bun addon-kit/board.ts set yonder-eight-riddles --status waiting-test --try "…"
 bun addon-kit/board.ts set yonder-eight-riddles --on wow-data-trainers     # blocked, waiting on that card
@@ -435,8 +436,9 @@ Notes, no semicolon, Other addons naming tagged siblings by their Wago ids);
 the live pages through `store.ts`'s dry run (whether `--apply` is due);
 each language's coverage (locales.ts's own line, else the words counted;
 esMX borrowing esES's) and the languages whose authored text (words, pages,
-riddles, the files by hand, not the game's names) changed since the tag,
-each for a cold read by the prose-reader; CI on HEAD, the daily game data,
+riddles, the files by hand, not the game's names) changed since the
+language's last recorded cold read (`coldread.ts`), else since the tag, each
+for a cold read by the prose-reader; CI on HEAD, the daily game data,
 open pull requests; the check stamp, the review on HEAD, the iCloud test
 build; the kit copy's commit on addon-kit's origin; the release workflow's
 secrets and HOLD_STORES.

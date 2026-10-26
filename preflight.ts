@@ -29,6 +29,7 @@
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import { authoredChanged, coldBase, isAuthored, languages } from "./coldread";
 import { reviewOf } from "./review";
 import { familyRoot } from "./root";
 import { read as readRepo, ships as shipsPaths, type Repo } from "./status";
@@ -161,8 +162,7 @@ export function coverage(line: string): { complete: boolean; stale: number; flag
   return { complete: pairs.every((m) => m[1] === m[2]), stale, flagged: /\bflagged\b/.test(line) };
 }
 
-/** A language's file someone wrote (a cold read's business), not the game's names a script made. */
-export const isAuthored = (path: string) => /\.md$|(^|\/)(words|sections|chapters)\.json$|-by-hand\.json$/.test(path);
+export { isAuthored };
 
 /** "in its TOC", "in both TOCs", "in all 3 TOCs". */
 export const inTocs = (n: number) => (n === 1 ? "in its TOC" : n === 2 ? "in both TOCs" : `in all ${n} TOCs`);
@@ -199,15 +199,6 @@ function tocsOf(dir: string): Toc[] {
         .sort()
         .map((f) => readToc(`${d.name}/${f}`, readFileSync(join(addon, d.name, f), "utf8"))),
     );
-}
-
-/** The translations an addon ships: i18n/<locale>/ with a meta.json, English aside. */
-function languages(dir: string): string[] {
-  const i18n = join(dir, "i18n");
-  if (!existsSync(i18n)) return [];
-  return readdirSync(i18n)
-    .filter((l) => /^[a-z]{2}[A-Z]{2}$/.test(l) && l !== "enUS" && existsSync(join(i18n, l, "meta.json")))
-    .sort();
 }
 
 // (the interface's words translated, where locales.ts gives no line of its own)
@@ -379,14 +370,18 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
       const c = coverage(line);
       add(c.complete && !c.stale ? "✓" : "!", l, `${line}${c.complete ? "" : ": English where it's missing"}`);
     }
+    // (from the language's last recorded cold read, else the tag: coldread.ts)
     const changed: string[] = [];
+    const read: string[] = [];
     for (const l of langs) {
-      const files = ((await git(dir, "diff", "--name-only", range === "HEAD" ? "4b825dc642cb6eb9a060e54bf8d69288fbee4904" : tag!, "HEAD", "--", `i18n/${l}`)) ?? "")
-        .split("\n")
-        .filter((f) => f && isAuthored(f));
-      if (files.length) changed.push(`${l} (${files.length} file${files.length > 1 ? "s" : ""})`);
+      const { base, read: stamp } = coldBase(dir, l, tag);
+      const files = authoredChanged(dir, l, base);
+      if (files.length) changed.push(`${l} (${files.length} file${files.length > 1 ? "s" : ""}${stamp ? `, since the cold read at ${stamp.head.slice(0, 7)}` : ""})`);
+      else if (stamp) read.push(`${l} at ${stamp.head.slice(0, 7)}`);
     }
-    if (changed.length) add("!", "cold read", `authored text ${tag ? `changed since ${tag}` : "never released"}: ${changed.join(", ")}. A cold read of each (the prose-reader)`);
+    if (changed.length)
+      add("!", "cold read", `authored text ${tag ? `changed since ${tag} or the last cold read` : "never released"}: ${changed.join(", ")}. A cold read of each (the prose-reader), then bun addon-kit/coldread.ts ${name} '<verdict>'`);
+    if (read.length) add("·", "cold read", `read cold, nothing authored changed since: ${read.join(", ")}`);
   }
 
   // GitHub's side
