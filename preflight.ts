@@ -111,7 +111,7 @@ export function kindOf(subject: string): Kind {
   return "other";
 }
 
-/** The version to suggest: a feature a minor step, else a patch (release.sh's default). */
+/** The version to suggest: a feature a minor step, else a patch (what release.sh's refusal prints: it takes no default). */
 export function nextVersion(current: string, commits: Commit[]): string | undefined {
   const m = current.match(/^(\d+)\.(\d+)\.(\d+)$/);
   if (!m) return undefined;
@@ -277,8 +277,8 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
   const siteTags = name === "wow-locker"; // (WoWLocker's tags are the site's, its addon's version apart)
   if (versions.length > 1) add("✗", "version", `the TOCs differ: ${tocs.map((t) => `${t.file} ${t.version}`).join(", ")}`);
   else if (siteTags) add("·", "version", `addon ${version} ${inTocs(tocs.length)}; the tags are the site's (release.sh --addon X.Y.Z)`);
-  else if (!tag) add("!", "version", `${version} ${inTocs(tocs.length)}, a first release: release.sh --version ${version} (its default is the patch after)`);
-  else if (tag !== `v${version}`) add("!", "version", `the TOCs say ${version}, the last tag is ${tag}: release.sh bumps from the TOCs`);
+  else if (!tag) add("!", "version", `${version} ${inTocs(tocs.length)}, a first release: release.sh --version ${version} (the TOCs' own)`);
+  else if (tag !== `v${version}`) add("!", "version", `the TOCs say ${version}, the last tag is ${tag}: release.sh --version X.Y.Z bumps the TOCs to it`);
   else add("✓", "version", `${version} ${inTocs(tocs.length)}, the last tag's`);
 
   const pinned = pins();

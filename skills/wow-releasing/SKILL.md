@@ -45,16 +45,18 @@ every ✗ (it exits 1 while one stands) and look at every !:
 - `cold read`: each language whose authored text changed since the tag
   (French, German, Spanish: whichever it lists), read by the `prose-reader`
   helper before the release.
-- `version`: a first release keeps the TOCs' with `--version X.Y.Z`
-  (release.sh's default is the patch after). The suggested version: a
-  feature a minor step, else a patch.
+- `version`: a first release keeps the TOCs' (`--version X.Y.Z` with that
+  number). The suggested version: a feature a minor step, else a patch.
+  `release.sh` has no default: it refuses without `--version X.Y.Z`
+  (printing preflight's suggestion), so the number is always one the user
+  has been shown, never the patch after the TOCs'.
 - `what ships`: the release notes' material. Write them from it, what a
   player notices.
 
 From the repository, main in sync with origin and clean:
 
 ```bash
-scripts/release.sh [--version X.Y.Z] [--hold] NOTES.md
+scripts/release.sh --version X.Y.Z [--hold] NOTES.md
 ```
 
 - Every addon's is the kit's (`addon-kit/release.sh`, called with the

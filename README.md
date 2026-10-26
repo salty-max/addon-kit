@@ -106,7 +106,9 @@ carried by git, every Lua file loaded, no TOC a game doesn't name; then
 folder ships beside it through `also`.
 
 `scripts/release.sh` calls the kit's `release.sh` with the addon's folders
-(through `scripts/root.ts`: a release runs here, never in CI). Before
+(through `scripts/root.ts`: a release runs here, never in CI). It needs
+`--version X.Y.Z`: there is no default, and without it the refusal prints
+preflight's suggestion. Before
 anything changes: main, clean, in sync with origin; the saved ids against
 the last release tag (`ids.ts --last-release`); HOLD_STORES read (gh must
 answer). Then the bump, the whole check through q, the stamp of that very
@@ -424,7 +426,8 @@ bun addon-kit/preflight.ts --no-fetch --json  # as the checkouts know it, as JSO
 For each addon: git as `release.sh` wants it (main, clean, in sync); what
 ships since the last tag, grouped (feat, fix, data, kit, other: the release
 notes' material) with a version suggested (a feature a minor step, else a
-patch; a first release keeps the TOCs' with `--version`); the TOCs (one
+patch; `release.sh` takes no default and refuses without `--version
+X.Y.Z`, printing this suggestion); the TOCs (one
 version, each game's interface against wow-data's pinned build, TBC by
 hand, the store ids, Notes in every translated language, esMX beside esES);
 the store page (Support with Ko-fi before Source, its summary the TOCs'

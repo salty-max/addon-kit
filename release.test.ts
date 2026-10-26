@@ -67,6 +67,7 @@ esac
     join(bin, "bun"),
     `#!/usr/bin/env bash
 case "$*" in
+  *preflight.ts*) [ -n "\${NO_SUGGESTION:-}" ] && exit 1; printf '[\\n  {\\n    "name": "X",\\n    "next": "1.1.0"\\n  }\\n]\\n'; exit 0 ;;
   *ids.ts*) [ -n "\${IDS_FAIL:-}" ] && exit 1; exit 0 ;;
   *q.ts*)
     case "\${CHECK:-ok}" in
@@ -93,8 +94,10 @@ exit 1
   return { top, remote, repo, other, bin, vars };
 }
 
-function release(s: ReturnType<typeof scratch>, args: string[], env: Record<string, string> = {}) {
-  const r = Bun.spawnSync(["bash", RELEASE, "--folders", "addon/X", ...args, "NOTES.md"], {
+// (a release always names its version: 1.0.1 unless the test says another, or none)
+function release(s: ReturnType<typeof scratch>, args: string[], env: Record<string, string> = {}, named = true) {
+  const version = named && !args.includes("--version") ? ["--version", "1.0.1"] : [];
+  const r = Bun.spawnSync(["bash", RELEASE, "--folders", "addon/X", ...version, ...args, "NOTES.md"], {
     cwd: s.repo,
     stdout: "pipe",
     stderr: "pipe",
@@ -131,6 +134,21 @@ describe("a release", () => {
     expect(remoteTags(s)).toContain("refs/tags/v1.0.1");
     expect(git(s.repo, "ls-remote", "origin", "refs/heads/main")).toContain(git(s.repo, "rev-parse", "HEAD"));
     expect(existsSync(s.vars)).toBe(false); // (the stores no longer held)
+  });
+  test("takes no default version: without --version it refuses, with preflight's suggestion, before touching anything", () => {
+    const s = scratch();
+    const r = release(s, [], {}, false);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("no --version");
+    expect(r.out).toContain("preflight suggests 1.1.0");
+    putBack(s);
+    // preflight silent: the refusal stands without a suggestion; a dry run asks for it too
+    const quiet = release(s, ["--dry-run"], { NO_SUGGESTION: "1" }, false);
+    expect(quiet.code).toBe(1);
+    expect(quiet.out).toContain("no --version");
+    expect(quiet.out).not.toContain("suggests");
+    expect(remoteTags(s)).toBe("");
+    putBack(s);
   });
   test("--hold holds the stores; --dry-run changes nothing", () => {
     const s = scratch();

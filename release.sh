@@ -4,12 +4,14 @@
 # tags and pushes. GitHub Actions then packages and publishes it
 # (.github/workflows/release.yml): the GitHub release, CurseForge and Wago Addons.
 #
-#   scripts/release.sh [--version X.Y.Z] [--hold] [--dry-run] NOTES.md
+#   scripts/release.sh --version X.Y.Z [--hold] [--dry-run] NOTES.md
 #   (bash addon-kit/release.sh --folders "addon/Name [addon/Other]" …, from the addon's root)
 #
 #   NOTES.md         release notes (markdown): the tag's message, then the
 #                    changelog on GitHub, CurseForge and Wago
-#   --version X.Y.Z  default: the TOCs' version, patch + 1
+#   --version X.Y.Z  required, there is no default: a release's number is
+#                    decided (preflight suggests one: a feature a minor
+#                    step, else a patch), never guessed from the TOCs
 #   --hold           the GitHub release alone (repository variable
 #                    HOLD_STORES); the stores later, by hand:
 #                    gh workflow run release.yml -f tag=vX.Y.Z
@@ -38,6 +40,12 @@ done
 die() { echo "release: $*" >&2; exit 1; }
 [ -n "$FOLDERS" ] || die "no --folders: run the addon's scripts/release.sh"
 [ -n "$NOTES" ] && [ -s "$NOTES" ] || die "give a non-empty release notes file"
+if [ -z "$VERSION" ]; then
+  # (best effort: preflight's suggestion, offline, for the one who runs this to confirm)
+  suggested=$(bun scripts/root.ts --run addon-kit/preflight.ts --offline --no-fetch --json "$(basename "$PWD")" 2>/dev/null |
+    sed -n 's/^ *"next": *"\([^"]*\)".*/\1/p' | head -1 || true)
+  die "no --version: a release names its version. ${suggested:+preflight suggests $suggested: }run bun addon-kit/preflight.ts $(basename "$PWD") and give --version X.Y.Z"
+fi
 
 git fetch -q origin --tags
 [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || die "not on main"
@@ -57,10 +65,6 @@ for d in $FOLDERS; do
   done
 done
 current=$(sed -n 's/^## Version: *//p' "${TOCS[0]}" | tr -d '\r')
-if [ -z "$VERSION" ]; then
-  IFS=. read -r ma mi pa <<<"$current"
-  VERSION="$ma.$mi.$((pa + 1))"
-fi
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "not a version: $VERSION"
 TAG="v$VERSION"
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && die "$TAG already exists"
