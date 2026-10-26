@@ -105,6 +105,11 @@ describe("usage", () => {
       const a = repo("a", [{ s: 5, commitAt: 300 }]);
       expect(gitCommits([a], [run(4, 8)])).toBe(1);
     });
+    test("a run with no time (a line without its timestamp) is left to the transcript's count", () => {
+      const a = repo("a", [{ s: 5 }]);
+      expect(gitCommits([a], [{ from: Number.NaN, to: Number.NaN, segments: 1, failed: false }])).toBeUndefined();
+      expect(gitCommits([a], [{ from: Number.NaN, to: Number.NaN, segments: 1, failed: false }, run(4, 6)])).toBe(1);
+    });
     test("a hook's refusal committed nothing", () => {
       const a = repo("a", []);
       expect(gitCommits([a], [run(4, 6, 1, true)])).toBe(0);
