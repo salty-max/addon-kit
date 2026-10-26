@@ -25,6 +25,10 @@
  *   bun scripts/root.ts --run addon-kit/regional.ts [--check|--migrate] [esMX]
  *   (from an addon; the language is esMX by default)
  *
+ *       "overrides": { "esES": { "to": "esMX", "why": "…" } }   rare: a game name
+ *                                          wow-data writes otherwise, kept
+ *                                          on purpose, the reason said
+ *
  * It fails on a name no database gives (move it to words), one the
  * databases give two ways (words, saying which), one the borrower writes the
  * same (it does nothing), and a word that is a plain game name (move it to
@@ -49,7 +53,7 @@ const dir = join(process.cwd(), "i18n", locale);
 const handFile = join(dir, "regional.json");
 const outFile = join(dir, "regional.resolved.json");
 if (!existsSync(handFile)) throw new Error(`${handFile}: none`);
-const hand = JSON.parse(readFileSync(handFile, "utf8")) as { names?: string[]; words?: Record<string, string> };
+const hand = JSON.parse(readFileSync(handFile, "utf8")) as { names?: string[]; words?: Record<string, string>; overrides?: Record<string, { to: string; why: string }> };
 const names = hand.names ?? [];
 const words = hand.words ?? {};
 
@@ -102,6 +106,13 @@ for (const [from, to] of Object.entries(words)) {
   }
   if (from in resolved) problems.push(`words: "${from}" is in names too`);
   else resolved[from] = to;
+}
+// (a game name wow-data writes otherwise, kept on purpose: its value is wrong there, and why is said;
+// the fix is wow-data's, the day a source gives the client's own name)
+for (const [from, o] of Object.entries(hand.overrides ?? {})) {
+  if (!o.to || !o.why) problems.push(`overrides: "${from}" wants { "to", "why" }`);
+  else if (from in resolved) problems.push(`overrides: "${from}" is in names or words too`);
+  else resolved[from] = o.to;
 }
 if (problems.length) {
   console.error(`regional (${locale}): ${problems.length} to fix in ${handFile}\n  ${problems.join("\n  ")}`);
