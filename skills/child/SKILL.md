@@ -106,7 +106,18 @@ as the app's notes).
 
 Say in a line that this session is the dispatch now. From then on, every
 new task the user asks here is opened as a child (above), and the
-session writes nothing of its own. A follow-up to a child's task goes to
+session writes nothing of its own.
+
+The dispatch runs on Sonnet: its turns are relays, checks, pushes and
+archives, and on Opus it was the night's biggest single overhead (26 Oct
+2026: $26 over 283 turns, about 18% on top of its children). A session
+can't change its own model: if this one isn't on Sonnet, say so in the
+same line and ask the user to switch it in the model menu (desktop) or
+with `/model sonnet` (terminal). From a Sonnet dispatch the app opens
+prose and plan children at Sonnet at first (it never starts a child
+above its opener): `set_session_model` moves each to Opus as in step 4,
+and the app asks the user for each one, so name the child and the reason
+in the line. A follow-up to a child's task goes to
 that child (SendMessage, its name), a question about where things stand is
 answered here (the children, the board, `status.ts`). It lasts until the
 user says otherwise.
