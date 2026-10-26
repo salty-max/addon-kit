@@ -34,8 +34,8 @@ card waiting on the game, so the user launches it once.
    character, and the screenshots wanted (the bug, the page, the chat
    line).
 
-When iCloud refuses a background session (`Operation not permitted`,
-`status.ts` failing on its read): leave the zip in the repository's
+When iCloud refuses a background session (the `cp` failing with
+`Operation not permitted`, `status.ts` showing no test build at all): leave the zip in the repository's
 `dist/` and give the user the line for their own terminal, `cp
 ~/code/wow-addons/<repo>/dist/<zip> ~/Library/Mobile\
 Documents/com~apple~CloudDocs/Hearthtale\ test/`. Never route around it

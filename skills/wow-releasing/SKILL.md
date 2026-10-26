@@ -120,14 +120,15 @@ once. Each push needs the user's go, and one go may cover several
 repositories when the ask names them all.
 
 1. **The order**: addon-kit first (the addons' stamps name its commits),
-   then wow-data. If wow-data's push touches `db.yml`'s paths, it
-   publishes the databases by itself (`db-<commit12>`): watch that run to
-   the end before pushing any addon (`gh run list -R salty-max/wow-data -w
-   db.yml -L 1` for its id, then `gh run watch <id> -R
-   salty-max/wow-data`). An addon's daily `game-data.yml` waits at most ten
-   minutes for a database still publishing, then builds from the old one
-   and opens a pull request reverting the new names. If the push doesn't
-   touch those paths, go straight on. Then the addons, in any order.
+   then wow-data, then the addons, in any order. An addon's daily
+   `game-data.yml` builds from wow-data's main: an addon whose generated
+   files came from unpushed wow-data gets a pull request reverting them.
+   If wow-data's push touches `db.yml`'s paths, it publishes the databases
+   by itself (`db-<commit12>`): watch that run to the end before the
+   addons (`gh run list -R salty-max/wow-data -w db.yml -L 1` for its id,
+   then `gh run watch <id> -R salty-max/wow-data`). A daily job meeting a
+   database still publishing waits ten minutes for it, then fails (it never
+   builds from an older one), so a red Databases run is fixed first.
 2. **What rides along**, before each push: `git -C <repo> log --oneline
    origin/main..<sha>`. Commits of another card below this one go out
    with it: name them to the user (the board's `note:` says which cards)
@@ -135,9 +136,10 @@ repositories when the ask names them all.
 3. **A range, by sha**: `git -C <repo> push origin <sha>:main`, never a
    bare `git push` (it would carry commits made after the go). The pre-push
    hook wants the check stamp of that very tree.
-4. **CI, per repository**: watch each push's run in the background (`gh
-   run list -R salty-max/<repo> -L 1` for its id, `gh run watch <id> -R
-   salty-max/<repo> --exit-status`), then `bun addon-kit/status.ts`. The
+4. **CI, per repository**: every run the push started (`gh run list -R
+   salty-max/<repo> --commit <sha>`), each watched in the background (`gh
+   run watch <id> -R salty-max/<repo> --exit-status`), then `bun
+   addon-kit/status.ts`. The
    next wave waits until every run of this one is green.
 5. **The cards**: this session's own cards whose commits went out, set
    done (`board.ts set <id> --status done`). A child's card: SendMessage

@@ -65,7 +65,7 @@ writes nothing. It works under this session's card. The brief:
   held), checked, each tree ready to commit.
 - **Files**: each addon's copies and what the sync writes, nothing else.
 - **Precedent**: the newest sync commit, `git -C mealbook log --grep 'the
-  kit at' -1 -p --stat`.
+  kit at' -1 --stat`.
 - **Checks**: `bun addon-kit/each.ts --kit --only <addons> -- bun
   ../addon-kit/q.ts check -- bun run check` all green, and `git status
   --short` in each addon showing only the copies and what the sync wrote.

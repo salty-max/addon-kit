@@ -24,9 +24,10 @@ what is missing.
   repository in kebab-case (`yours-truly`). Check both stores and GitHub
   before settling it.
 - The card first: `bun addon-kit/board.ts add <repo> "<title>" --repos
-  <repo>,addon-kit --status running …` (the folder can be named before
-  it exists; addon-kit for the minimap angle and the kit's header, below;
-  wow-data for its workflow's list, and when its data needs a new field).
+  <repo>,addon-kit[,wow-data] --status running …` (the folder can be
+  named before it exists; addon-kit for the minimap angle and the kit's
+  header, below; wow-data when it has game data, for `addon-data.yml`'s
+  list and any field its data needs).
 
 ## The repository
 
@@ -79,10 +80,15 @@ From `~/code/wow-addons/<repo>`, after `git init`:
   salty-max/<repo> --public --source <repo>` (no push by it), then the push
   of main on its own go (`wow-releasing`). Its description and topics come
   with the store page.
-- The secrets the workflows read (`CURSEFORGE_TOKEN`, `WAGO_API_TOKEN`,
-  `INBOX_EVENTS_TOKEN`): `bun addon-kit/secret.ts <NAME>` sets each on
-  every repository whose workflows read it (the new one, once its
-  workflows are committed), on the user's go.
+- The secrets the workflows read, each on the user's go, once the new
+  repository's workflows are committed (`secret.ts` sets a secret on every
+  repository whose workflows read it): the store tokens from the
+  clipboard, `bun addon-kit/secret.ts CURSEFORGE_TOKEN` and
+  `WAGO_API_TOKEN`. `INBOX_EVENTS_TOKEN` is ours and never printed, so
+  nobody holds it to copy: `bun addon-kit/secret.ts INBOX_EVENTS_TOKEN
+  --generate --vercel ravenpost/inbox`, a new one everywhere, then the
+  inbox's deploy (wow-releasing's "Several addons at once": one deploy for
+  every new addon).
 - The store page (`addon/CURSEFORGE.md`) with the `wow-store-pages` skill.
   The CurseForge and Wago projects are the user's to create: their ids
   then go into every TOC (`X-Curse-Project-ID`, `X-Wago-ID`) before the
