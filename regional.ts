@@ -114,7 +114,8 @@ if (moved.length) {
   console.log(`regional (${locale}): ${moved.length} words moved to names in ${handFile}`);
   for (const k of moved) resolved[k] = words[k];
 }
-const text = JSON.stringify(resolved, null, 2) + "\n";
+// (sorted: the same file whichever list a pair is in)
+const text = JSON.stringify(Object.fromEntries(Object.entries(resolved).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))), null, 2) + "\n";
 if (check) {
   if (!existsSync(outFile) || readFileSync(outFile, "utf8") !== text) {
     console.error(`regional (${locale}): ${outFile} is stale: bun scripts/root.ts --run addon-kit/regional.ts ${locale}`);
