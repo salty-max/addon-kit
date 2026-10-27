@@ -376,6 +376,73 @@ local second = pg:card("Two", "", K.icon("Icon"), nil, nil, K.RINGS.gold)
 pg:section("After them")
 check(first.line.shown and not second.line.shown, "page: a rule between two cards, none under the last")
 
+-- A voice: the page's own face, signed on the right in the display face, no
+-- rule beside it, an aside untouched; buttons, a click each, hidden on the
+-- next page.
+do
+  pg:start("A letter", "")
+  local clicked = false
+  pg:text({ { "Dear friend,\n\nI did it.", voice = true, sign = "M." } })
+  pg:buttons({ { "Break the seal", function() clicked = true end } })
+  local v, b = pg.voices[1], pg.buttonPool[1]
+  check(
+    v.shown and v.text.text == "Dear friend,\n\nI did it." and v.text.fontSize == 13 and rawget(v, "bar") == nil,
+    "page: a voice in the page's own face, no rule"
+  )
+  check(v.sign.shown and v.sign.text == "M." and v.sign.fontSize == 15, "page: a voice signed in the display face")
+  check(#pg.asides == 0, "page: a voice is no aside")
+  check(b.shown and b.text == "Break the seal", "page: a button with its words")
+  b.scripts.OnClick(b)
+  check(clicked, "page: a button's click")
+  pg:start("Another", "")
+  check(not v.shown and not b.shown, "page: the voice and the button hidden on the next page")
+  pg:text({ { "Unsigned.", voice = true } })
+  check(v.shown and not v.sign.shown, "page: a voice without a name, unsigned")
+  -- (four buttons of 130 on a page of 440: the fourth on a row of its own;
+  -- none: nothing placed)
+  pg:start("Calls", "")
+  local y0 = pg.y
+  pg:buttons({})
+  check(pg.y == y0, "page: no buttons, no room taken")
+  pg:buttons({ { "A" }, { "B" }, { "C" }, { "D" } })
+  local p3, p4 = pg.buttonPool[3].point, pg.buttonPool[4].point
+  check(
+    p3[4] == 280 and p3[5] == 0 and p4[4] == 0 and p4[5] == -(K.BUTTON_H + 6),
+    "page: buttons wrap at the page's edge"
+  )
+  check(pg.y == y0 + 2 * K.BUTTON_H + 6 + 14, "page: two rows of buttons, two rows' room")
+end
+
+-- The family's button: wider when its words need it.
+do
+  local b = { SetWidth = function(s, w) s.w = w end, SetText = function(s, t) s.t = t end }
+  function b.GetFontString()
+    return { GetStringWidth = function() return 200 end }
+  end
+  K.setButton(b, "Bearbeiten und mehr", 120)
+  check(b.w == 224 and b.t == "Bearbeiten und mehr", "button: wider for long words")
+  function b.GetFontString()
+    return { GetStringWidth = function() return 40 end }
+  end
+  K.setButton(b, "Edit", 120)
+  check(b.w == 120, "button: its own width for short words")
+end
+
+-- The lists' shared kinds, a list without a style of its own.
+do
+  local l = K.list(frame(), nil, {})
+  check(l.style == K.listStyle, "list: the shared kinds by default")
+  l:begin()
+  local s = l:add("section", "Elwynn Forest")
+  local r = l:add("letter", "Maybell", 1)
+  local n = l:add("note", "No letter yet.")
+  check(
+    s.text.fontSize == 14 and r.text.fontSize == 12 and n.text.fontSize == 12,
+    "list: a section in the display face, rows in the body"
+  )
+  check(l.y == 22 + 18 + 18, "list: a section's height and two rows'")
+end
+
 -- Two rows of items on a page, two strips of figures, two sets of names:
 -- each in a box of its own at its own place, none on top of another; a slot
 -- of the first row's box on one page, of the second's on the next, shown.

@@ -912,9 +912,11 @@ end
 -- ── the list ─────────────────────────────────────────────────────────────────
 -- The column on the left of a book: rows laid out from the top, one picked
 -- out (and kept in view). style(row, kind) places a row's parts for its kind
--- and returns its height; each tab has its own kinds. rows: the pool of rows
--- (made at the tab's load, for the tests); filtered: under the select of a
--- tab with one; name: the scroll area's global name, if wanted.
+-- and returns its height: K.listStyle's kinds, the ones every book shares,
+-- when the tab gives none; a tab with kinds of its own places those and
+-- hands the rest to K.listStyle. rows: the pool of rows (made at the tab's
+-- load, for the tests); filtered: under the select of a tab with one; name:
+-- the scroll area's global name, if wanted.
 --   l = K.list(parent, style, rows, filtered, name)
 --   l:begin(), l:add(kind, text, count) (a row), l:grow(row, by), l:gap(by),
 --   l:pick(row) (the one the page shows), l:finish(scroll) (scroll false:
@@ -922,9 +924,37 @@ end
 K.ROW_WIDTH = 204
 local List = {}
 
+-- The kinds every book's list shares: "section" (a heading in the display
+-- face, the accent), "overview" (a row at the left edge, in the accent),
+-- "note" (a quiet line: nothing found), any other a row set in under its
+-- section, its count on the right.
+function K.listStyle(row, kind)
+  if kind == "section" then
+    row.text:SetPoint("LEFT", 4, 0)
+    row.text:SetPoint("RIGHT", -4, 0)
+    row.text:SetFont(K.TITLE_FONT, 14, "")
+    row.text:SetTextColor(unpack(T.accent))
+    return 22
+  end
+  if kind == "note" then
+    row.text:SetPoint("LEFT", 4, 0)
+    row.text:SetPoint("RIGHT", -4, 0)
+    row.text:SetFont(K.BODY_FONT, 12, "")
+    row.text:SetTextColor(unpack(T.soft))
+    return 18
+  end
+  row.count:SetPoint("RIGHT", -4, 0)
+  row.count:SetTextColor(unpack(T.soft))
+  row.text:SetPoint("LEFT", kind == "overview" and 4 or 14, 0)
+  row.text:SetPoint("RIGHT", row.count, "LEFT", -4, 0)
+  row.text:SetFont(K.BODY_FONT, 12, "")
+  row.text:SetTextColor(unpack(kind == "overview" and T.accent or T.text))
+  return 18
+end
+
 function K.list(parent, style, rows, filtered, name)
   local l = extend(K.scrollArea(parent, K.ROW_WIDTH, name), List)
-  l.rows, l.style = rows or {}, style
+  l.rows, l.style = rows or {}, style or K.listStyle
   l:SetPoint("TOPLEFT", parent, "TOPLEFT", 12, filtered and -70 or -40)
   l:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -18, 12)
   return l
@@ -1017,14 +1047,14 @@ end
 -- the title, a line under it, a rule), then blocks laid out from the top: a
 -- note, sections under their heading, a label and its value, cards, a
 -- paragraph, a strip of figures, a creature turning in its frame, items'
--- icons, names to pick. Every page of every book is made of these.
+-- icons, names to pick, buttons. Every page of every book is made of these.
 --   p = K.page(parent, name, { width = 440, labelWidth = 110, pairs = pool })
 --   p:start(title, sub, setPicture, seal) (no picture: the title to the left)
 --   p:text(paragraphs), p:section(title), p:row(label, value),
 --   p:card(name, facts, setPicture, click, seal), p:paragraph(text, colour),
 --   p:stats({ { value, label } }), p:model(display, shape), p:items(list),
---   p:chips(list), p:place(block, height) (a block of the tab's own),
---   p:finish(keep)
+--   p:chips(list), p:buttons(list), p:place(block, height) (a block of the
+--   tab's own), p:finish(keep)
 K.PAGE_WIDTH, K.PAGE_HEADER_H = 440, 88
 local Page = {}
 
@@ -1034,7 +1064,7 @@ function K.page(parent, name, o)
   local p = extend(K.scrollArea(parent, width, name), Page)
   p.width, p.labelWidth, p.pairs, p.headings = width, o.labelWidth or 110, o.pairs or {}, {}
   p.cards, p.paragraphs, p.tiles, p.itemPool, p.chipPool = {}, {}, {}, {}, {}
-  p.texts, p.asides, p.boxes = {}, {}, {}
+  p.texts, p.asides, p.voices, p.boxes, p.buttonPool = {}, {}, {}, {}, {}
   p:SetPoint("TOPLEFT", parent, "TOPLEFT", 26, -22)
   p:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -22, 14)
   p.portrait = K.roundIcon(p.child, 64, true)
@@ -1067,7 +1097,9 @@ function Page:start(title, sub, setPicture, seal, ring)
     self.chipPool,
     self.texts,
     self.asides,
+    self.voices,
     self.boxes,
+    self.buttonPool,
   }) do
     for _, x in ipairs(pool) do
       x:Hide()
@@ -1095,7 +1127,7 @@ function Page:start(title, sub, setPicture, seal, ring)
   K.setBadge(self.portrait.badge, pictured and seal or nil)
   K.ringColour(self.portrait, ring and ring[1], ring and ring[2])
   self.y, self.hi, self.pi, self.ci, self.qi, self.ti, self.ii, self.chi = K.PAGE_HEADER_H + 2, 0, 0, 0, 0, 0, 0, 0
-  self.xi, self.ai, self.bi, self.lastCard = 0, 0, 0, nil
+  self.xi, self.ai, self.vi, self.bi, self.bti, self.lastCard = 0, 0, 0, 0, 0, nil
 end
 
 -- A block at the page's next place (a frame or a font string), so tall. (Any
@@ -1123,10 +1155,16 @@ function Page:box()
   return box
 end
 
--- The note at the head of a page: its paragraphs, each a string, or an aside,
--- { text, aside = true, sign = "P. F." }: a note in another hand, set in from
--- a rule in the display face and the theme's aside ink, its initials (sign)
--- under it on the right. Paragraphs between asides run together.
+-- The note at the head of a page: its paragraphs, each a string, a voice or
+-- an aside. Paragraphs between them run together.
+-- A voice, { text, voice = true, sign = "Name" }: someone speaking to the
+-- reader, the page theirs (a letter, a chef's page, a faction's chapter),
+-- set as the page's own paragraphs are and signed under them on the right,
+-- in the display face and the accent. Every book's voices look the same.
+-- An aside, { text, aside = true, sign = "P. F." }: a short note in another
+-- hand on someone else's page (Parqual's in the Codex), set in from a rule
+-- in the display face and the theme's aside ink, its initials under it on
+-- the right. A line or three, never a whole page: that is a voice.
 local ASIDE_IN = 18
 
 function Page:textBlock(i)
@@ -1174,6 +1212,36 @@ function Page:aside(p)
   self:place(a, height + 20)
 end
 
+function Page:voice(p)
+  self.vi = self.vi + 1
+  local v = self.voices[self.vi]
+  if not v then
+    v = CreateFrame("Frame", nil, self.child)
+    v:SetWidth(self.width)
+    v.text = K.label(v, K.BODY_FONT, 13, T.text)
+    v.text:SetPoint("TOPLEFT", 0, 0)
+    v.text:SetWidth(self.width)
+    v.text:SetSpacing(4)
+    v.sign = K.label(v, K.TITLE_FONT, 15, T.accent)
+    v.sign:SetJustifyH("RIGHT")
+    v.sign:SetWidth(self.width)
+    self.voices[self.vi] = v
+  end
+  v.text:SetTextColor(unpack(T.text))
+  v.text:SetText(p[1])
+  local height = v.text:GetStringHeight()
+  v.sign:SetShown(p.sign ~= nil)
+  if p.sign then
+    v.sign:SetTextColor(unpack(T.accent))
+    v.sign:ClearAllPoints()
+    v.sign:SetPoint("TOPLEFT", 0, -(height + 10))
+    v.sign:SetText(p.sign)
+    height = height + 10 + v.sign:GetStringHeight()
+  end
+  v:SetHeight(height)
+  self:place(v, height + 20)
+end
+
 function Page:text(paragraphs)
   if not paragraphs or #paragraphs == 0 then return end
   local run = {}
@@ -1189,6 +1257,9 @@ function Page:text(paragraphs)
     if type(p) == "table" and p.aside then
       flush()
       self:aside(p)
+    elseif type(p) == "table" and p.voice then
+      flush()
+      self:voice(p)
     else
       table.insert(run, type(p) == "table" and p[1] or p)
     end
@@ -1517,6 +1588,60 @@ function Page:chips(list)
     b:Show()
   end
   self:place(box, rows * CHIP_H + 10)
+end
+
+-- The family's button: the game's own panel button (red on Classic, the quest
+-- window's Accept and Decline), so wide, wider when its words need it (a
+-- longer word in another language: "Bearbeiten"). K.setButton: new words on
+-- a button already made.
+K.BUTTON_H = 22
+function K.setButton(b, text, width)
+  b:SetWidth(width)
+  b:SetText(text)
+  local fs = b.GetFontString and b:GetFontString()
+  local w = fs and fs.GetStringWidth and fs:GetStringWidth()
+  if type(w) == "number" and w + 24 > width then b:SetWidth(math.ceil(w + 24)) end
+  return b
+end
+function K.button(parent, text, width)
+  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+  b:SetHeight(K.BUTTON_H)
+  return K.setButton(b, text, width)
+end
+
+-- Something to do from the page, a button each, side by side, a new row when
+-- the page is full: { { text, click } } (a call to action, where chips are
+-- names to pick). Nothing to do: nothing placed.
+local BUTTON_W, BUTTON_GAP, BUTTON_ROW = 130, 10, 6
+function Page:buttons(list)
+  if not list or #list == 0 then return end
+  local box = self:box()
+  local x, y = 0, 0
+  for _, a in ipairs(list) do
+    self.bti = self.bti + 1
+    local b = self.buttonPool[self.bti]
+    if not b then
+      b = K.button(self.child, a[1], BUTTON_W)
+      b:SetScript("OnClick", function(bb)
+        if bb.click then bb.click() end
+      end)
+      self.buttonPool[self.bti] = b
+    else
+      K.setButton(b, a[1], BUTTON_W)
+    end
+    b.click = a[2]
+    local w = b:GetWidth()
+    w = type(w) == "number" and w or BUTTON_W
+    if x > 0 and x + w > self.width then
+      x, y = 0, y + K.BUTTON_H + BUTTON_ROW
+    end
+    b:ClearAllPoints()
+    b:SetPoint("TOPLEFT", box, "TOPLEFT", x, -y)
+    b:Show()
+    x = x + w + BUTTON_GAP
+  end
+  box:SetSize(self.width, y + K.BUTTON_H)
+  self:place(box, y + K.BUTTON_H + 14)
 end
 
 -- The page's height, scrolled to the top (keep: where it was).
@@ -3425,12 +3550,7 @@ local WELCOME_W, WELCOME_H, WELCOME_ROW = 780, 500, 44 -- (H with three choices;
 local WELCOME_LEFT, WELCOME_TEXT = 300, 412
 local REFUSED = { 0.85, 0.32, 0.25 }
 
-local function welcomeButton(parent, text, width)
-  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-  b:SetSize(width, 22)
-  b:SetText(text)
-  return b
-end
+local welcomeButton = K.button
 
 function K.welcome(o)
   local W = {}
