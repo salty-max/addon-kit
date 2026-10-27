@@ -45,7 +45,7 @@
   "Nov": "nov.",
   "Oct": "oct.",
   "Page turn": "Page tournée",
-  "Played when an achievement is earned.": "Joué quand un haut fait est obtenu.",
+  "Played when an achievement is earned.": "Retentit à chaque haut fait obtenu.",
   "Quest complete": "Quête terminée",
   "Ready check": "Appel",
   "Sep": "sept.",
@@ -63,5 +63,5 @@
   "Your choices": "Vos choix",
   "Zone discovery": "Découverte de zone",
   "earned": "obtenus",
-  "until closed": "jusqu'à fermeture"
+  "until closed": "jusqu'à la fermeture"
 }
