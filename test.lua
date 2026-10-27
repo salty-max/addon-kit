@@ -453,8 +453,11 @@ do
   local lines = {}
   local tip = { AddLine = function(_, text, r, g, b, wrap) table.insert(lines, { text, r, g, b, wrap }) end }
   K.tooltipLine(tip, "Yonder: not yet recorded", true)
-  K.tooltipLine(tip, "Yonder: met", false)
-  check(lines[1][3] == 0.82 and lines[2][2] == 0.65 and lines[1][5], "tooltip: the gold to find, the brown once known")
+  K.tooltipLine(tip, "Mealbook: cooks into five dishes", false, true)
+  check(
+    lines[1][3] == 0.82 and lines[2][2] == 0.65 and not lines[1][5] and lines[2][5],
+    "tooltip: the gold to find, the brown once known, one line unless asked to wrap"
+  )
   local played = {}
   PlaySound = function(id)
     table.insert(played, id)
@@ -476,10 +479,13 @@ do
   check(K.place(saved, "book").point == "LEFT" and saved.places.book == p, "place: kept in the addon's table")
   check(K.BANNER_SECONDS == 10, "banners: ten seconds by default")
   local tp = K.page(frame(), "TitlePage")
-  tp:start("A Word from the Royal Historian of Ironforge", "Note", K.icon("Icon"))
+  tp:start("A Word from the Royal Historian", "Note", K.icon("Icon"))
   check(tp.title.fontSize < 24 and tp.title.fontSize >= 18, "page: a long title in a smaller face")
+  check(not tp.title.wordWrap, "page: a title that fits smaller on one line")
+  tp:start("The Ballad of the Long Road from Ironforge to Menethil Harbor and Back", "")
+  check(tp.title.fontSize == 18 and tp.title.wordWrap, "page: a title too long at 18 on two lines")
   tp:start("Auberdine", "")
-  check(tp.title.fontSize == 24, "page: a short title at its size")
+  check(tp.title.fontSize == 24 and not tp.title.wordWrap, "page: a short title at its size, one line")
 end
 
 -- Two rows of items on a page, two strips of figures, two sets of names:

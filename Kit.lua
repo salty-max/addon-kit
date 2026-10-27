@@ -152,7 +152,7 @@ function K.theme(theme)
 end
 K.theme()
 
--- A colour as a text code: "|cffd9b36b".
+-- A colour as a text code: "|cffd8b26b".
 function K.hex(c) return ("|cff%02x%02x%02x"):format(c[1] * 255, c[2] * 255, c[3] * 255) end
 
 -- ── words ────────────────────────────────────────────────────────────────────
@@ -170,12 +170,13 @@ function K.plural(n, one, many) return K.isOne(n) and L[one] or L[many] end
 -- user's calls, 27 October 2026). K.prefix: the addon's name before its lines
 -- in chat ("Mealbook: "), in its own accent (its theme set first).
 -- K.tooltipLine: its line on the game's tooltip (a creature's, an item's), in
--- the game's gold for something still to find (new), a quiet brown once known.
+-- the game's gold for something still to find (new), a quiet brown once known,
+-- on one line (the tooltip widens for it) unless wrap.
 function K.prefix(name) return K.hex(T.accent) .. L["%s:"]:format(name) .. "|r " end
 K.TIP_NEW, K.TIP_KNOWN = { 1, 0.82, 0 }, { 0.65, 0.58, 0.45 }
-function K.tooltipLine(tip, text, new)
+function K.tooltipLine(tip, text, new, wrap)
   local c = new and K.TIP_NEW or K.TIP_KNOWN
-  tip:AddLine(text, c[1], c[2], c[3], true)
+  tip:AddLine(text, c[1], c[2], c[3], wrap)
 end
 
 -- Where a window was left, kept in the addon's saved table (t.places[name]):
@@ -1118,17 +1119,23 @@ function K.page(parent, name, o)
   return p
 end
 
--- The title on its one line, its face smaller (24 down to 18) for a long one
--- before the line cuts it.
+-- The title on its line, its face smaller (24 down to 18) for a long one,
+-- then on two lines at 18 before the second cuts it (the header holds two).
 local TITLE_SIZE, TITLE_SMALLEST = 24, 18
 function Page:fitTitle(title, width)
   local fs, size = self.title, TITLE_SIZE
+  fs:SetWordWrap(false)
+  if fs.SetMaxLines then fs:SetMaxLines(1) end
   fs:SetFont(K.TITLE_FONT, size, "")
   fs:SetText(title)
   if not fs.GetUnboundedStringWidth then return end
   while size > TITLE_SMALLEST and fs:GetUnboundedStringWidth() > width do
     size = size - 1
     fs:SetFont(K.TITLE_FONT, size, "")
+  end
+  if fs:GetUnboundedStringWidth() > width then
+    fs:SetWordWrap(true)
+    if fs.SetMaxLines then fs:SetMaxLines(2) end
   end
 end
 
@@ -3550,6 +3557,7 @@ function K.options(o)
   -- a banner stays (K.BANNER_SECONDS by default), and the sound of an
   -- achievement earned (K.ACHIEVEMENT_SOUND), heard as it is chosen.
   function O:bannerSeconds(key)
+    if o.defaults[key] == nil then o.defaults[key] = K.BANNER_SECONDS end
     self:slider(
       key,
       L["Alert shown for"],
@@ -3561,6 +3569,7 @@ function K.options(o)
     )
   end
   function O:achievementSound(key)
+    if o.defaults[key] == nil then o.defaults[key] = K.ACHIEVEMENT_SOUND end
     self:choice(key, L["Achievement sound"], L["Played when an achievement is earned."], function()
       local out = {}
       for _, s in ipairs(K.ACHIEVEMENT_SOUNDS) do
