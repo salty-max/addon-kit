@@ -443,6 +443,45 @@ do
   check(l.y == 22 + 18 + 18, "list: a section's height and two rows'")
 end
 
+-- The second pass: the name in chat in the addon's accent, a tooltip's two
+-- inks, the achievement sound (the fanfare, Quest complete where there is
+-- none, the player's own), a place kept, a long title made smaller.
+do
+  K.theme({ accent = { 1, 0, 0.5 } })
+  check(K.prefix("Mealbook") == "|cffff007fMealbook:|r ", "prefix: the name in the accent, a colon")
+  K.theme()
+  local lines = {}
+  local tip = { AddLine = function(_, text, r, g, b, wrap) table.insert(lines, { text, r, g, b, wrap }) end }
+  K.tooltipLine(tip, "Yonder: not yet recorded", true)
+  K.tooltipLine(tip, "Yonder: met", false)
+  check(lines[1][3] == 0.82 and lines[2][2] == 0.65 and lines[1][5], "tooltip: the gold to find, the brown once known")
+  local played = {}
+  PlaySound = function(id)
+    table.insert(played, id)
+    return id ~= K.FANFARE
+  end
+  K.achievementSound()
+  check(played[1] == K.FANFARE and played[2] == 878, "achievement sound: the fanfare, Quest complete without it")
+  played = {}
+  K.achievementSound(3175)
+  check(#played == 1 and played[1] == 3175, "achievement sound: the player's own")
+  check(
+    K.ACHIEVEMENT_SOUNDS[1][1] == K.FANFARE and #K.ACHIEVEMENT_SOUNDS == #K.SOUNDS + 1,
+    "achievement sounds: the fanfare first, the kit's after"
+  )
+  PlaySound = nil
+  local saved = {}
+  local p = K.place(saved, "book")
+  p.point = "LEFT"
+  check(K.place(saved, "book").point == "LEFT" and saved.places.book == p, "place: kept in the addon's table")
+  check(K.BANNER_SECONDS == 10, "banners: ten seconds by default")
+  local tp = K.page(frame(), "TitlePage")
+  tp:start("A Word from the Royal Historian of Ironforge", "Note", K.icon("Icon"))
+  check(tp.title.fontSize < 24 and tp.title.fontSize >= 18, "page: a long title in a smaller face")
+  tp:start("Auberdine", "")
+  check(tp.title.fontSize == 24, "page: a short title at its size")
+end
+
 -- Two rows of items on a page, two strips of figures, two sets of names:
 -- each in a box of its own at its own place, none on top of another; a slot
 -- of the first row's box on one page, of the second's on the next, shown.

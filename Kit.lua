@@ -166,6 +166,26 @@ K.L = L
 function K.isOne(n) return n == 1 end
 function K.plural(n, one, many) return K.isOne(n) and L[one] or L[many] end
 
+-- The family's ways of speaking outside the book, one in every addon (the
+-- user's calls, 27 October 2026). K.prefix: the addon's name before its lines
+-- in chat ("Mealbook: "), in its own accent (its theme set first).
+-- K.tooltipLine: its line on the game's tooltip (a creature's, an item's), in
+-- the game's gold for something still to find (new), a quiet brown once known.
+function K.prefix(name) return K.hex(T.accent) .. L["%s:"]:format(name) .. "|r " end
+K.TIP_NEW, K.TIP_KNOWN = { 1, 0.82, 0 }, { 0.65, 0.58, 0.45 }
+function K.tooltipLine(tip, text, new)
+  local c = new and K.TIP_NEW or K.TIP_KNOWN
+  tip:AddLine(text, c[1], c[2], c[3], true)
+end
+
+-- Where a window was left, kept in the addon's saved table (t.places[name]):
+-- K.book's place, K.movable's.
+function K.place(t, name)
+  t.places = t.places or {}
+  t.places[name] = t.places[name] or {}
+  return t.places[name]
+end
+
 -- Lowercase in the clients' alphabets (string.lower knows ASCII alone):
 -- Latin-1's capitals (É, Ü, Ñ), Œ and Ÿ, and Cyrillic's (Я, Ё).
 local LOWER = {}
@@ -773,6 +793,20 @@ function K.fanfare(fallback)
   if not (ok and willPlay) then K.playSound(fallback or 878) end
 end
 
+-- The sound of an achievement earned, the same in every addon unless the
+-- player picks another (the user's call, 27 October 2026): the game's fanfare,
+-- Quest complete where the client has none; the choices K.SOUNDS's after it.
+K.FANFARE = FANFARE
+K.ACHIEVEMENT_SOUND = FANFARE
+K.ACHIEVEMENT_SOUNDS = { { FANFARE, "Achievement fanfare" } }
+for _, s in ipairs(K.SOUNDS) do
+  table.insert(K.ACHIEVEMENT_SOUNDS, s)
+end
+function K.achievementSound(id)
+  if id == nil or id == FANFARE then return K.fanfare(878) end
+  K.playSound(id)
+end
+
 -- ── tooltips and links ───────────────────────────────────────────────────────
 -- A line added to the game's unit or item tooltips: the modern client's
 -- post-call where it has one, else the tooltips' own hooks. fn(tooltip, id)
@@ -1084,6 +1118,20 @@ function K.page(parent, name, o)
   return p
 end
 
+-- The title on its one line, its face smaller (24 down to 18) for a long one
+-- before the line cuts it.
+local TITLE_SIZE, TITLE_SMALLEST = 24, 18
+function Page:fitTitle(title, width)
+  local fs, size = self.title, TITLE_SIZE
+  fs:SetFont(K.TITLE_FONT, size, "")
+  fs:SetText(title)
+  if not fs.GetUnboundedStringWidth then return end
+  while size > TITLE_SMALLEST and fs:GetUnboundedStringWidth() > width do
+    size = size - 1
+    fs:SetFont(K.TITLE_FONT, size, "")
+  end
+end
+
 -- (seal: a medal on the picture, K.setBadge's; ring: its ring, K.RINGS's or
 -- { colour, grey }, else the plain bronze)
 function Page:start(title, sub, setPicture, seal, ring)
@@ -1116,7 +1164,7 @@ function Page:start(title, sub, setPicture, seal, ring)
   end
   self.title:SetWidth(pictured and self.width - 86 or self.width)
   self.sub:SetWidth(pictured and self.width - 86 or self.width)
-  self.title:SetText(title)
+  self:fitTitle(title, pictured and self.width - 86 or self.width)
   self.sub:SetText(sub or "")
   self.portrait:SetShown(pictured)
   if pictured then
@@ -1858,15 +1906,17 @@ end
 -- line, a name in the title face. It joins the game's own alerts, whose
 -- container stacks it with them and with every other addon's banners, where
 -- the player's interface keeps them; else it stands at the top of the screen.
--- Two at a time, the others wait their turn; each goes after a few seconds,
--- never while the mouse is on it. A click does what it is for; a right-click
--- or its cross dismisses it.
+-- Two at a time, the others wait their turn; each goes after a few seconds
+-- (K.BANNER_SECONDS, the same in every addon: the player's own choice where
+-- the addon gives one, the options' O:bannerSeconds), never while the mouse
+-- is on it. A click does what it is for; a right-click or its cross dismisses it.
 --   B = K.banners({ name = "YonderBanner", art = a fallback picture,
---                   seconds = function() return 8 end }) -- (0: until closed)
+--                   seconds = function() return ns.option("bannerSeconds") end }) -- (0: until closed)
 --   B:show({ picture = a picture's setter (K.icon...) or a texture, medal = a seal,
 --            kicker = "A riddle read aright", title = "...", tip = "...", click = fn })
 --   B.frames (named name1, name2), f.joined: in the game's alerts (for the tests)
 local BANNER_W, BANNER_H, BANNERS_SHOWN, BANNERS_WAITING = 380, 66, 2, 6
+K.BANNER_SECONDS = 10
 function K.banners(o)
   local B = { frames = {}, waiting = {} }
 
@@ -1990,7 +2040,7 @@ function K.banners(o)
     arrange()
     local seconds = o.seconds
     if type(seconds) == "function" then seconds = seconds() end
-    timer(f, seconds or 8)
+    timer(f, seconds or K.BANNER_SECONDS)
   end
 
   -- The next waiting, into a free card.
@@ -2136,7 +2186,7 @@ end
 --     open = function(id) end,           -- the alert's click, the link's
 --     link = function(d) return a chat link to it end, -- (none: its title in the quest yellow)
 --     picture = function(d) return its alert's picture end, -- (none: art)
---     fallback = function() return a sound id where there's no fanfare end,
+--     sound = function() return the player's achievement sound end, -- (none: K.ACHIEVEMENT_SOUND)
 --     banners = an addon's K.banners (none: one made, the alert's stand-in),
 --     changed = function() end,         -- after a check earned some
 --     shown = function(d) end,          -- a gate on every one's being listed (a family not met yet)
@@ -2177,7 +2227,7 @@ function K.deeds(o)
   local function announce(d)
     local link = o.link and o.link(d) or ("|cffffd100[%s]|r"):format(d.title)
     print((o.prefix or "") .. L["Achievement earned: %s."]:format(link))
-    K.fanfare(o.fallback and o.fallback())
+    K.achievementSound(o.sound and o.sound())
     if o.show then return o.show(d) end
     if o.alert and not o.alert() then return end
     alerts = alerts
@@ -3138,6 +3188,8 @@ end
 -- view).
 --   B = K.book({ name = "MealbookFrame", title = "Mealbook", art = the portrait,
 --     titles = { the tabs' }, first = 1, search = "MealbookSearch" (its name),
+--     place = function() return K.place(MealbookSettings, "book") end (where
+--     it was left, kept: none, the screen's centre each time),
 --     searchRight = -12 (room beside it: -34 for a button), settle = 0.3,
 --     filter = true (the select under the search: a tab with one) })
 --   B:add(n, { build(frame), show(n), refresh(scroll), chosen() (its tab clicked),
@@ -3145,6 +3197,7 @@ end
 --   B:show(n), B:refresh(scroll), B:open(n), B:toggle(), B:window() (made on
 --   first use), B:changed() (a refresh settle seconds later, while shown),
 --   B:filterOf(n), B:setFilter(n, value), B.frame (left, sheet, search, count, filter)
+K.BOOK_W, K.BOOK_H = 780, 560
 function K.book(o)
   local B = { tabs = {} }
   function B:add(n, tab) self.tabs[n] = tab end
@@ -3200,7 +3253,7 @@ function K.book(o)
     local window = K.gameWindow(o.name, o.title, o.art)
     local f = window or K.dialog(o.name, o.title)
     B.frame = f
-    K.movable(f, 780, 560)
+    K.movable(f, K.BOOK_W, K.BOOK_H, o.place and o.place())
     local edge = window and 8 or 14
     f.count = K.label(f, K.BODY_FONT, 11, T.gold)
     f.count:SetPoint("TOPLEFT", 64, -36)
@@ -3492,6 +3545,29 @@ function K.options(o)
       end
       return c:GetData()
     end, tip)
+  end
+  -- The family's two shared choices, the same words in every addon: how long
+  -- a banner stays (K.BANNER_SECONDS by default), and the sound of an
+  -- achievement earned (K.ACHIEVEMENT_SOUND), heard as it is chosen.
+  function O:bannerSeconds(key)
+    self:slider(
+      key,
+      L["Alert shown for"],
+      L["How long the alert stays on screen. At 0 it stays until you read or dismiss it (right-click)."],
+      0,
+      60,
+      5,
+      function(value) return value == 0 and L["until closed"] or L["%d s"]:format(value) end
+    )
+  end
+  function O:achievementSound(key)
+    self:choice(key, L["Achievement sound"], L["Played when an achievement is earned."], function()
+      local out = {}
+      for _, s in ipairs(K.ACHIEVEMENT_SOUNDS) do
+        table.insert(out, { s[1], L[s[2]] })
+      end
+      return out
+    end, K.achievementSound)
   end
   function O:collect(C)
     if category then K.collectSetting(category, o.key .. "_SHARE", C) end
