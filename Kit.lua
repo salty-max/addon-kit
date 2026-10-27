@@ -1128,12 +1128,15 @@ function Page:fitTitle(title, width)
   if fs.SetMaxLines then fs:SetMaxLines(1) end
   fs:SetFont(K.TITLE_FONT, size, "")
   fs:SetText(title)
-  if not fs.GetUnboundedStringWidth then return end
-  while size > TITLE_SMALLEST and fs:GetUnboundedStringWidth() > width do
+  local function wide()
+    local w = fs.GetUnboundedStringWidth and fs:GetUnboundedStringWidth()
+    return type(w) == "number" and w > width
+  end
+  while size > TITLE_SMALLEST and wide() do
     size = size - 1
     fs:SetFont(K.TITLE_FONT, size, "")
   end
-  if fs:GetUnboundedStringWidth() > width then
+  if wide() then
     fs:SetWordWrap(true)
     if fs.SetMaxLines then fs:SetMaxLines(2) end
   end
