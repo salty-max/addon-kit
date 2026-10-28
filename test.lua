@@ -77,6 +77,11 @@ local function frame()
       if k == "SetHeight" then
         return function(self, v) self.height = v end
       end
+      if k == "SetSize" then
+        return function(self, w, h)
+          self.w, self.h = w, h
+        end
+      end
       -- (a text's height: a line at its size, or what a test says)
       if k == "GetStringHeight" then
         return function(self) return rawget(self, "stringHeight") or rawget(self, "fontSize") or 12 end
@@ -254,6 +259,13 @@ one.scripts.OnClick(one, "LeftButton")
 check(clicked == 1 and not one.shown, "banners: a click does what it is for, and closes it")
 B.frames[2].scripts.OnClick(B.frames[2], "RightButton")
 check(clicked == 1 and not B.frames[2].shown, "banners: a right-click only dismisses it")
+do
+  local pin = K.bannerCard("TestPin", 300, 140)
+  check(
+    pin.w == 300 and pin.h == 140 and pin.picture.point[2] == 14 and pin.picture.point[3] == -12 and pin.body,
+    "banner card: so wide and tall, its picture where a banner's is"
+  )
+end
 B:show({ title = "A broken picture", picture = function() error("no such picture") end })
 check(
   B.frames[1].shown and B.frames[1].picture.tex.texture == "Logo",
@@ -375,6 +387,16 @@ local first = pg:card("One", "", K.icon("Icon"))
 local second = pg:card("Two", "", K.icon("Icon"), nil, nil, K.RINGS.gold)
 pg:section("After them")
 check(first.line.shown and not second.line.shown, "page: a rule between two cards, none under the last")
+do
+  local own = K.cardRow(pg.child, pg.width)
+  pg:start("Another", "")
+  local a = pg:card("One", "", K.icon("Icon"))
+  pg:placeCard(own, K.CARD_H + 6)
+  check(
+    a.line.shown and not own.line.shown and pg.y == K.PAGE_HEADER_H + 2 + (K.CARD_H + 4) + (K.CARD_H + 10),
+    "page: a card row of the tab's own joins the page's list of cards"
+  )
+end
 
 -- A voice: the page's own face, signed on the right in the display face, no
 -- rule beside it, an aside untouched; buttons, a click each, hidden on the
@@ -441,6 +463,13 @@ do
     "list: a section in the display face, rows in the body"
   )
   check(l.y == 22 + 18 + 18, "list: a section's height and two rows'")
+  local e = l:add("entry", "Entry 3", nil, "Westfall, levels 12 to 13")
+  local plain = l:add("letter", "Maybell")
+  check(
+    e.text.fontSize == 13 and e.under.shown and e.under.text == "Westfall, levels 12 to 13" and not plain.under.shown,
+    "list: an entry's two lines, a plain row without the second"
+  )
+  check(l.y == 22 + 18 + 18 + 36 + 18, "list: an entry's height")
 end
 
 -- The second pass: the name in chat in the addon's accent, a tooltip's two
