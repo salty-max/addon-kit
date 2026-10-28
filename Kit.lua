@@ -968,14 +968,16 @@ local List = {}
 -- on the right.
 function K.listStyle(row, kind)
   if kind == "entry" then
+    -- (each line's edges at its own top: a RIGHT anchor would hold its
+    -- middle at the row's, and the line drift down)
     row.count:SetPoint("TOPRIGHT", -4, -6)
     row.count:SetTextColor(unpack(T.soft))
     row.text:SetPoint("TOPLEFT", 4, -4)
-    row.text:SetPoint("RIGHT", row.count, "LEFT", -4, 0)
+    row.text:SetPoint("TOPRIGHT", row.count, "TOPLEFT", -4, 2)
     row.text:SetFont(K.BODY_FONT, 13, "")
     row.text:SetTextColor(unpack(T.text))
-    row.under:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 0, -3)
-    row.under:SetPoint("RIGHT", -4, 0)
+    row.under:SetPoint("TOPLEFT", 4, -21)
+    row.under:SetPoint("TOPRIGHT", -4, -21)
     return 36
   end
   if kind == "section" then
@@ -1971,20 +1973,24 @@ function K.bannerCard(name, width, height)
   body:SetAllPoints()
   body:SetFrameLevel(f:GetFrameLevel() + 4)
   f.body = body
+  local top = (BANNER_H - 42) / 2
   f.picture = K.roundIcon(body, 42, true)
-  f.picture:SetPoint("TOPLEFT", 14, -(BANNER_H - 42) / 2)
+  f.picture:SetPoint("TOPLEFT", 14, -top)
   f.medal = K.badge(f.picture, 18)
+  -- (the lines' right edges at their own top, the head's: on a taller card a
+  -- RIGHT anchor would hold their middle at the card's)
   f.kicker = K.label(body, K.BODY_FONT, 11, T.soft)
   f.kicker:SetPoint("TOPLEFT", f.picture, "TOPRIGHT", 14, -2)
-  f.kicker:SetPoint("RIGHT", -30, 0)
+  f.kicker:SetPoint("TOPRIGHT", body, "TOPRIGHT", -30, -(top + 2))
   f.kicker:SetWordWrap(false)
   f.title = K.label(body, K.TITLE_FONT, 18, T.gold)
   f.title:SetPoint("TOPLEFT", f.kicker, "BOTTOMLEFT", 0, -4)
-  f.title:SetPoint("RIGHT", -30, 0)
+  f.title:SetPoint("TOPRIGHT", f.kicker, "BOTTOMRIGHT", 0, -4)
   f.title:SetWordWrap(false)
   f.close = CreateFrame("Button", nil, body, "UIPanelCloseButton")
   f.close:SetSize(24, 24)
   f.close:SetPoint("TOPRIGHT", -3, -3)
+  f.close:SetScript("OnClick", function() f:Hide() end) -- (the card, not its body)
   f:SetHighlightTexture(K.HIGHLIGHT, "ADD")
   local hover = f:GetHighlightTexture()
   if hover and hover.SetAlpha then hover:SetAlpha(0.25) end

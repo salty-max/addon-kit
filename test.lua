@@ -265,6 +265,8 @@ do
     pin.w == 300 and pin.h == 140 and pin.picture.point[2] == 14 and pin.picture.point[3] == -12 and pin.body,
     "banner card: so wide and tall, its picture where a banner's is"
   )
+  pin.close.scripts.OnClick()
+  check(not pin.shown, "banner card: its cross closes the card")
 end
 B:show({ title = "A broken picture", picture = function() error("no such picture") end })
 check(
@@ -470,6 +472,15 @@ do
     "list: an entry's two lines, a plain row without the second"
   )
   check(l.y == 22 + 18 + 18 + 36 + 18, "list: an entry's height")
+  -- (a row drawn as an entry, then as a plain row: its second line gone)
+  l:begin()
+  local again = l:add("entry", "Entry 3", nil, "Westfall")
+  l:begin()
+  local reused = l:add("letter", "Maybell")
+  check(
+    reused == again and not reused.under.shown and reused.text.fontSize == 12 and reused.height == 18,
+    "list: an entry's row reused as a plain row, its second line put away"
+  )
 end
 
 -- The second pass: the name in chat in the addon's accent, a tooltip's two
