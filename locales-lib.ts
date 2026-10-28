@@ -63,7 +63,7 @@ export function kitKeys(addon: string): string[] {
   if (!existsSync(file)) return [];
   const src = readFileSync(file, "utf8");
   const found = wordsIn(src, new Set(MONTHS));
-  for (const m of src.matchAll(/\{ -?\d+, "([^"]+)" \}/g)) found.add(m[1]);
+  for (const m of src.matchAll(/\{ (?:-?\d+|[A-Z_]+), "([^"]+)" \}/g)) found.add(m[1]);
   return [...found].sort();
 }
 /** The kit's translations a language has (i18n/kit/<locale>.json; a borrowing language its lender's). */

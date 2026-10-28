@@ -24,12 +24,13 @@ describe("the words", () => {
     const root = mkdtempSync(join(tmpdir(), "locales-"));
     made.push(root);
     write(root, "addon/X/Core.lua", 'print(L["Mine"])');
-    write(root, "addon/X/Kit.lua", 'local x = L["The kit\'s"] local s = { { 0, "No sound" } }');
+    write(root, "addon/X/Kit.lua", 'local x = L["The kit\'s"] local s = { { 0, "No sound" }, { FANFARE, "A named fanfare" } }');
     write(root, "addon/X/Text_frFR.lua", 'L["Generated"]');
     write(root, "addon/X/Data_Classic.lua", 'L["Data"]');
     expect(ownKeys(join(root, "addon/X"), /^Data_/)).toEqual(["Mine"]);
     expect(kitKeys(join(root, "addon/X"))).toContain("The kit's");
     expect(kitKeys(join(root, "addon/X"))).toContain("No sound");
+    expect(kitKeys(join(root, "addon/X"))).toContain("A named fanfare");
     expect(kitKeys(join(root, "addon/X"))).toContain("Oct");
   });
 });
