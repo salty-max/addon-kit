@@ -3325,6 +3325,7 @@ function K.book(o)
     f.search:SetPoint("TOPLEFT", f.left, "TOPLEFT", 18, -10)
     f.search:SetPoint("TOPRIGHT", f.left, "TOPRIGHT", o.searchRight or -12, -10)
     f.search:HookScript("OnTextChanged", function() B:refresh() end)
+    f.filter = false -- (every field set: none read before it is)
     if o.filter then
       f.filter = K.select(f.left, 220, "")
       f.filter:SetPoint("TOPLEFT", f.left, "TOPLEFT", 12, -38)
