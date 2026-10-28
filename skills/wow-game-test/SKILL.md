@@ -17,15 +17,18 @@ card waiting on the game, so the user launches it once.
    (SendMessage). Each card's `--try` says what to do in the game.
 2. **The builds**, for each repository on those cards, from its HEAD: the
    `wow-releasing` skill's "Test builds" (`bun run package`, the zip alone
-   into `~/Library/Mobile Documents/com~apple~CloudDocs/Hearthtale test/`,
+   into `~/Library/Mobile Documents/com~apple~CloudDocs/WoW addons test/`,
    the addon's older zip to the Trash with `trash <file>`, never `rm`).
-   Ravenpost's Windows exe too when the round touches it or what it
-   carries (a saved file's shape, the inbox).
-3. **The installers** beside the zips: `Install Classic Era.cmd`, `Install
-   Forever.cmd` (Forever's live client, `_forever_`) and `Install Forever
-   beta.cmd` (its beta client), each a copy of
-   `addon-kit/windows/install.cmd`, its name picking the game. Copy them
-   again when `cmp` says they differ from it.
+   Ravenpost's builds too (all of build.sh's, into the folder's
+   `Ravenpost/` subfolder, the older ones to the Trash) when the round
+   touches it or what it carries (a saved file's shape, the inbox).
+3. **The installers** beside the zips: `Install.cmd` (asks the game),
+   `Install Classic Era.cmd`, `Install Forever.cmd` (Forever's live client,
+   `_forever_`) and `Install Forever beta.cmd` (its beta client), each a
+   copy of `addon-kit/windows/install.cmd`, its name picking the game, and
+   `Install.command` (macOS), a copy of `addon-kit/windows/install.command`.
+   Copy them again when `cmp` says they differ. They also offer Ravenpost's
+   build from `Ravenpost/`.
 4. **Nothing stale**: `bun addon-kit/status.ts`. A "test build … behind
    HEAD" line on a repository of this round is a zip still to refresh.
 5. **The checklist** to the user, one message: which installer for which
@@ -38,7 +41,7 @@ When iCloud refuses a background session (the `cp` failing with
 `Operation not permitted`, `status.ts` showing no test build at all): leave the zip in the repository's
 `dist/` and give the user the line for their own terminal, `cp
 ~/code/wow-addons/<repo>/dist/<zip> ~/Library/Mobile\
-Documents/com~apple~CloudDocs/Hearthtale\ test/`. Never route around it
+Documents/com~apple~CloudDocs/WoW\ addons\ test/`. Never route around it
 through Finder or AppleScript.
 
 ## After: the screenshots

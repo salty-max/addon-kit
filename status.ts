@@ -29,7 +29,7 @@ import { lastSummary, line as usageLine } from "./usage";
 let root: string | undefined;
 const ROOT = () => (root ??= familyRoot());
 const TIMEOUT_MS = 20_000;
-const ICLOUD = join(homedir(), "Library", "Mobile Documents", "com~apple~CloudDocs", "Hearthtale test");
+const ICLOUD = join(homedir(), "Library", "Mobile Documents", "com~apple~CloudDocs", "WoW addons test");
 
 export type Run = { workflow: string; status: string; conclusion: string; sha: string; at: string };
 export type Build = { file: string; version: string; state: "current" | "behind" | "unknown"; behind?: number };
@@ -153,10 +153,13 @@ async function build(dir: string, name: string): Promise<Build | undefined> {
   const pkg = buildName(dir, name);
   if (!pkg || !existsSync(ICLOUD)) return undefined;
   // (one build an addon, the rule; should two be there, the newest)
-  const found = readdirSync(ICLOUD)
+  // (Ravenpost's builds sit in the folder's Ravenpost/ subfolder, every addon's zip at its top)
+  const where = name === "ravenpost" ? join(ICLOUD, "Ravenpost") : ICLOUD;
+  if (!existsSync(where)) return undefined;
+  const found = readdirSync(where)
     .map((file) => ({ file, version: buildVersion(file, pkg) }))
     .filter((b): b is { file: string; version: string } => !!b.version)
-    .sort((a, b) => statSync(join(ICLOUD, b.file)).mtimeMs - statSync(join(ICLOUD, a.file)).mtimeMs);
+    .sort((a, b) => statSync(join(where, b.file)).mtimeMs - statSync(join(where, a.file)).mtimeMs);
   if (!found.length) return undefined;
   const { file, version } = found[0];
   const sha = await git(dir, "rev-parse", "--verify", "-q", `${version.replace(/-dirty$/, "")}^{commit}`);

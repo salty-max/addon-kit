@@ -4,7 +4,12 @@ rem _classic_era_ (Classic Era), _forever_ (World of Warcraft: Forever) or
 rem _classic_beta_ (Forever's beta). Its name picks the game: copied as
 rem "Install Classic Era.cmd", "Install Forever.cmd" and "Install Forever
 rem beta.cmd", a double-click is enough (else it asks, or takes the folder's
-rem name as its argument: install.cmd _forever_).
+rem name as its argument: install.cmd _forever_). Named plain "Install.cmd" it
+rem asks.
+rem
+rem Then, if a Ravenpost folder sits beside it, offers Ravenpost: the newest
+rem windows exe there for this machine (x64 or arm64) is copied to
+rem %LOCALAPPDATA%\Ravenpost and started. Nothing else is touched.
 rem
 rem Each zip's folders are removed from AddOns first, so no file of an older
 rem version stays behind. Yonder's FieldJournal handover never goes to Forever
@@ -91,6 +96,28 @@ for %%z in ("%HERE%*.zip") do (
 )
 echo.
 echo !n! addon zip^(s^) installed. Start the game, or restart it if it's running: a /reload misses a new file.
+
+rem Ravenpost: the newest exe of the folder beside this script for this machine
+set "ARCH=x64"
+if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "ARCH=arm64"
+if /i "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "ARCH=arm64"
+set "RAVEN="
+if exist "!HERE!Ravenpost\" for /f "delims=" %%r in ('dir /b /a-d /o-d "!HERE!Ravenpost\ravenpost-*-windows-!ARCH!.exe" 2^>nul') do if not defined RAVEN set "RAVEN=%%r"
+if defined RAVEN (
+  echo.
+  echo Ravenpost: !RAVEN!
+  choice /c YN /n /m "Install it for this user and start it? [Y/N] "
+  if not errorlevel 2 (
+    if not exist "!LOCALAPPDATA!\Ravenpost\" mkdir "!LOCALAPPDATA!\Ravenpost"
+    copy /y "!HERE!Ravenpost\!RAVEN!" "!LOCALAPPDATA!\Ravenpost\Ravenpost.exe" >nul
+    if errorlevel 1 (
+      echo   could not copy it: is Ravenpost running? Quit it from its tray icon and run this again.
+    ) else (
+      echo   ok      !LOCALAPPDATA!\Ravenpost\Ravenpost.exe
+      start "" "!LOCALAPPDATA!\Ravenpost\Ravenpost.exe"
+    )
+  )
+)
 
 :end
 echo.

@@ -20,7 +20,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | Store pages on CurseForge, Wago and GitHub | `README.md` "The store page"; `store.ts`, `store-ui.ts` |
 | Game names for translations (glossary, building areas) | `glossary.py`, `subzones.py` (their docstrings) |
 | Saved ids never dropped by a regeneration (each addon's `saved-ids.json`) | `README.md` "Saved ids"; `ids.ts` |
-| The Windows test-build installer | `windows/install.cmd`, `README.md` |
+| The test-build installers (Windows, macOS) | `windows/install.cmd`, `windows/install.command`, `README.md` |
 
 ## Commands
 

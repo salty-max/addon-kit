@@ -103,9 +103,11 @@ scripts/release.sh --version X.Y.Z [--hold] NOTES.md
 
 `bun run package` (`addon:package` for Hearthtale) gives
 `dist/<Addon>-<git describe>.zip`. Copy the zip alone into
-`~/Library/Mobile Documents/com~apple~CloudDocs/Hearthtale test/`, the
+`~/Library/Mobile Documents/com~apple~CloudDocs/WoW addons test/`, the
 addon's older zip to the Trash (never `rm`), never an unzipped folder. The
-user's own files there stay. Ravenpost's Windows exe of main beside it
+user's own files there stay. Ravenpost's builds of main (every OS: macOS
+zip, Windows x64 and arm64 exes) go into the folder's `Ravenpost/`
+subfolder, not beside the zips, the older ones to the Trash
 (`INBOX_URL=… scripts/build.sh`). `bun addon-kit/status.ts` says which test
 build is behind HEAD.
 

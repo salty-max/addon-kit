@@ -79,17 +79,29 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
   (Gethe/wow-ui-textures and wow-ui-source), rendered at the sizes it's drawn.
 
 `windows/install.cmd` is the test builds' installer, copied beside the zips
-in the iCloud test folder as `Install Classic Era.cmd`, `Install
-Forever.cmd` and `Install Forever beta.cmd`: its name picks the game. It
+in the iCloud test folder ("WoW addons test") as `Install.cmd` (asks the
+game) and `Install Classic Era.cmd`, `Install Forever.cmd` and `Install
+Forever beta.cmd`: its name picks the game. It
 unzips every addon zip beside it into that game's `Interface\AddOns`
 (`_classic_era_`, `_forever_` or `_classic_beta_`), each zip's old folders
-removed first. Yonder's `FieldJournal` handover never goes to Forever (a
-folder of that name there is Field Journal: Forever's). The client's game
-type, not its folder, picks the TOC: `_forever_` loads `_Camelot.toc`
-(Blizzard's own TOCs say `AllowLoadGameType: camelot`). Windows' own
-`tar.exe` does the unzipping, no
-PowerShell. The game's folder is found where Battle.net puts it, else asked
-once and kept in `wow-folder.txt`. CRLF line endings: batch files need them.
+removed first, nothing else touched. Yonder's `FieldJournal` handover never
+goes to Forever (a folder of that name there is Field Journal: Forever's).
+The client's game type, not its folder, picks the TOC: `_forever_` loads
+`_Camelot.toc` (Blizzard's own TOCs say `AllowLoadGameType: camelot`).
+Windows' own `tar.exe` does the unzipping, no PowerShell. The game's folder
+is found where Battle.net puts it, else asked once and kept in
+`wow-folder.txt`. CRLF line endings: batch files need them. After the
+addons it offers Ravenpost: the newest `Ravenpost/ravenpost-*-windows-<arch>.exe`
+beside it (arm64 or x64, by the processor) is copied, on a yes, to
+`%LOCALAPPDATA%\Ravenpost\Ravenpost.exe` and started. Ravenpost's builds live
+in that `Ravenpost/` subfolder, never among the zips (the `*.zip` glob would
+not take its macOS zip, but the folder keeps the top readable).
+`windows/install.command` is the same for macOS (copied as `Install.command`,
+or named "Forever", "Classic Era", "Forever beta"): into
+`/Applications/World of Warcraft/<game>/Interface/AddOns` with `unzip`,
+and Ravenpost's `-macos.zip` into `/Applications` on a yes. Neither was
+tested on Windows (no machine here): the macOS one was run against a fake
+game folder.
 
 Conventions: Conventional Commits, lowercase subjects, no AI co-author
 trailers; commit locally, ask before any push.
