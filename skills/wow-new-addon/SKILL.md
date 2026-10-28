@@ -53,6 +53,9 @@ From `~/code/wow-addons/<repo>`, after `git init`:
   sync to it as that skill says.
 - Languages: every word through `L`, `i18n/words.json`, `bun run locales`.
   English first, the others with the `wow-translating` skill.
+- Blizzard's UI (a frame, a texture or icon path, a frame API) only through
+  `bun wow-data/bin/ui.ts` (`frame`, `find`, `texture`, both games in one
+  call): a path the source lacks is a guess, and the code or doc says so.
 - The game's data only from wow-data (`scripts/root.ts`'s `familyPath`),
   the generated files never edited by hand, each generator's `--check` in
   `bun run check`.

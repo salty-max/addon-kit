@@ -76,7 +76,9 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
   --scripts`).
 
 - A visual change is checked first against the game's own textures and code
-  (Gethe/wow-ui-textures and wow-ui-source), rendered at the sizes it's drawn.
+  (`bun wow-data/bin/ui.ts`, the pinned Gethe/wow-ui-source and
+  wow-ui-textures, `wow-data/docs/ui-source.md`), rendered at the sizes it's
+  drawn. A frame path the source lacks is a guess, and the code says so.
 
 `windows/install.cmd` is the test builds' installer, copied beside the zips
 in the iCloud test folder ("WoW addons test") as `Install.cmd` (asks the

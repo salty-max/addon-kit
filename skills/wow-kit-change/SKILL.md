@@ -24,9 +24,13 @@ builder's brief.
 ## In the kit
 
 1. A visual change (a frame, a texture, a colour, a size) is rendered
-   against the game's own textures first, at the size it's drawn
-   (Gethe/wow-ui-textures, the classic branch's PNGs, and wow-ui-source).
-   Look at the render before writing the Lua.
+   against the game's own textures first, at the size it's drawn. Every
+   Blizzard frame, texture path or API it names goes through `bun
+   wow-data/bin/ui.ts` first (`frame`, `find`, `texture`, both games in
+   one call, the pinned source: `wow-data/docs/ui-source.md`), never a
+   branch fetched by hand nor a path from memory. A frame path the source
+   lacks is a guess, and the Lua comment says so. Look at the render before
+   writing the Lua.
 2. Edit `addon-kit/Kit.lua` (or the file the change is in). Every word
    through `K.L`, English by default, the three languages in
    `addon-kit/i18n/<locale>.json`. No semicolons in what players read.

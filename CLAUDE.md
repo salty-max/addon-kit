@@ -48,8 +48,9 @@ code|prose -- "<task>"`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
   kit:sync` and its checks in each addon that carries it (`bun
   addon-kit/each.ts --kit -- bun run kit:sync`), and commit those too.
 - A visual change is checked against the game's own textures first,
-  rendered at the sizes it's drawn (Gethe/wow-ui-textures, the classic
-  branch's PNGs; wow-ui-source).
+  rendered at the sizes it's drawn, and every Blizzard frame, texture path
+  or API it names is read through `bun wow-data/bin/ui.ts` first (`frame`, `find`, `texture`: the pinned Gethe source and the client's own file list, both games in one call, `wow-data/docs/ui-source.md`). A frame path the source lacks is a
+  guess and the code says so. Never a Gethe branch fetched by hand.
 - The kit's words go through `K.L`, English by default; no semicolons in
   what players read.
 - `store.ts --apply` publishes: a dry run first, the user's go before it.

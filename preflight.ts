@@ -497,6 +497,26 @@ function print(p: Preflight) {
   console.log(`  → ${verdict(p)}\n`);
 }
 
+// The UI source ui.ts reads, against the pinned clients (local: what latest.ts
+// would tell, without the network). A source behind its client is a caveat for
+// any UI claim, not a stop.
+function uiSourceLines(): string[] {
+  try {
+    const builds = pins();
+    const ui = JSON.parse(readFileSync(join(ROOT, "wow-data", "ui-pins.json"), "utf8")).repos as Record<string, { build?: string }>;
+    return Object.entries(builds).map(([game, b]) => {
+      const have = ui[`ui-${game}`]?.build;
+      if (!have) return `  ! UI source ${game}: not pinned (wow-data/ui-pins.json)`;
+      const tip = (v: string) => Number(v.split(".").pop());
+      return tip(have) === tip(b.build)
+        ? `  ✓ UI source ${game}: ${have}, the pinned client`
+        : `  ! UI source ${game}: ${have}, the client is pinned at ${b.build} (a frame added since is not in it)`;
+    });
+  } catch {
+    return [];
+  }
+}
+
 if (import.meta.main) {
   const args = process.argv.slice(2);
   const known = new Set(addons().map((d) => basename(d)));
@@ -517,6 +537,8 @@ if (import.meta.main) {
   }
   if (args.includes("--json")) console.log(JSON.stringify(reports.map((p) => ({ ...p, verdict: verdict(p) })), null, 2));
   else {
+    const ui = uiSourceLines();
+    if (ui.length) console.log(`Blizzard's UI source (wow-data/ui-pins.json)\n${ui.join("\n")}\n`);
     for (const p of reports) print(p);
     if (reports.length > 1) {
       const by = (f: (p: Preflight) => boolean) => reports.filter(f).map((p) => p.name);
