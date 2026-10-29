@@ -1,5 +1,6 @@
 #!/bin/sh
-# The family's rule on a commit message, read on stdin: prints each line that
+# harness 9d1d59441: a copy; edit it in the harness repository instead
+# The project's rule on a commit message, read on stdin: prints each line that
 # names an AI as a co-author (any "<something>-by:" or "-with:" trailer:
 # Co-Authored-By, Signed-off-by, Reviewed-by, Helped-by, Made-with...) or
 # says the commit was generated, made or written with one, and exits 1 when
