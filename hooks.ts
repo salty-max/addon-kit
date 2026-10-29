@@ -1,3 +1,4 @@
+// harness 9d1d59441: a copy; edit it in the harness repository instead
 /**
  * The family's git hooks (githooks/: commit-msg refuses an AI co-author or a
  * "generated with" line, pre-push a tree with no passing check), put in a
@@ -5,10 +6,10 @@
  * repository had (husky's .husky/_, .git/hooks) is kept in harness.chain and
  * still runs after ours.
  *
- *   bun addon-kit/hooks.ts status                  every repository: its hooks, HEAD's check (exit 1: one wants a hand)
- *   bun addon-kit/hooks.ts install <repo...>       folder names of the family or paths
- *   bun addon-kit/hooks.ts install --all           every repository
- *   bun addon-kit/hooks.ts uninstall <repo...>     its hooks as they were
+ *   bun hooks.ts status                  every repository: its hooks, HEAD's check (exit 1: one wants a hand)
+ *   bun hooks.ts install <repo...>       folder names of the family or paths
+ *   bun hooks.ts install --all           every repository
+ *   bun hooks.ts uninstall <repo...>     its hooks as they were
  *
  * husky's prepare script (`bun install`) points core.hooksPath back at
  * .husky/_: status says so, install again. install does nothing in CI (CI
@@ -17,7 +18,7 @@
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { headTree, stampOf } from "./q";
-import { familyRoot } from "./root";
+import { loadConfig, repoDir, repoNames, toolCmd } from "./config";
 
 export const HOOKS = join(import.meta.dir, "githooks");
 
@@ -36,14 +37,13 @@ function git(cwd: string, ...args: string[]): string | undefined {
 }
 
 export function repos(): string[] {
-  const root = familyRoot();
-  return readdirSync(root, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && existsSync(join(root, d.name, ".git")))
-    .map((d) => join(root, d.name))
+  return repoNames()
+    .map((n) => repoDir(n))
+    .filter((d) => existsSync(join(d, ".git")))
     .sort();
 }
 
-const target = (name: string) => (isAbsolute(name) || name.startsWith(".") ? resolve(name) : join(familyRoot(), name));
+const target = (name: string) => (isAbsolute(name) || name.startsWith(".") ? resolve(name) : repoDir(name));
 
 // The hooks a repository had before ours: its own hooksPath, else .git/hooks
 // when it holds a hook that isn't a sample.
@@ -108,14 +108,14 @@ export function uninstall(dir: string): string {
 
 /** What a repository's hooks want, in a word for status.ts: none when the gates are ours and there. */
 export function hooksWant(s: State): string | undefined {
-  if (s.missing && s.ours) return "its hooks folder is gone: git runs no hook (bun addon-kit/hooks.ts install)";
-  if (s.missing) return `core.hooksPath ${s.hooksPath} has no gates: git runs none of ours (bun addon-kit/hooks.ts install)`;
-  if (!s.ours) return s.husky && s.hooksPath ? "husky took its hooks back (bun addon-kit/hooks.ts install)" : "the family's hooks aren't installed (bun addon-kit/hooks.ts install)";
+  if (s.missing && s.ours) return `its hooks folder is gone: git runs no hook (${toolCmd("hooks")} install)`;
+  if (s.missing) return `core.hooksPath ${s.hooksPath} has no gates: git runs none of ours (${toolCmd("hooks")} install)`;
+  if (!s.ours) return s.husky && s.hooksPath ? `husky took its hooks back (${toolCmd("hooks")} install)` : `the ${loadConfig().term}'s hooks aren't installed (${toolCmd("hooks")} install)`;
   return undefined;
 }
 
 function status(dirs: string[]): boolean {
-  const root = familyRoot();
+  const root = loadConfig().root;
   const name = (d: string) => (d.startsWith(root + "/") ? d.slice(root.length + 1) : d);
   const w = Math.max(...dirs.map((d) => name(d).length));
   let sound = true;

@@ -1,3 +1,4 @@
+// harness 9d1d59441: a copy; edit it in the harness repository instead
 /**
  * What a card costs: the tokens a task's session and its helpers spent, per
  * finished card and per commit (a session that carried several cards, one
@@ -6,10 +7,10 @@
  * helpers' transcripts sit under theirs). The measure the builder pilot and
  * every model or effort change is judged against.
  *
- *   bun addon-kit/usage.ts                  the cards on the board (done, then the open ones)
- *   bun addon-kit/usage.ts --since 2026-10-20   only cards updated since
- *   bun addon-kit/usage.ts --json           the same as JSON
- *   bun addon-kit/usage.ts --baseline       also write docs/usage-baseline.md (today's numbers, to judge a change by)
+ *   bun usage.ts                  the cards on the board (done, then the open ones)
+ *   bun usage.ts --since 2026-10-20   only cards updated since
+ *   bun usage.ts --json           the same as JSON
+ *   bun usage.ts --baseline       also write docs/usage-baseline.md (today's numbers, to judge a change by)
  *
  * Cost is dollars at list price (PRICE below: per million tokens, by model
  * family, cache writes at the 5-minute or the 1-hour rate as the transcript
@@ -29,9 +30,9 @@
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { cards, type Card } from "./board";
-import { familyPath, familyRoot } from "./root";
+import { loadConfig, projectPath, projectRoot, repoDir } from "./config";
 
 /** cacheWrite1h is the part of cacheWrite kept an hour (the rest five minutes). */
 export type Tally = { in: number; out: number; cacheWrite: number; cacheWrite1h: number; cacheRead: number; msgs: number };
@@ -117,7 +118,7 @@ export type Spend = {
 };
 
 /** Where Claude Code keeps this family's transcripts (the folder and its worktrees', one project folder each). */
-export function projectDirs(root = familyRoot(), config = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude")): string[] {
+export function projectDirs(root = projectRoot(), config = process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude")): string[] {
   const base = join(config, "projects");
   if (!existsSync(base)) return [];
   const name = root.replace(/[/.]/g, "-");
@@ -253,7 +254,7 @@ export function spend(files: { file: string; kind: string }[]): Spend | undefine
 }
 
 // ── the per-session cache ───────────────────────────────────────────────────
-const cacheDir = () => join(import.meta.dir, ".cache", "usage");
+const cacheDir = () => join(loadConfig().cacheDir, "usage");
 const stamp = (files: { file: string }[]) => files.map(({ file }) => `${basename(file)}:${statSync(file).size}:${Math.floor(statSync(file).mtimeMs)}`).join(",");
 
 export function spendOf(dirs: string[], sid: string, dir = cacheDir()): Spend | undefined {
@@ -295,7 +296,7 @@ export function costOf(
   s: Spend,
   /** the commits git shows in these repositories' folders for these runs (undefined: ask nobody) */
   git: (dirs: string[], runs: CommitRun[]) => number | undefined = (dirs, runs) => gitCommits(dirs, runs),
-  dir: (repo: string) => string = (r) => familyPath(r),
+  dir: (repo: string) => string = (r) => repoDir(r),
 ): CardCost {
   const repos = [...new Set(group.flatMap((c) => (c.repos.length ? c.repos : [c.repo])))];
   const status = group.every((c) => c.status === "done") ? "done" : group.find((c) => c.status !== "done")!.status;
@@ -380,7 +381,7 @@ export const M = (n: number) => `$${n >= 100 ? n.toFixed(0) : n.toFixed(2)}`;
 /** One line for status.ts. */
 export function line(s: Summary): string {
   const per = s.unitsPerCommit ? `, ${M(s.unitsPerCommit)} a commit` : "";
-  return `${s.sessions} sessions, ${s.cards} cards (${s.done} done): ${M(s.units)}, median ${M(s.medianUnitsPerDoneCard)} a done card${per}, helpers ${Math.round(s.helperShare * 100)}%, ${Math.round(s.contextPerTurn / 1000)}k context a turn (bun addon-kit/usage.ts, ${s.at.slice(0, 10)})`;
+  return `${s.sessions} sessions, ${s.cards} cards (${s.done} done): ${M(s.units)}, median ${M(s.medianUnitsPerDoneCard)} a done card${per}, helpers ${Math.round(s.helperShare * 100)}%, ${Math.round(s.contextPerTurn / 1000)}k context a turn (bun usage.ts, ${s.at.slice(0, 10)})`;
 }
 
 // ── the report ──────────────────────────────────────────────────────────────
@@ -432,7 +433,7 @@ if (import.meta.main) {
   const args = process.argv.slice(2);
   const sinceAt = args.indexOf("--since");
   const since = sinceAt >= 0 ? args[sinceAt + 1] : undefined;
-  const root = familyRoot();
+  const root = projectRoot();
   const dirs = projectDirs(root);
   const costs: CardCost[] = [];
   const spends: Spend[] = [];
@@ -457,11 +458,12 @@ if (import.meta.main) {
   if (args.includes("--json")) console.log(JSON.stringify({ summary: sum, cards: costs }, null, 2));
   else console.log(report(costs, sum));
   if (args.includes("--baseline")) {
-    const path = join(import.meta.dir, "docs", "usage-baseline.md");
+    const path = projectPath(loadConfig().toolsDir, "docs", "usage-baseline.md");
     if (existsSync(path)) {
       console.error(`\n${path} exists: the baseline is written once (delete it by hand to write a new one)`);
       process.exit(1);
     }
+    mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, baseline(costs, sum));
     console.log(`\nwrote ${path}`);
   }

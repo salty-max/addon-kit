@@ -1,37 +1,37 @@
+// harness 9d1d59441: a copy; edit it in the harness repository instead
 /**
- * One command in every addon beside the kit (~/code/wow-addons), one after
- * the other: a line for each that passed, the end of the output of each that
- * failed, and a non-zero exit if one did. A script, not a model: the kit
- * synced into every addon, every addon's check before a push.
+ * One command in every repository of the project, one after the other: a
+ * line for each that passed, the end of the output of each that failed, and
+ * a non-zero exit if one did. A script, not a model.
  *
- *   bun addon-kit/each.ts [which] [--verbose] [--parallel] -- <command>
+ *   bun each.ts [which] [--verbose] [--parallel] -- <command>
  *
  *   command     its words as given, no shell between (quotes, $ and globs
  *               reach the program as typed); one word alone is a shell line
  *               ('git status --short && git log -1'), run by /bin/sh
  *
- *   which       the addons (a repository with addon/<Name>/*.toc), else:
- *     --kit       the addons with a kit copy (package.json's kit:sync)
- *     --all       every repository beside the kit, the kit's too
- *     --only a,b  these (folder names; one that isn't a repository is refused)
+ *   which       the "addons" group of harness.toml [groups] (every repository
+ *               when the project has none), else:
+ *     --kit       the "kit" group (the family's: package.json's kit:sync)
+ *     --group g   the group g
+ *     --all       every repository
+ *     --only a,b  these (repository names; one that isn't one is refused)
  *     --skip a,b  not these (the same)
  *   --verbose   every output as it comes, not only a failure's
- *   --parallel  all at once (the output still one addon at a time)
+ *   --parallel  all at once (the output still one repository at a time)
  *
- *   bun addon-kit/each.ts --kit -- bun run kit:sync
- *   bun addon-kit/each.ts -- bun run check
- *   bun addon-kit/each.ts --all -- git status --short
+ *   bun each.ts --kit -- bun run kit:sync
+ *   bun each.ts --all -- git status --short
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { familyRoot } from "./root";
+import { loadConfig, repoDir, repoNames } from "./config";
 
-// the family folder, from a worktree too (root.ts); found when first asked
-let root: string | undefined;
-const ROOT = () => (root ??= familyRoot());
+// the project root, from a worktree too (config.ts); found when first asked
+const ROOT = () => loadConfig().root;
 const TAIL = 30;
 
-export type Options = { which: "addons" | "kit" | "all"; only?: string[]; skip?: string[]; verbose: boolean; parallel: boolean; command: string[] };
+export type Options = { which: string; only?: string[]; skip?: string[]; verbose: boolean; parallel: boolean; command: string[] };
 
 /** The program and its arguments: the words as given, or a shell line when there's one word. */
 export const argvOf = (command: string[]) => (command.length === 1 ? ["/bin/sh", "-c", command[0]] : command);
@@ -45,6 +45,7 @@ export function parse(argv: string[]): Options | string {
     const f = flags[i];
     if (f === "--kit") o.which = "kit";
     else if (f === "--all") o.which = "all";
+    else if (f === "--group") o.which = flags[++i] ?? "";
     else if (f === "--verbose") o.verbose = true;
     else if (f === "--parallel") o.parallel = true;
     else if (f === "--only" || f === "--skip") {
@@ -56,24 +57,25 @@ export function parse(argv: string[]): Options | string {
   return o;
 }
 
-const isRepo = (dir: string) => existsSync(join(dir, ".git"));
-function isAddon(dir: string): boolean {
-  const addon = join(dir, "addon");
-  if (!existsSync(addon)) return false;
-  return readdirSync(addon, { withFileTypes: true }).some(
-    (d) => d.isDirectory() && readdirSync(join(addon, d.name)).some((f) => f.endsWith(".toc")),
-  );
-}
-function hasKit(dir: string): boolean {
-  const pkg = join(dir, "package.json");
-  return existsSync(pkg) && /"kit:sync"/.test(readFileSync(pkg, "utf8"));
+/** Whether a repository is in a group of harness.toml [groups]: a list of names, a package.json script, or a file glob. */
+function inGroup(group: string, name: string): boolean {
+  const g = loadConfig().groups[group];
+  if (!g) return false;
+  const dir = repoDir(name);
+  if (g.list) return g.list.includes(name);
+  if (g.hasScript) {
+    const pkg = join(dir, "package.json");
+    return existsSync(pkg) && readFileSync(pkg, "utf8").includes(`"${g.hasScript}"`);
+  }
+  if (g.hasFile) return [...new Bun.Glob(g.hasFile).scanSync({ cwd: dir })].length > 0;
+  return false;
 }
 
-/** The names --only and --skip give that are no repository of the family's (a typo would run nothing, quietly). */
+/** The names --only and --skip give that are no repository of the project's (a typo would run nothing, quietly). */
 export const unknown = (names: string[], o: Options) => [...(o.only ?? []), ...(o.skip ?? [])].filter((n) => !names.includes(n));
 
-export function pick(names: string[], o: Options, test: { addon: (n: string) => boolean; kit: (n: string) => boolean }): string[] {
-  let list = names.filter((n) => (o.which === "all" ? true : o.which === "kit" ? test.kit(n) : test.addon(n)));
+export function pick(names: string[], o: Options, test: (group: string, n: string) => boolean): string[] {
+  let list = names.filter((n) => o.which === "all" || test(o.which, n));
   if (o.only) list = o.only.filter((n) => names.includes(n));
   if (o.skip) list = list.filter((n) => !o.skip!.includes(n));
   return list;
@@ -82,7 +84,7 @@ export function pick(names: string[], o: Options, test: { addon: (n: string) => 
 async function one(name: string, o: Options): Promise<{ name: string; ok: boolean; code: number; out: string; secs: number }> {
   const t0 = performance.now();
   const p = Bun.spawn(argvOf(o.command), {
-    cwd: join(ROOT(), name),
+    cwd: repoDir(name),
     stdout: o.verbose && !o.parallel ? "inherit" : "pipe",
     stderr: o.verbose && !o.parallel ? "inherit" : "pipe",
   });
@@ -107,16 +109,19 @@ if (import.meta.main) {
     console.error(`each: ${o}`);
     process.exit(2);
   }
-  const names = readdirSync(ROOT(), { withFileTypes: true })
-    .filter((d) => d.isDirectory() && isRepo(join(ROOT(), d.name)))
-    .map((d) => d.name)
-    .sort();
+  const names = repoNames().sort();
+  // (no "addons" group in the config: the default is every repository)
+  if (o.which === "addons" && !loadConfig().groups.addons) o.which = "all";
+  else if (o.which !== "all" && !loadConfig().groups[o.which]) {
+    console.error(`each: no group ${o.which} in harness.toml [groups]`);
+    process.exit(2);
+  }
   const strays = unknown(names, o);
   if (strays.length) {
     console.error(`each: no repository ${strays.join(", ")} in ${ROOT()}`);
     process.exit(2);
   }
-  const list = pick(names, o, { addon: (n) => isAddon(join(ROOT(), n)), kit: (n) => hasKit(join(ROOT(), n)) });
+  const list = pick(names, o, inGroup);
   if (!list.length) {
     console.error("each: no repository matches");
     process.exit(2);

@@ -2,6 +2,6 @@
   "name": "addon-kit",
   "private": true,
   "scripts": {
-    "check": "stylua --check Kit.lua && luajit test.lua && bun test --path-ignore-patterns 'harness-view/hooks/**' && claude plugin test harness-view && claude plugin validate harness-view"
+    "check": "stylua --check Kit.lua && luajit test.lua && bun test --path-ignore-patterns 'harness-view/hooks/**' && claude plugin test harness-view && claude plugin validate harness-view && (test ! -f ../harness/harness-sync.ts || bun ../harness/harness-sync.ts --check ..)"
   }
 }

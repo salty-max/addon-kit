@@ -32,7 +32,11 @@ import { basename, join } from "node:path";
 import { authoredChanged, coldBase, isAuthored, languages } from "./coldread";
 import { reviewOf } from "./review";
 import { familyRoot } from "./root";
-import { read as readRepo, ships as shipsPaths, type Repo } from "./status";
+import { read as readRepo, type Repo as StatusRepo } from "./status";
+import { ships as shipsPaths, type Build } from "./status-extras";
+
+// (the repository status.ts reads, with the test build the family's status extension adds)
+type Repo = StatusRepo & { build?: Build };
 import { addons, due, inspect, readPage } from "./store";
 
 const ROOT = familyRoot(); // the family folder, from a worktree too (root.ts)

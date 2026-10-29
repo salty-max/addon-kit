@@ -1,3 +1,4 @@
+// harness 9d1d59441: a copy; edit it in the harness repository instead
 /**
  * A review's verdict, kept beside the check stamps: once the reviewer
  * helper has reported, the main session records what it said, and the
@@ -8,13 +9,13 @@
  * when nothing is uncommitted). Commit those files unchanged and HEAD's tree
  * has the verdict; change them after and it has none.
  *
- *   bun addon-kit/review.ts <repo> "<verdict>"   recorded for the working tree
- *   bun addon-kit/review.ts <repo>               the verdict of HEAD's tree, if any
- *   bun addon-kit/review.ts <repo> --again "<verdict>"   replace that tree's verdict
- *   bun addon-kit/review.ts --push <local> <remote>   pre-push's question (exit 1: not reviewed)
+ *   bun review.ts <repo> "<verdict>"   recorded for the working tree
+ *   bun review.ts <repo>               the verdict of HEAD's tree, if any
+ *   bun review.ts <repo> --again "<verdict>"   replace that tree's verdict
+ *   bun review.ts --push <local> <remote>   pre-push's question (exit 1: not reviewed)
  *
- *   bun addon-kit/review.ts yonder "clean"
- *   bun addon-kit/review.ts yonder "2 findings, fixed before the commit"
+ *   bun review.ts yonder "clean"
+ *   bun review.ts yonder "2 findings, fixed before the commit"
  *
  * The file: <git common dir>/harness/review-tree-<tree>, its first line
  * "verdict: <verdict>", then the head it was recorded on, the tree, when,
@@ -35,7 +36,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { logEvent, repoOf } from "./events";
 import { packetRange, packetTree } from "./packet";
 import { stampDir, workTree } from "./q";
-import { familyRoot } from "./root";
+import { loadConfig, repoDir, repoName } from "./config";
 
 function git(cwd: string, ...args: string[]): string | undefined {
   const p = Bun.spawnSync(["git", ...args], { cwd, stderr: "ignore" });
@@ -152,10 +153,11 @@ export function record(dir: string, verdict: string, again = false): Review | st
 export const changedIn = (stat: string) => (stat.match(/(\d+) (?:insertion|deletion)/g) ?? []).reduce((n, s) => n + Number.parseInt(s), 0);
 
 // ── pre-push's question ─────────────────────────────────────────────────────
-// Files a push may carry with no review of their own: docs, TOCs and, in an addon (never in addon-kit, where they are the sources), the kit's copies.
-const DOCS = /(^|\/)(README|CLAUDE|CURSEFORGE)\.md$|^docs\/|\.toc$/i;
-const COPIES = /^addon\/[^/]+\/(Kit\.lua|Media\/)|(^|\/)wowmock\.lua$|^scripts\/(root\.(ts|py)|locales-lib\.ts|package-lib\.ts)$|^i18n\/kit\/|^(wow\.yml|stylua\.toml)$/;
-export const waived = (file: string, repo: string) => DOCS.test(file) || (repo !== "addon-kit" && COPIES.test(file));
+// Files a push may carry with no review of their own: harness.toml [review] waive (docs by default) and, outside the repositories it excepts, the vendored copies it names (the family's: the kit's copies in an addon, never in addon-kit where they are the sources).
+export function waived(file: string, repo: string, from?: string): boolean {
+  const { waive, copies } = loadConfig(from).review;
+  return waive.some((r) => r.test(file)) || (!copies.except.includes(repo) && copies.patterns.some((r) => r.test(file)));
+}
 
 /** Why a push of `local` past `remote` (a sha, or zeros: none) has no review, or undefined when it has one. */
 export function pushProblem(dir: string, local: string, remote: string): string | undefined {
@@ -164,8 +166,8 @@ export function pushProblem(dir: string, local: string, remote: string): string 
   const known = /[^0]/.test(remote) ? git(dir, "rev-parse", "--verify", "-q", `${remote}^{commit}`) : undefined;
   const sent = (known ? git(dir, "rev-list", `${known}..${tip}`) : git(dir, "rev-list", tip, "--not", "--remotes"))?.split("\n").filter(Boolean) ?? [];
   if (!sent.length) return undefined;
-  const repo = (git(dir, "rev-parse", "--show-toplevel") ?? "").split("/").pop()!;
-  const unwaived = (from: string) => (git(dir, "diff", "--name-only", from, tip) ?? "").split("\n").filter((f) => f && !waived(f, repo));
+  const repo = repoName(dir);
+  const unwaived = (from: string) => (git(dir, "diff", "--name-only", from, tip) ?? "").split("\n").filter((f) => f && !waived(f, repo, dir));
   // (the verdict's packet must have read all that is sent: its base already on the remote, as the panel counts it)
   const reads = (r: Review) => r.base === EMPTY_TREE || (!!r.base && git(dir, "rev-list", "--count", r.base, ...(known ? ["--not", known] : ["--not", "--remotes"])) === "0");
   // (newest first: the first reviewed tree found, the commits above it must change waived files only)
@@ -194,7 +196,7 @@ if (import.meta.main) {
     console.error('usage: bun review.ts <repo> [--again] ["<verdict>"]');
     process.exit(2);
   }
-  const dir = isAbsolute(repo) || repo.startsWith(".") ? resolve(repo) : join(familyRoot(), repo);
+  const dir = isAbsolute(repo) || repo.startsWith(".") ? resolve(repo) : repoDir(repo);
   if (!words.length) {
     const r = reviewOf(dir);
     console.log(r ? `${r.verdict} (${r.at ?? "?"})` : "no verdict for HEAD");

@@ -1,38 +1,35 @@
+// harness 9d1d59441: a copy; edit it in the harness repository instead
 /**
- * Every repository beside the kit (~/code/wow-addons) at a glance: where it
+ * Every repository beside the kit (the project root) at a glance: where it
  * stands against GitHub, what's left uncommitted, each workflow's last run on
  * its branch, the pull requests open, and whether its test build in iCloud
  * (the addon's zip, Ravenpost's Windows exe) is its HEAD, whether a check
  * passed on HEAD's tree (q.ts's stamp), and the task board's open cards.
  * What wants a hand is listed last. A script, not a model: every answer here is mechanical.
  *
- *   bun addon-kit/status.ts             fetch first, then the table
- *   bun addon-kit/status.ts --no-fetch  as the checkouts know it
- *   bun addon-kit/status.ts --json      the same as JSON
+ *   bun status.ts             fetch first, then the table
+ *   bun status.ts --no-fetch  as the checkouts know it
+ *   bun status.ts --json      the same as JSON
  *
  * Needs git; gh (signed in) for the workflows and pull requests, left out
  * and said so without it. Every git and gh call gives up after 20 seconds
  * (a stalled remote), said so too. The family's git hooks are checked:
  * a repository whose hooks are gone or not ours wants a hand.
  */
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { isAbsolute, join } from "node:path";
 import { cards, lines } from "./board";
 import { hooksWant, state } from "./hooks";
 import { checkCommand, headTree, stampOf } from "./q";
-import { familyRoot } from "./root";
+import { loadConfig, repoDir, repoNames, toolCmdIn } from "./config";
 import { lastSummary, line as usageLine } from "./usage";
 
 // the family folder, from a worktree too (root.ts); found when first asked,
 // so the module loads (and its pure parts are tested) outside one
-let root: string | undefined;
-const ROOT = () => (root ??= familyRoot());
+const ROOT = () => loadConfig().root;
 const TIMEOUT_MS = 20_000;
-const ICLOUD = join(homedir(), "Library", "Mobile Documents", "com~apple~CloudDocs", "WoW addons test");
 
 export type Run = { workflow: string; status: string; conclusion: string; sha: string; at: string };
-export type Build = { file: string; version: string; state: "current" | "behind" | "unknown"; behind?: number };
 export type Repo = {
   name: string;
   branch: string;
@@ -44,7 +41,8 @@ export type Repo = {
   slug?: string;
   runs?: Run[];
   prs?: { number: number; title: string }[];
-  build?: Build;
+  /** What the project's status extension adds: fields merged into the repo, a table column, lines for "wants a hand". */
+  extra?: { column: string; attention: string[] };
   checked?: boolean;
   ghFailed?: boolean;
   /** The repository's own check, as a push's gate names it. */
@@ -73,14 +71,6 @@ export function latestPerWorkflow(runs: Run[]): Run[] {
   return [...seen.values()].sort((a, b) => a.workflow.localeCompare(b.workflow));
 }
 
-// A test build's version from its file name: <Name>-<version>.zip, or
-// Ravenpost's ravenpost-<version>-windows-x64.exe.
-export function buildVersion(file: string, name: string): string | undefined {
-  if (name === "ravenpost") return file.match(/^ravenpost-(.+)-windows-x64\.exe$/)?.[1];
-  const prefix = `${name}-`;
-  return file.startsWith(prefix) && file.endsWith(".zip") ? file.slice(prefix.length, -4) : undefined;
-}
-
 export function mark(r: Run): string {
   if (r.status !== "completed") return "…";
   return r.conclusion === "success" ? "✓" : r.conclusion === "skipped" || r.conclusion === "cancelled" ? "–" : "✗";
@@ -97,24 +87,14 @@ export function attention(r: Repo): string[] {
   if (!r.upstream) out.push("no upstream (local only)");
   if (r.ahead) out.push(`${r.ahead} commit${r.ahead > 1 ? "s" : ""} to push`);
   if (r.behind) out.push(`${r.behind} commit${r.behind > 1 ? "s" : ""} to pull`);
-  if (r.ahead && r.checked === false) out.push(`no passing check on HEAD's tree (bun ../addon-kit/q.ts check -- ${r.check ?? "bun run check"})`);
+  if (r.ahead && r.checked === false) out.push(`no passing check on HEAD's tree (${toolCmdIn("q", r.name)} check -- ${r.check ?? "bun run check"})`);
   for (const run of r.runs ?? []) {
     if (run.status === "completed" && !["success", "skipped", "cancelled"].includes(run.conclusion))
       out.push(`${run.workflow}: ${run.conclusion} (${run.sha.slice(0, 7)})`);
   }
   for (const pr of r.prs ?? []) out.push(`pull request #${pr.number} open: ${pr.title}`);
-  if (r.build?.state === "behind") out.push(`test build ${r.build.file} is ${r.build.behind} commit${r.build.behind === 1 ? "" : "s"} behind HEAD`);
-  if (r.build?.state === "unknown") out.push(`test build ${r.build.file}: not a commit of this repository`);
+  out.push(...(r.extra?.attention ?? []));
   return out;
-}
-
-// What ships, as git pathspecs: the addon's folders (not its store page or
-// its tests), Ravenpost's app (not its inbox, a site of its own, nor its
-// tests and docs). A test build is behind only where these changed.
-export function ships(name: string): string[] {
-  return name === "ravenpost"
-    ? [".", ":(exclude)inbox", ":(exclude)testdata", ":(exclude)*_test.go", ":(exclude)*.md"]
-    : ["addon", ":(exclude)addon/CURSEFORGE.md", ":(exclude)addon/test"];
 }
 
 // ── reading the repositories ────────────────────────────────────────────────
@@ -132,53 +112,19 @@ async function run(cmd: string[], cwd: string): Promise<{ ok: boolean; out: stri
 }
 const git = (cwd: string, ...args: string[]) => run(["git", ...args], cwd);
 
-// The addon's package name (its zip's): scripts/package.ts's NAME, else the
-// folder under addon/ holding a TOC; Ravenpost's exe by the repo's name.
-function buildName(dir: string, name: string): string | undefined {
-  if (name === "ravenpost") return name;
-  const pkg = join(dir, "scripts", "package.ts");
-  if (existsSync(pkg)) {
-    const m = readFileSync(pkg, "utf8").match(/^const NAME = "([^"]+)"/m);
-    if (m) return m[1];
-  }
-  const addon = join(dir, "addon");
-  if (!existsSync(addon)) return undefined;
-  for (const d of readdirSync(addon, { withFileTypes: true })) {
-    if (d.isDirectory() && readdirSync(join(addon, d.name)).some((f) => f.endsWith(".toc"))) return d.name;
-  }
-  return undefined;
-}
-
-async function build(dir: string, name: string): Promise<Build | undefined> {
-  const pkg = buildName(dir, name);
-  if (!pkg || !existsSync(ICLOUD)) return undefined;
-  // (one build an addon, the rule; should two be there, the newest)
-  // (Ravenpost's builds sit in the folder's Ravenpost/ subfolder, every addon's zip at its top)
-  const where = name === "ravenpost" ? join(ICLOUD, "Ravenpost") : ICLOUD;
-  if (!existsSync(where)) return undefined;
-  const found = readdirSync(where)
-    .map((file) => ({ file, version: buildVersion(file, pkg) }))
-    .filter((b): b is { file: string; version: string } => !!b.version)
-    .sort((a, b) => statSync(join(where, b.file)).mtimeMs - statSync(join(where, a.file)).mtimeMs);
-  if (!found.length) return undefined;
-  const { file, version } = found[0];
-  const sha = await git(dir, "rev-parse", "--verify", "-q", `${version.replace(/-dirty$/, "")}^{commit}`);
-  if (!sha.ok) {
-    // (WoWLocker names its zip by the addon's version, its tags the site's:
-    // the TOC's version, then)
-    const toc = tocVersion(dir, pkg);
-    return { file, version, state: toc && version.replace(/^v/, "") === toc ? "current" : "unknown" };
-  }
-  const count = await git(dir, "rev-list", "--count", `${sha.out}..HEAD`, "--", ...ships(name));
-  const behind = Number(count.out) || 0;
-  return { file, version, state: behind ? "behind" : "current", behind };
-}
-
-function tocVersion(dir: string, pkg: string): string | undefined {
-  const folder = join(dir, "addon", pkg);
-  if (!existsSync(folder)) return undefined;
-  const toc = readdirSync(folder).find((f) => f.endsWith(".toc"));
-  return toc ? readFileSync(join(folder, toc), "utf8").match(/^## Version: *(\S+)/m)?.[1] : undefined;
+// ── the project's extension ─────────────────────────────────────────────────
+/** What an extension (harness.toml [extensions] status) is given and returns: extend(ctx) adds fields to the repo, a table column and lines for "wants a hand". */
+export type StatusContext = { name: string; dir: string; git: (cwd: string, ...args: string[]) => Promise<{ ok: boolean; out: string }> };
+async function extend(r: Repo, dir: string) {
+  const path = loadConfig().extensions.status;
+  if (!path) return;
+  const file = isAbsolute(path) ? path : join(ROOT(), path);
+  if (!existsSync(file)) return;
+  const mod = (await import(file)) as { extend?: (c: StatusContext) => Promise<{ fields?: Record<string, unknown>; column?: string; attention?: string[] } | undefined> };
+  const res = await mod.extend?.({ name: r.name, dir, git });
+  if (!res) return;
+  Object.assign(r, res.fields ?? {});
+  r.extra = { column: res.column ?? "", attention: res.attention ?? [] };
 }
 
 async function github(r: Repo) {
@@ -203,7 +149,7 @@ async function github(r: Repo) {
 }
 
 export async function read(name: string, fetch: boolean): Promise<Repo> {
-  const dir = join(ROOT(), name);
+  const dir = repoDir(name);
   const fetched = fetch ? await git(dir, "fetch", "-q", "origin") : undefined;
   const [branch, upstream, dirty, head, remote] = await Promise.all([
     git(dir, "rev-parse", "--abbrev-ref", "HEAD"),
@@ -234,7 +180,7 @@ export async function read(name: string, fetch: boolean): Promise<Repo> {
     r.behind = b || 0;
   }
   await github(r);
-  r.build = await build(dir, name);
+  await extend(r, dir);
   const tree = headTree(dir);
   if (tree) r.checked = !!stampOf(dir, tree);
   return r;
@@ -246,7 +192,7 @@ function table(repos: Repo[]) {
     const sync = !r.upstream ? "local" : r.ahead || r.behind ? `↑${r.ahead} ↓${r.behind}` : "=";
     const runs = (r.runs ?? []).map((x) => `${x.workflow} ${mark(x)}`).join("  ");
     const check = r.checked === undefined ? "" : r.checked ? "check ✓" : "check –";
-    const zip = r.build ? (r.build.state === "current" ? "zip ✓" : r.build.state === "behind" ? `zip −${r.build.behind}` : "zip ?") : "";
+    const zip = r.extra?.column ?? "";
     console.log(
       `${r.name.padEnd(w)}  ${sync.padEnd(7)} ${r.dirty ? `±${r.dirty}`.padEnd(4) : "    "} ${check.padEnd(7)} ${zip.padEnd(7)} ${runs}`,
     );
@@ -263,10 +209,7 @@ function table(repos: Repo[]) {
 
 if (import.meta.main) {
   const args = process.argv.slice(2);
-  const names = readdirSync(ROOT(), { withFileTypes: true })
-    .filter((d) => d.isDirectory() && existsSync(join(ROOT(), d.name, ".git")))
-    .map((d) => d.name)
-    .sort();
+  const names = repoNames().filter((n) => existsSync(join(repoDir(n), ".git"))).sort();
   const repos = await Promise.all(names.map((n) => read(n, !args.includes("--no-fetch"))));
   if (args.includes("--json")) console.log(JSON.stringify(repos, null, 2));
   else table(repos);

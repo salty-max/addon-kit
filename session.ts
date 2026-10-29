@@ -1,9 +1,10 @@
+// harness 9d1d59441: a copy; edit it in the harness repository instead
 /**
  * A new task opened in a session of its own (the family's "one session per
  * task"): a session asked a task that isn't its own opens one here, tells
  * the user its name and how to attach, and writes nothing for it.
  *
- *   bun addon-kit/session.ts "<card title>" --repos a,b --kind code|prose [--plan] [--dry-run] [--desktop] -- "<the task>"
+ *   bun session.ts "<card title>" --repos a,b --kind code|prose [--plan] [--dry-run] [--desktop] -- "<the task>"
  *
  *   title     the new session's name and its card's title
  *   repos     every repository the task writes: its card's --repos, the
@@ -43,9 +44,9 @@
  * and once it has pushed: the opener checks its work, then closes it. Each
  * opening leaves a record, `.cache/harness/opened/<short id>.json`.
  *
- *   bun addon-kit/session.ts children [--all]
- *   bun addon-kit/session.ts close <id> [--force]
- *   bun addon-kit/session.ts check <id>
+ *   bun session.ts children [--all]
+ *   bun session.ts close <id> [--force]
+ *   bun session.ts check <id>
  *
  *   children  the records of the sessions this one opened (--all: every
  *             record), their state, their cards, and what keeps each from
@@ -72,17 +73,18 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { type Card, cards, holders, repoList, strangers } from "./board";
 import { logEvent } from "./events";
-import { familyPath, familyRoot } from "./root";
+import { loadConfig, projectPath, projectRoot, repoDir, toolCmd } from "./config";
 
 export const KINDS = { code: "opusplan", prose: "opus" } as const;
 export type Kind = keyof typeof KINDS;
 
 export type Ask = { title: string; repos: string[]; kind: Kind; plan: boolean; dryRun: boolean; desktop: boolean; task: string };
 
-const USAGE = `usage: bun addon-kit/session.ts "<card title>" --repos a,b --kind code|prose [--plan] [--dry-run] [--desktop] -- "<the task>"
-       bun addon-kit/session.ts children [--all]
-       bun addon-kit/session.ts close <id> [--force]
-       bun addon-kit/session.ts check <id>`;
+const tilde = (p: string) => (p.startsWith(homedir() + "/") ? `~${p.slice(homedir().length)}` : p);
+const USAGE = () => `usage: ${toolCmd("session")} "<card title>" --repos a,b --kind code|prose [--plan] [--dry-run] [--desktop] -- "<the task>"
+       ${toolCmd("session")} children [--all]
+       ${toolCmd("session")} close <id> [--force]
+       ${toolCmd("session")} check <id>`;
 
 export function parse(argv: string[]): Ask | string {
   const cut = argv.indexOf("--");
@@ -126,6 +128,7 @@ export type Opener = { name?: string; socket?: string };
 /** The new session's first words: the maps, its card, its model, the task, how it ends. */
 export function prompt(a: Pick<Ask, "title" | "repos" | "kind" | "plan" | "task">, opener?: Opener, desktop = false): string {
   const [repo] = a.repos;
+  const conf = loadConfig();
   const model =
     a.kind === "prose"
       ? a.plan
@@ -143,9 +146,9 @@ export function prompt(a: Pick<Ask, "title" | "repos" | "kind" | "plan" | "task"
     ? `Report to the session that opened you with SendMessage, ${to}: a few lines each time your card stops running (waiting on the user or on another card, ready to push), saying what is committed and what is asked of whom, and again once your commits are pushed: the range, CI's verdict, your card done. You do not push yourself: with the user's go, report the quote and your opener pushes, then tells you to set your card done. A go to push is asked of the user in your own session (the question tool), never left to your opener to ask: your next report quotes their words and says what they cover (repository, range by sha, push only). A push go never covers a deploy or a release, each is its own go. Without a quoted go your opener will not push. It checks your work and closes this session: never close it yourself, and after that last report write nothing more.`
     : undefined;
   return [
-    `A new task from the user. ${opener?.name ? `The session "${opener.name}"` : "Another session"} opened this one for it (the family's one session per task).`,
-    `Read ~/code/wow-addons/CLAUDE.md first, then the CLAUDE.md of each repository you write (${a.repos.join(", ")}).`,
-    `Your first write, before any file, is your card:\n\n  bun addon-kit/board.ts add ${repo} ${dq(a.title)} --repos ${a.repos.join(",")} --status running --try "…" --committed "(none yet)" --left "…"\n\nThis session already carries the card's title. Check the card's \`session\` is this session's own id ($CLAUDE_CODE_SESSION_ID), not the opener's: if it isn't, say so first.`,
+    `A new task from the user. ${opener?.name ? `The session "${opener.name}"` : "Another session"} opened this one for it (the ${conf.term}'s one session per task).`,
+    `Read ${tilde(join(conf.root, conf.session.rules))} first, then the ${conf.session.rules} of each repository you write (${a.repos.join(", ")}).`,
+    `Your first write, before any file, is your card:\n\n  ${toolCmd("board")} add ${repo} ${dq(a.title)} --repos ${a.repos.join(",")} --status running --try "…" --committed "(none yet)" --left "…"\n\nThis session already carries the card's title. Check the card's \`session\` is this session's own id ($CLAUDE_CODE_SESSION_ID), not the opener's: if it isn't, say so first.`,
     model,
     `The task:\n\n${a.task}`,
     ...(report ? [report] : []),
@@ -155,7 +158,7 @@ export function prompt(a: Pick<Ask, "title" | "repos" | "kind" | "plan" | "task"
 
 /** The command, without the prompt (its last argument). */
 export function command(a: Pick<Ask, "title" | "kind" | "plan">): string[] {
-  return ["claude", "--bg", "-n", a.title, "--model", KINDS[a.kind], ...(a.plan ? ["--permission-mode", "plan"] : [])];
+  return ["claude", "--bg", "-n", a.title, "--model", loadConfig().session.models[a.kind], ...(a.plan ? ["--permission-mode", "plan"] : [])];
 }
 
 const KEEP = new Set(["CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR", "CLAUDE_CONFIG_DIR"]);
@@ -226,9 +229,9 @@ function openerInfo(session: string | undefined): Opener | undefined {
   }
 }
 
-/** What the new session will meet: its repositories another card holds now, a name that is no family folder. */
+/** What the new session will meet: its repositories another card holds now, a name that is no folder of the project. */
 function notes(repos: string[]): string[] {
-  const out = strangers(repos).map((r) => `note: ${r} is no family folder yet`);
+  const out = strangers(repos).map((r) => `note: ${r} is no ${loadConfig().term} folder yet`);
   try {
     for (const h of holders(cards(), repos))
       if (h.kind === "held") out.push(`note: ${h.repo} is held by ${h.card.id} (running): the new session will block on it until it's free`);
@@ -238,7 +241,7 @@ function notes(repos: string[]): string[] {
 
 // ── the record of each child ────────────────────────────────────────────────
 export type Opened = { id: string; title: string; repos: string[]; kind: Kind; plan: boolean; opener: string | null; openerName: string | null; at: string };
-const openedDir = () => familyPath(".cache", "harness", "opened");
+const openedDir = () => join(loadConfig().cacheDir, "opened");
 
 function record(o: Opened): void {
   try {
@@ -307,7 +310,7 @@ const git = (dir: string, ...args: string[]) => Bun.spawnSync(["git", "-C", dir,
 export function repoStates(repos: string[], id: string, all: Card[], notes: string[], at?: string): RepoState[] {
   const out: RepoState[] = [];
   for (const repo of repos) {
-    const dir = familyPath(repo);
+    const dir = repoDir(repo);
     if (!existsSync(dir) || !statSync(dir).isDirectory()) {
       notes.push(`${repo}: no such folder here`);
       continue;
@@ -329,7 +332,7 @@ function children(argv: string[]): void {
   const all = argv.includes("--all");
   const bad = argv.find((a) => a !== "--all");
   if (bad) {
-    console.error(`unknown option ${bad}\n${USAGE}`);
+    console.error(`unknown option ${bad}\n${USAGE()}`);
     process.exit(2);
   }
   const me = process.env.CLAUDE_CODE_SESSION_ID;
@@ -344,7 +347,7 @@ function children(argv: string[]): void {
     const v = verdict({ live: row, cards: own, repos: repoStates([...new Set([...own.flatMap((c) => c.repos), ...r.repos])], r.id, board, notes, r.at), force: false });
     const state = row ? (row.status ?? "live") : "closed";
     const cs = own.length ? own.map((c) => c.status).join(", ") : "no card";
-    console.log(`${r.id}  ${state}  ${r.title}  [${cs}]  ${v.ok ? `→ close: bun addon-kit/session.ts close ${r.id}` : v.why[0]}`);
+    console.log(`${r.id}  ${state}  ${r.title}  [${cs}]  ${v.ok ? `→ close: ${toolCmd("session")} close ${r.id}` : v.why[0]}`);
   }
 }
 
@@ -360,7 +363,7 @@ function gather(id: string, rec: Opened | undefined, row: Live | undefined) {
 function check(argv: string[]): void {
   const given = argv[0]?.toLowerCase();
   if (argv.length !== 1 || !given || !/^(local_[0-9a-f-]{8,}|[0-9a-f][0-9a-f-]{5,})$/.test(given)) {
-    console.error(`check takes one session id (a desktop local_ id, the session's, or the short one), and no --force\n${USAGE}`);
+    console.error(`check takes one session id (a desktop local_ id, the session's, or the short one), and no --force\n${USAGE()}`);
     process.exit(2);
   }
   const live = registry();
@@ -369,7 +372,7 @@ function check(argv: string[]): void {
   if (given.startsWith("local_")) {
     row = live.find((l) => l.host?.toLowerCase() === given);
     if (!row) {
-      console.error(`can't tell: ${given} isn't running here, check its card by hand (bun addon-kit/board.ts list --all)`);
+      console.error(`can't tell: ${given} isn't running here, check its card by hand (${toolCmd("board")} list --all)`);
       process.exit(1);
     }
     id = row.sessionId.toLowerCase();
@@ -394,7 +397,7 @@ function close(argv: string[]): void {
   const rest = argv.filter((a) => a !== "--force");
   const id = rest[0]?.toLowerCase();
   if (rest.length !== 1 || !id || !/^[0-9a-f][0-9a-f-]{5,}$/.test(id)) {
-    console.error(`close takes one session id (the short id or the full one)\n${USAGE}`);
+    console.error(`close takes one session id (the short id or the full one)\n${USAGE()}`);
     process.exit(2);
   }
   const short = id.slice(0, 8);
@@ -415,7 +418,7 @@ function close(argv: string[]): void {
     process.exit(1);
   }
   if (row) {
-    const run = Bun.spawnSync(["claude", "stop", row.job], { cwd: familyRoot(), env: cleanEnv(process.env), stdout: "pipe", stderr: "pipe", timeout: 60_000 });
+    const run = Bun.spawnSync(["claude", "stop", row.job], { cwd: projectRoot(), env: cleanEnv(process.env), stdout: "pipe", stderr: "pipe", timeout: 60_000 });
     if (run.exitCode !== 0) {
       const said = `${run.stdout.toString()}${run.stderr.toString()}`.trim();
       console.error(`${said ? `${said}\n` : ""}claude stop failed (exit ${run.exitCode ?? run.signalCode})`);
@@ -445,10 +448,10 @@ if (import.meta.main) {
   }
   const a = parse(process.argv.slice(2));
   if (typeof a === "string") {
-    console.error(`${a}\n${USAGE}`);
+    console.error(`${a}\n${USAGE()}`);
     process.exit(2);
   }
-  const root = familyRoot();
+  const root = projectRoot();
   const opener = openerInfo(process.env.CLAUDE_CODE_SESSION_ID);
   const text = prompt(a, opener, a.desktop);
   const cmd = command(a);
@@ -481,7 +484,7 @@ if (import.meta.main) {
   console.log(`opened "${a.title}" (${KINDS[a.kind]}${a.plan ? ", plan mode" : ""}) as ${id}
   claude attach ${id}    join it (Ctrl+Z leaves it running)
   claude logs ${id}      its recent output
-  its card, once written: bun addon-kit/board.ts list`);
+  its card, once written: ${toolCmd("board")} list`);
   // (plan mode writes nothing, its card included: the board can't show it waits, so the user is told here)
   if (a.plan) console.log(`  it waits for your approval of its plan before it writes anything, its card too: claude attach ${id}`);
 }

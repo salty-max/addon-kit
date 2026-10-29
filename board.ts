@@ -1,15 +1,16 @@
+// harness 9d1d59441: a copy; edit it in the harness repository instead
 /**
- * The task board: one Markdown card per task in ~/code/wow-addons/board/,
+ * The task board: one Markdown card per task in <the board folder>/,
  * written and listed here so no session hand-edits its front matter (repo,
  * title, status, session, updated, repos, waits, since). Its body says what to
  * try, what's committed and what's left. The desktop panel reads the same
  * files.
  *
- *   bun addon-kit/board.ts add <repo> "<title>" [--repos a,b] [--status s] [--on id] [--session id] [fields]
- *   bun addon-kit/board.ts set <id> [--repos a,b] [--status s] [--on id] [--title t] [--session id] [fields]
- *   bun addon-kit/board.ts list [--all] [--json]
- *   bun addon-kit/board.ts held [repo…]
- *   bun addon-kit/board.ts may <repo>   exit 1 unless this session's running card may write it
+ *   bun board.ts add <repo> "<title>" [--repos a,b] [--status s] [--on id] [--session id] [fields]
+ *   bun board.ts set <id> [--repos a,b] [--status s] [--on id] [--title t] [--session id] [fields]
+ *   bun board.ts list [--all] [--json]
+ *   bun board.ts held [repo…]
+ *   bun board.ts may <repo>   exit 1 unless this session's running card may write it
  *
  *   repos    every repository the task writes (add: the card's repo); a
  *            running card holds them, the first to run there first
@@ -42,7 +43,7 @@ import { existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync,
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { logEvent, type Tone } from "./events";
-import { familyPath } from "./root";
+import { loadConfig, repoDir, toolCmd } from "./config";
 
 // (in the order the list shows them: what waits on the user first, then
 // what waits on another card, then what runs)
@@ -70,7 +71,7 @@ export const HOLDS: readonly Status[] = ["running"];
 export const WAITS: readonly Status[] = ["waiting-test", "waiting-review", "ready-to-push", "blocked"];
 const SECTIONS = { try: "Try", committed: "Committed", left: "Left" } as const;
 
-export const boardDir = () => familyPath("board");
+export const boardDir = () => loadConfig().boardDir;
 
 // ── the card's text, pure (harness.test.ts) ─────────────────────────────────
 // (bare where any YAML reads it back as the same string, quoted elsewhere:
@@ -414,11 +415,11 @@ export function add(repo: string, title: string, o: Opts = {}): Card {
   return card;
 }
 
-/** Repository names that aren't a folder of the family's (a typo holds nothing). */
+/** Repository names that aren't a folder of the project's (a typo holds nothing). */
 export function strangers(repos: string[]): string[] {
   return repos.filter((r) => {
     try {
-      return !statSync(familyPath(r)).isDirectory();
+      return !statSync(repoDir(r)).isDirectory();
     } catch {
       return true;
     }
@@ -450,7 +451,7 @@ export function isHeld(repo: string, list: Card[], session: string): boolean {
 
 export function set(id: string, o: Opts): Card | string {
   const file = join(boardDir(), `${id}.md`);
-  if (!existsSync(file)) return `no card ${id} (bun addon-kit/board.ts list --all)`;
+  if (!existsSync(file)) return `no card ${id} (${toolCmd("board")} list --all)`;
   const was = parseCard(id, readFileSync(file, "utf8"));
   if (was.broken) return `${id}'s front matter is unreadable (cut short?): look at ${file} and mend it by hand first`;
   if (o.on === id) return `${id} can't wait on itself`;
@@ -473,7 +474,7 @@ export function mayWrite(repo: string, list: Card[], session: string): string | 
     const own = list.filter((c) => c.session === session && c.status !== "done");
     return own.length
       ? `no running card of this session names ${repo}: ${own.map((c) => `${c.id} (${c.status})`).join(", ")}; set it running with ${repo} in --repos first`
-      : `this session has no card: its first write is its card (bun addon-kit/board.ts add ${repo} "<title>" --repos ${repo})`;
+      : `this session has no card: its first write is its card (${toolCmd("board")} add ${repo} "<title>" --repos ${repo})`;
   }
   if (isHeld(repo, list, session)) {
     const by = holders(list, [repo]).find((h) => h.kind === "held" && h.card.session !== session);
@@ -494,11 +495,11 @@ if (import.meta.main) {
   };
   if (typeof parsed === "string") fail(parsed);
   const { rest, o } = parsed as Exclude<typeof parsed, string>;
-  if (o.on && !existsSync(join(boardDir(), `${o.on}.md`))) fail(`no card ${o.on} to wait on (bun addon-kit/board.ts list --all)`);
+  if (o.on && !existsSync(join(boardDir(), `${o.on}.md`))) fail(`no card ${o.on} to wait on (${toolCmd("board")} list --all)`);
   // What a session reads after writing its card: a repository held or a typo, cards it frees.
   const tell = (card: Card) => {
     const list = cards();
-    for (const r of strangers(card.repos)) console.error(`note: ${r} is no folder of the family's: it holds nothing`);
+    for (const r of strangers(card.repos)) console.error(`note: ${r} is no folder of the ${loadConfig().term}'s: it holds nothing`);
     for (const w of warnings(card, list, liveSessions())) console.error(w);
     for (const c of list.filter((c) => c.broken)) console.error(`note: ${c.id}'s front matter is unreadable: it holds nothing until it's mended`);
     if (card.status === "blocked" && !card.waits) console.error(`note: ${card.id} is blocked on nothing: name the card with --on <id>`);

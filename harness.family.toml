@@ -1,0 +1,40 @@
+# The family's config for the harness (harness/docs/design.md). The family root's
+# harness.toml (one line, written by hand on a new machine) includes this file:
+#   include = "addon-kit/harness.family.toml"
+# so a clone of addon-kit carries the rules its hooks enforce.
+[project]
+name = "wow-addons"
+term = "family"
+
+[state]
+board = "board"
+cache = ".cache/harness"
+
+# the harness is vendored into addon-kit at its old paths (bun addon-kit/board.ts ...)
+[tools]
+dir = "addon-kit"
+
+# every repository under the root with a .git is one, the harness's own source included
+# (the default would leave out a folder called harness: here it is a repository)
+[repos]
+ignore = []
+
+[groups]
+addons = { has_file = "addon/*/*.toc" }
+kit = { has_script = "kit:sync" }
+
+[review]
+waive = ['(^|/)(README|CLAUDE|CURSEFORGE)\.md$|^docs/|\.toc$']
+
+# the kit's copies in an addon (never in addon-kit, where they are the sources)
+[review.copies]
+patterns = ['^addon/[^/]+/(Kit\.lua|Media/)|(^|/)wowmock\.lua$|^scripts/(root\.(ts|py)|locales-lib\.ts|package-lib\.ts)$|^i18n/kit/|^(wow\.yml|stylua\.toml)$']
+except = ["addon-kit"]
+
+[extensions]
+packet = "addon-kit/packet-extras.ts"
+status = "addon-kit/status-extras.ts"
+
+[session]
+rules = "CLAUDE.md"
+models = { code = "opusplan", prose = "opus" }

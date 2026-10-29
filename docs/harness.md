@@ -466,7 +466,7 @@ folder and prints the new session's id and how to attach. What it holds:
 - **Notes** on stderr: a repository another session's running card holds
   (the new session will block on it), a name that is no family folder yet.
   The opening goes in the event log (`session`).
-- Tests (`session.test.ts`) run it whole with a stub `claude` on the PATH
+- Tests (`../harness/session.test.ts`) run it whole with a stub `claude` on the PATH
   that records what it was given: no real session.
 
 **Reports and closing** (25 October 2026, the user: children should tell

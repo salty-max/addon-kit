@@ -226,6 +226,8 @@ file at its key paths, together. The manifest stays out of the release
 
 ## The harness
 
+The tools below (`config board events q hooks review packet each status usage session`.ts and `githooks/`) are **stamped copies of the standalone `../harness/` repository**: edit them there, commit, then `bun harness/harness-sync.ts .` from the family folder (`--check` fails on a hand edit). Their tests live there too. The family's own parts stay here: `harness.family.toml` (the config; the family root's `harness.toml` holds one line, `include = "addon-kit/harness.family.toml"`, and is written by hand on a new machine), `packet-extras.ts` (Yonder's riddle cards), `status-extras.ts` (iCloud builds), `coldread.ts`, `preflight.ts`.
+
 The family's way of working (`docs/harness.md`): quiet output, gates git
 keeps, a packet for each review, a board of tasks. From a repository:
 
@@ -381,7 +383,7 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   the prompt from `--desktop`) and archives them after `check
   <local_id>`, close's verdict without the stop, the record or the
   opener's question (the app shows whose child it is). Tests stub
-  `claude` on the PATH (`session.test.ts`).
+  `claude` on the PATH (`../harness/session.test.ts`).
 - **root.ts / root.py**: `WOW_ADDONS_ROOT`, else up from the working
   directory, else up from the repository's main checkout (so a worktree
   anywhere finds `addon-kit/` and `wow-data/`). Each addon carries a copy in
@@ -406,7 +408,7 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   refuses while the file exists), the numbers of 25 October 2026 before the
   model and effort changes, which the builder pilot and later changes are
   judged against. A floor: deleted transcripts and cards whose session is a
-  name are left out and listed. Tests: `usage.test.ts`.
+  name are left out and listed. Tests: `../harness/usage.test.ts`.
 - **events.ts**: the harness's event log
   (`~/code/wow-addons/.cache/harness/events.log`, one tab-separated line
   each: time, source, tone, repository, text). q.ts, review.ts, board.ts
@@ -434,7 +436,7 @@ The root `.claude/settings.json` asks before a push, a release
 session opened at `~/code/wow-addons`; the same list in
 `~/.claude/settings.json` covers every other session (a repository's, a
 worktree's). What holds and what doesn't is in `docs/harness.md`. Tests:
-`harness.test.ts`.
+`../harness/harness.test.ts`.
 
 ## Before a release
 

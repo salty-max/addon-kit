@@ -1,3 +1,4 @@
+// harness 9d1d59441: a copy; edit it in the harness repository instead
 /**
  * The quiet runner: a command's whole output kept in a log, one verdict line
  * printed, and on a failure the lines that matter (20 at most). The exit
@@ -5,10 +6,10 @@
  * one. A passing `check` stamps the tree it ran on: the pre-push hook asks
  * for that stamp.
  *
- *   bun ../addon-kit/q.ts <name> -- <command...>
+ *   bun q.ts <name> -- <command...>
  *
- *   bun ../addon-kit/q.ts check -- bun run check   check: ok (41s) · stamped 3f2a1b9
- *   bun ../addon-kit/q.ts test -- bun test         test: FAILED (exit 1, 3s) · .cache/logs/test.log
+ *   bun q.ts check -- bun run check   check: ok (41s) · stamped 3f2a1b9
+ *   bun q.ts test -- bun test         test: FAILED (exit 1, 3s) · .cache/logs/test.log
  *                                                    (fail) the stamp > …
  *
  * The log: <repo>/.cache/logs/<name>.log, the command first, its exit last
@@ -28,6 +29,7 @@
 import { closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import { join, relative } from "node:path";
+import { configuredCheck, loadConfig, toolCmd } from "./config";
 import { logEvent, repoOf, startRun } from "./events";
 
 export const MAX_LINES = 20;
@@ -59,13 +61,19 @@ export function workTree(cwd: string): string | undefined {
   }
 }
 
-// The repository's check: harness.check, else `bun run check` where
-// package.json has one (undefined: none known, any check stamps).
+// The repository's check: harness.check (git config), else harness.toml's
+// for it, else `bun run check` where package.json has one, else the
+// config's default (undefined: none known, any check stamps).
 export function checkCommand(top: string): string | undefined {
   const set = git(top, ["config", "--get", "harness.check"]);
   if (set) return set;
+  const own = configuredCheck(top);
+  if (own) return own;
   try {
-    return JSON.parse(readFileSync(join(top, "package.json"), "utf8")).scripts?.check ? "bun run check" : undefined;
+    if (JSON.parse(readFileSync(join(top, "package.json"), "utf8")).scripts?.check) return "bun run check";
+  } catch {}
+  try {
+    return loadConfig(top).defaults.check;
   } catch {
     return undefined;
   }
@@ -124,7 +132,7 @@ export function hooksGone(top: string): string | undefined {
   if (!path || path.includes(".husky")) return undefined;
   const at = path.startsWith("/") ? path : join(top, path);
   const ok = (f: string) => existsSync(join(at, f)) && (statSync(join(at, f)).mode & 0o111) !== 0;
-  return ok("pre-push") && ok("commit-msg") ? undefined : `hooks gone: ${path} has no gates, git runs none (bun addon-kit/hooks.ts install)`;
+  return ok("pre-push") && ok("commit-msg") ? undefined : `hooks gone: ${path} has no gates, git runs none (${toolCmd("hooks")} install)`;
 }
 
 function unstamp(cwd: string, tree: string) {
