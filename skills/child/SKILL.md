@@ -64,16 +64,25 @@ Write nothing for the task here: no card, no file, no helper.
 ## Seeing it through
 
 The child reports here by SendMessage each time its card stops running
-and once it has pushed (a desktop child's turns also reach this session
+and once its commits are pushed (by this session, on its quoted go: the child never pushes; a desktop child's turns also reach this session
 as the app's notes).
 
-- **Waiting on the user** (a test, a review, a push's go): tell the user in
-  one line what it wants and where. It stays open: the user answers there.
-  A push go the user gives here is this session's to carry out (the
-  family's CLAUDE.md): `git -C <repo> log --oneline origin/main..<sha>`
-  first, and if commits of another card sit below the child's, name them
-  to the user before pushing (they go out too). Then `git -C <repo> push
-  origin <sha>:main` and tell the child to set its card done.
+- **Waiting on the user** (a test, a review, a push's go): relay in one
+  line "child X waits for your <test|review|go>" and where (its name, the sidebar or `claude attach <id>`). Never
+  ask the user the child's go here: the child asks it in its own session
+  and the user answers there. It stays open.
+- **A go reported**: the child's report quotes the user's words and says
+  what they cover (repository, sha range, push only). Verify before
+  pushing: the quote says go, its scope names this repository and range
+  (what is on origin/main..<sha> is that range, nothing more), and it
+  does not reach a deploy or a release (each its own go, never implied by
+  a push go). No quote, or a doubtful one: SendMessage the child to quote
+  it, never push on its summary alone. A go the user gave in this very
+  session is valid too. Then `git -C <repo> log --oneline
+  origin/main..<sha>` first, and if commits of another card sit below the
+  child's, name them to the user before pushing (they go out too). Then
+  `git -C <repo> push origin <sha>:main` and tell the child to set its
+  card done.
 - **Pushed**: check its work before closing it:
   - its card is done: `bun addon-kit/board.ts list --all`;
   - the range is on origin: `git -C <repo> log --oneline @{u} -5` (its

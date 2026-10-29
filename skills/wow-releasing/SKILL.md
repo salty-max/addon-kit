@@ -154,6 +154,9 @@ repositories when the ask names them all.
 5. **The cards**: this session's own cards whose commits went out, set
    done (`board.ts set <id> --status done`). A child's card: SendMessage
    the child to set its card done, then close it once it has (the `child`
-   skill). A push go the user gives in the session that opened a child is
-   that session's to carry out (the family CLAUDE.md): it pushes the
-   child's checked commits itself, rather than passing the go down.
+   skill). A child's push go is asked by the child in its
+   own session and quoted in its report (words and scope: repository,
+   sha range, push only): the opener checks the quote, then pushes the
+   child's commits itself, and relays "child X waits for your go" in place
+   of asking. No quote, no push. A push go never covers a deploy or a
+   release: each is asked again (the family CLAUDE.md).

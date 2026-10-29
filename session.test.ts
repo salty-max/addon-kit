@@ -117,6 +117,9 @@ describe("session: its parts", () => {
     expect(both).toContain('Report to the session that opened you with SendMessage, to "uds:/tmp/cc-socks/56581.sock" (else to its name, "kit-addon-audit"): a few lines each time your card stops running');
     expect(both).toContain("never close it yourself, and after that last report write nothing more.");
     expect(both.indexOf("Report to the session")).toBeLessThan(both.indexOf("You run in the background"));
+    expect(both).toContain("quotes their words and says what they cover");
+    expect(both).toContain("never covers a deploy or a release");
+    expect(both).toContain("You do not push yourself");
     expect(both.indexOf("The task:")).toBeLessThan(both.indexOf("Report to the session"));
     expect(prompt(a, { name: "kit-addon-audit" })).toContain('SendMessage, to "kit-addon-audit": a few lines');
     expect(prompt(a, { socket: "/tmp/s.sock" })).toContain('SendMessage, to "uds:/tmp/s.sock": a few lines');

@@ -501,6 +501,17 @@ derived`, "83-1e") taken for the opener's: skipped now. A child waiting
 on the user stays open: the user answers there. A repository with no
 remote is a note: its unpushed commits can't be told.
 
+**A go is reported** (29 October 2026, the user: a go given in a child's
+session never reached the opener, which could not verify it, and the two
+asked the user twice). The go belongs to the session that asks it: the
+child asks its own push go in its own session (question tool), and its
+next report quotes the user's words and what they cover (repository, range
+by sha, push only). The opener checks the quote before pushing, never
+pushes on a summary, and relays "child X waits for your go" in place of
+asking itself. A push go never covers a deploy or a release. The rule is
+in the family CLAUDE.md, the `child` skill, session.ts's child prompt and
+the push waves of `wow-releasing`.
+
 **Desktop children** (the same night, the user: children "do not appear
 in the desktop app sidebar"). The desktop app lists only its own sessions
 (`local_…`); a `claude --bg` session is in `claude agents` and the panel,
