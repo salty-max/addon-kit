@@ -1,5 +1,5 @@
 #!/bin/sh
-# harness 9d1d59441: a copy; edit it in the harness repository instead
+# harness 93198dabd: a copy; edit it in the harness repository instead
 # Refuses a push whose trees have no passing check. q.ts stamps the tree a
 # check passed on (<git common dir>/harness/check-<tree>), and every branch
 # or tag this push sends must point at a commit with that tree. Refuses too
