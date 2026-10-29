@@ -162,9 +162,25 @@ session once the reviewer has reported, writes
 `<git common dir>/harness/review-<HEAD sha>`, its first line `verdict: …`,
 and the range of the packet the reviewer read (`base:`, `tip:`; 21 October
 2026): the panel counts it only when that range reaches the upstream.
-It refuses on a dirty tracked tree and on a HEAD that already has a record
+It refused on a dirty tracked tree and on a HEAD that already has a record
 (`--again` overwrites, the old verdict printed; 25 October 2026, after a
 verdict landed on ravenpost's previous commit).
+
+**The review moved before the commit (29 October 2026).** The review before
+the push left fix-after-review commits in the history. Now the order is
+packet.ts on the uncommitted files, the reviewer, the fixes, `review.ts`,
+one commit. A verdict attests a tree (`review-tree-<tree>`, the working
+files when recorded, HEAD's tree once committed unchanged); the packet
+writes the tree the reviewer read and the verdict records what changed
+since (`edited:`, louder past 80 lines). `pre-push` runs `review.ts --push`
+as a backstop: the newest unpushed commit with a reviewed tree, followed
+only by commits of waived files (docs, TOCs, the kit's copies), or a push
+of waived files alone. The architect's look found the release commit
+(`chore(release)`, TOC bump) and the kit syncs would be refused, hence the
+waiver by path (not by subject: a subject is self-declared). Not done: a
+patch-id fallback for a rebase (the verdict is recorded again by hand), and
+an incremental base for stacked tasks (task B's packet re-reads task A's
+diff while A is unpushed).
 
 **What the "ask" rules hold** (Claude Code's permission docs, 20 October
 2026; the root `.claude/settings.json`):

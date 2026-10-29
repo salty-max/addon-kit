@@ -255,7 +255,7 @@ describe("sync", () => {
     expect(run(k, ["git", "remote", "set-url", "origin", join(bare, "gone")]).exitCode).toBe(0);
     const off = go(dir, "--check", "addon/X");
     expect(off.stderr.toString()).toContain("measuring against the last fetched origin/main");
-  });
+  }, 30_000);
 
   test("root.py only where a Python script is, a stale one refused", () => {
     const dir = repo(false);

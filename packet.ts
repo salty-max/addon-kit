@@ -17,7 +17,10 @@
  * Writes <repo>/.cache/review/<sha>.md (<sha>: the range's tip) and prints
  * its path and one line. Under its title, `<!-- range: <base> <tip> -->`:
  * review.ts records it with the verdict, so the panel knows whether the
- * review reached all a push sends.
+ * review reached all a push sends. A packet of the working files adds
+ * `<!-- tree: <sha> -->`, the tree the reviewer read: the review is
+ * recorded before the commit, on the tree that will be committed, and says
+ * what changed since this one.
  */
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -74,6 +77,11 @@ export type Range = { base: string; tip: string; label: string; working: boolean
 export function packetRange(text: string): { base: string; tip: string } | undefined {
   const m = /^<!-- range: ([0-9a-f]{40}) ([0-9a-f]{40}) -->$/m.exec(text);
   return m ? { base: m[1]!, tip: m[2]! } : undefined;
+}
+
+// The tree of the working files a packet was made of (none for a range of commits).
+export function packetTree(text: string): string | undefined {
+  return /^<!-- tree: ([0-9a-f]{40}) -->$/m.exec(text)?.[1];
 }
 
 export function range(dir: string, arg?: string): Range | string {
@@ -259,6 +267,7 @@ export function packet(dir: string, arg?: string): { file: string; summary: stri
   const out = [
     `# Review packet: ${name} ${r.tip.slice(0, 12)}`,
     `<!-- range: ${r.base} ${r.tip} -->`,
+    ...(r.working && workTree(top) ? [`<!-- tree: ${workTree(top)} -->`] : []),
     "",
     `Made ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC by addon-kit/packet.ts. Range: ${r.label}.`,
     `The change: \`git -C ${top} diff ${r.base === EMPTY_TREE ? r.base : r.base.slice(0, 12)}${r.working ? "" : ` ${r.tip.slice(0, 12)}`}\`${r.working ? " (the working files against the base)" : ""}.`,

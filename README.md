@@ -242,7 +242,7 @@ From `~/code/wow-addons`:
 bun addon-kit/hooks.ts status                  # each repository's hooks and HEAD's check stamp
 bun addon-kit/hooks.ts install yonder          # (or --all); uninstall puts its own hooks back
 bun addon-kit/packet.ts yonder [a..b]          # the reviewer's packet: .cache/review/<sha>.md
-bun addon-kit/review.ts yonder "2 findings"    # the reviewer's verdict, recorded for HEAD (a clean tree; --again to replace)
+bun addon-kit/review.ts yonder "2 findings"    # the reviewer's verdict, recorded for the working tree before the commit (--again to replace)
 bun addon-kit/coldread.ts yonder "read, fixed" [frFR deDE]  # a cold read of every language (or those named), recorded for HEAD: preflight's flag counts from here, not the tag
 bun addon-kit/board.ts add yonder "Eight riddles" --repos yonder,wow-data   # a session's first write: running
 bun addon-kit/board.ts set yonder-eight-riddles --status waiting-test --try "…"
@@ -288,20 +288,30 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   scripts already checked (the stamp, subjects, trailers) and, for Yonder's
   riddle files, wow-data's cards of the subjects the change touches. The
   reviewer helper reads it first, and ends with a verdict line the session
-  records with **review.ts** (`.git/harness/review-<HEAD sha>`, its first
-  line `verdict: …`), which the desktop panel shows. The packet writes its
-  range under its title (`<!-- range: <base> <tip> -->`) and the verdict
-  keeps it (`base:`, `tip:`, from HEAD's packet, else the newest one HEAD is
-  built on and not pushed yet: the commit that fixed its findings): the
-  panel counts a review only when its base is already on the upstream and
-  its tip isn't, so the default range (everything not on GitHub yet: past
-  the upstream, on a branch never pushed all no remote has, in a
-  repository no remote has ever seen its whole history) is the one that
-  counts. The commits after the tip the reviewer read are written down
-  (`after:`) and said, with a louder line when one isn't a fix.
-  review.ts refuses while tracked files have uncommitted changes (the verdict
-  would land on the commit before) and when HEAD already has a verdict (the
-  old one is printed, `--again` replaces it).
+  records with **review.ts**, which the desktop panel shows. **The review
+  comes before the commit** (29 October 2026): packet.ts on the uncommitted
+  files, the reviewer, the fixes, then review.ts, then one commit. A verdict
+  attests a tree (`.git/harness/review-tree-<tree>`, its first line
+  `verdict: …`): the working files as they are when it is recorded, which
+  is HEAD's tree once they are committed unchanged (an older
+  `review-<HEAD sha>` still counts). A working packet writes its tree
+  (`<!-- tree: … -->`) and the verdict says what changed since (`edited:`,
+  a shortstat), louder past 80 lines: a change that big wants a packet of
+  its own. The packet writes its range under its title (`<!-- range: <base>
+  <tip> -->`) and the verdict keeps it (`base:`, `tip:`): the panel counts
+  a review only when its base is already on the upstream, so the default
+  range (everything not on GitHub yet: past the upstream, on a branch never
+  pushed all no remote has, in a repository no remote has ever seen its
+  whole history) is the one that counts. review.ts works on a dirty tree
+  and refuses a tree that already has a verdict (the old one is printed,
+  `--again` replaces it). One reviewer run a task, not a commit.
+  **pre-push is the backstop** (`review.ts --push`): the newest commit the
+  push sends whose tree has a verdict must be followed only by commits of
+  waived files (README, CLAUDE and CURSEFORGE pages, `*.toc`, `docs/`, and in an addon the kit's copies), and a push of
+  nothing but waived files needs no review, so a release's TOC bump and a
+  kit sync go through. A rebase or a merge that changes the tree loses the
+  verdict: record it again (`--again`) on the tree you push, after a look
+  at what came in.
 - **board.ts**: one card a task in `~/code/wow-addons/board/`, its
   front matter written only here, whole (beside it, then moved in: a
   reader never sees one cut); a new card is linked in under a name no

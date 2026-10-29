@@ -3,7 +3,10 @@
 # check passed on (<git common dir>/harness/check-<tree>), and every branch
 # or tag this push sends must point at a commit with that tree. Refuses too
 # a commit it sends whose message breaks the family's rule (_ai: a
-# cherry-pick, a rebase or a merge never ran commit-msg). Then the
+# cherry-pick, a rebase or a merge never ran commit-msg). Refuses too a push
+# no review stands behind (review.ts --push: the review is recorded before
+# the commit, on the tree it holds; docs, TOCs and the kit's copies need
+# none). Then the
 # repository's own pre-push, if any.
 here=$(cd "$(dirname "$0")" && pwd)
 stamps="$(git rev-parse --path-format=absolute --git-common-dir)/harness"
@@ -12,6 +15,7 @@ trap 'rm -f "$input"' EXIT
 cat >"$input"
 missing=""
 trailers=""
+unreviewed=""
 nl='
 '
 while read -r local_ref local_oid remote_ref remote_oid; do
@@ -29,6 +33,7 @@ while read -r local_ref local_oid remote_ref remote_oid; do
     missing="$missing  ${remote_ref#refs/*/} (not a commit: nothing a check stamps)$nl"
     continue
   }
+  why=$(bun "$here/../review.ts" --push "$local_oid" "$remote_oid" 2>&1) || unreviewed="$unreviewed  ${remote_ref#refs/*/}: $why$nl"
   [ -f "$stamps/check-$tree" ] || missing="$missing  ${remote_ref#refs/*/} ($(git rev-parse --short "$local_oid"))$nl"
 done <"$input"
 if [ -n "$trailers" ]; then
@@ -38,6 +43,16 @@ if [ -n "$trailers" ]; then
     echo "Reword them (git rebase -i, reword) and push again."
   } >&2
   "$here/_event" fail "pre-push refused an AI trailer in $(printf '%s' "$trailers" | head -1 | sed 's/^ *//')"
+  exit 1
+fi
+if [ -n "$unreviewed" ]; then
+  {
+    echo "pre-push: no review stands behind what this push sends:"
+    printf '%s' "$unreviewed"
+    echo "Make the packet and have the reviewer read it (before the commit is best), then record it:"
+    echo "  bun $(cd "$here/.." && pwd)/packet.ts <repo>  ...  bun $(cd "$here/.." && pwd)/review.ts <repo> \"<verdict>\""
+  } >&2
+  "$here/_event" fail "pre-push refused $(printf '%s' "$unreviewed" | head -1 | sed 's/^ *//'): no review"
   exit 1
 fi
 if [ -n "$missing" ]; then

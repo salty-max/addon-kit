@@ -82,9 +82,10 @@ writes nothing. It works under this session's card. The brief:
 
 Then read every addon's `git diff` before committing it.
 
-## Before the push
+## Before the commit and the push
 
-The packet and the reviewer for addon-kit and for each addon whose own
-code changed. A test in the game for a visual change (the `wow-game-test`
+The packet and the reviewer, before the commit, for addon-kit and for each
+addon whose own code changed (the syncs of the kit's copies need none:
+pre-push waives them). A test in the game for a visual change (the `wow-game-test`
 skill). Then the pushes, each on the user's go, addon-kit first: the
 `wow-releasing` skill's "Push waves".

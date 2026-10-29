@@ -12,7 +12,7 @@ import { HOOKS } from "./hooks";
 import { changedLines, packet, sizeLine, packetRange, range, riddles, subjectProblem, touched, trailerProblem } from "./packet";
 import { authoredChanged, coldBase, coldReadOf, languages, record as recordColdRead } from "./coldread";
 import { clean, headTree, matters, parse, stampDir, stampOf, verdict, workTree } from "./q";
-import { parseReview, record, reviewOf } from "./review";
+import { parseReview, pushProblem, record, reviewOf, waived } from "./review";
 import { familyRoot } from "./root";
 
 const KIT = import.meta.dir;
@@ -342,20 +342,49 @@ describe("git hooks", () => {
 
   test("pre-push refuses an unchecked tree and lets a checked one through", () => {
     const { repo, remote } = hooked();
-    const refused = git(repo, "push", "-q", "origin", "main");
+    let refused = git(repo, "push", "-q", "origin", "main");
     expect(refused.code).not.toBe(0);
+    expect(refused.err).toContain("pre-push: no review stands behind");
+    expect((packet(repo), record(repo, "clean"))).not.toBeString();
+    refused = git(repo, "push", "-q", "origin", "main");
     expect(refused.err).toContain("pre-push: no passing check");
     expect(refused.err).toContain(`bun ${KIT}/q.ts check -- `);
-    expect(newEvents()).toEqual([["hook", "fail", "repo", expect.stringMatching(/^pre-push refused main \([0-9a-f]+\): no passing check$/)]]);
+    expect(newEvents().slice(-3)).toEqual([["hook", "fail", "repo", expect.stringMatching(/: no review$/)], ["review", "", "repo", expect.stringContaining("clean")], ["hook", "fail", "repo", expect.stringMatching(/^pre-push refused main \([0-9a-f]+\): no passing check$/)]]);
     expect(git(remote, "rev-parse", "-q", "--verify", "main").code).not.toBe(0);
     q(repo, "check", "--", "true");
     expect(git(repo, "push", "-q", "origin", "main").code).toBe(0);
     expect(git(remote, "rev-parse", "main").out).toBe(git(repo, "rev-parse", "HEAD").out);
     // a commit after the check: refused again; a branch deleted: no tree to check
     commit(repo, "feat: later");
-    expect(git(repo, "push", "-q", "origin", "main").code).not.toBe(0);
+    expect(git(repo, "push", "-q", "origin", "main").err).toContain("no review");
+    // reviewed before its commit: the verdict lands on the tree committed unchanged
+    writeFileSync(join(repo, "b.txt"), "b\n");
+    expect((packet(repo), record(repo, "clean"))).not.toBeString();
+    git(repo, "add", "-A");
+    git(repo, "commit", "-q", "-m", "feat: b");
+    expect(reviewOf(repo)?.verdict).toBe("clean");
+    expect(git(repo, "push", "-q", "origin", "main").err).toContain("no passing check");
+    q(repo, "check", "--", "true");
+    expect(git(repo, "push", "-q", "origin", "main").code).toBe(0);
+    // docs after the review ride along, code doesn't
+    writeFileSync(join(repo, "README.md"), "n\n");
+    git(repo, "add", "-A");
+    git(repo, "commit", "-q", "-m", "docs: notes");
+    expect(pushProblem(repo, "HEAD", git(repo, "rev-parse", "origin/main").out.trim())).toBeUndefined();
+    commit(repo, "feat: unreviewed code");
+    writeFileSync(join(repo, "c.lua"), "c\n");
+    git(repo, "add", "-A");
+    git(repo, "commit", "-q", "-m", "feat: c");
+    expect(pushProblem(repo, "HEAD", git(repo, "rev-parse", "origin/main").out.trim())).toContain("c.lua");
+    // the kit's copies in an addon, never the kit's own sources
+    expect(waived("addon/Yonder/Kit.lua", "yonder")).toBe(true);
+    expect(waived("scripts/root.ts", "yonder")).toBe(true);
+    expect(waived("Kit.lua", "addon-kit")).toBe(false);
+    expect(waived("atlas/x.md", "yonder")).toBe(false);
+    expect(waived("README.md", "addon-kit")).toBe(true);
+    git(repo, "reset", "-q", "--hard", "origin/main");
     expect(git(repo, "push", "-q", "origin", "--delete", "main").code).toBe(0);
-  });
+  }, 30_000);
 
   test("the AI filter: every trailer form, nothing legitimate", () => {
     const ai = (msg: string) => Bun.spawnSync([join(HOOKS, "_ai")], { stdin: Buffer.from(`${msg}\n`), env: { ...process.env } }).exitCode;
@@ -367,11 +396,13 @@ describe("git hooks", () => {
 
   test("pre-push reads what it sends: a trailer brought in by a hookless commit is refused", () => {
     const { repo } = hooked();
+    (packet(repo), record(repo, "clean"));
     q(repo, "check", "--", "true");
     expect(git(repo, "push", "-q", "origin", "main").code).toBe(0);
     writeFileSync(join(repo, "a.txt"), "picked\n");
     git(repo, "add", "-A");
     // (as a cherry-pick or a rebase would: no commit-msg ran)
+    (packet(repo), record(repo, "clean"));
     git(repo, "-c", "core.hooksPath=/dev/null", "commit", "-q", "-m", "feat: picked\n\nCo-Authored-By: Claude <noreply@anthropic.com>");
     q(repo, "check", "--", "true");
     const refused = git(repo, "push", "-q", "origin", "main");
@@ -381,7 +412,7 @@ describe("git hooks", () => {
     q(repo, "check", "--", "true");
     expect(git(repo, "push", "-q", "origin", "main").code).toBe(0);
     newEvents();
-  });
+  }, 30_000);
 
   test("a hooks folder gone is said, and the chain never runs the harness again", () => {
     const { repo } = hooked();
@@ -676,45 +707,59 @@ describe("review", () => {
     expect(packet(repo)).not.toBeString();
     const r = record(repo, "2 findings,\n fixed");
     if (typeof r === "string") throw new Error(r);
-    const text = readFileSync(join(stampDir(repo)!, `review-${head}`), "utf8");
+    const text = readFileSync(join(stampDir(repo)!, `review-tree-${git(repo, "rev-parse", "HEAD^{tree}").out.trim()}`), "utf8");
     expect(text.split("\n")[0]).toBe("verdict: 2 findings, fixed");
     expect(text).toContain(`packet: ${join(repo, ".cache", "review", `${head.slice(0, 12)}.md`)}`);
     expect(reviewOf(repo)).toMatchObject({ verdict: "2 findings, fixed", head });
     expect(run(repo, ["bun", join(KIT, "review.ts"), repo]).out).toStartWith("2 findings, fixed (");
     expect(record(repo, "  ")).toBe("the verdict is empty");
     expect(parseReview("verdict: clean\nhead: abc\n")).toEqual({ verdict: "clean", head: "abc", tree: undefined, at: undefined, packet: undefined });
+    // the same tree under a new commit keeps its verdict, another tree has none
     git(repo, "commit", "-q", "--allow-empty", "-m", "chore: later");
+    expect(reviewOf(repo)?.verdict).toBe("2 findings, fixed");
+    writeFileSync(join(repo, "other.txt"), "x\n");
+    git(repo, "add", "-A");
+    git(repo, "commit", "-q", "-m", "chore: other");
     expect(reviewOf(repo)).toBeUndefined();
   });
 
-  test("a verdict wants a committed tree and doesn't overwrite one without --again", () => {
+  test("a review before the commit: the tree to commit, the fixes since the packet written down", () => {
     const { repo } = family();
-    const head = git(repo, "rev-parse", "HEAD").out.trim();
-    const file = join(repo, "tracked.txt");
-    writeFileSync(file, "one\n");
-    git(repo, "add", "tracked.txt");
-    git(repo, "commit", "-q", "-m", "chore: tracked");
-    const now = git(repo, "rev-parse", "HEAD").out.trim();
-    // Uncommitted changes to a tracked file: nothing recorded, on HEAD or the commit before.
-    writeFileSync(file, "two\n");
-    expect(record(repo, "clean")).toContain("commit first");
-    const cli = run(repo, ["bun", join(KIT, "review.ts"), repo, "clean"]);
-    expect(cli.code).toBe(1);
+    writeFileSync(join(repo, "new.txt"), "one\n");
+    const made = packet(repo);
+    if (typeof made === "string") throw new Error(made);
+    expect(readFileSync(made.file, "utf8")).toMatch(/^<!-- tree: [0-9a-f]{40} -->$/m);
+    // the reviewer's finding fixed before the commit
+    writeFileSync(join(repo, "new.txt"), "one\ntwo\n");
+    const r = record(repo, "1 finding, fixed");
+    if (typeof r === "string") throw new Error(r);
+    expect(r.edited).toContain("1 insertion");
+    expect(reviewOf(repo)).toBeUndefined(); // (not committed yet: HEAD's tree is another)
+    git(repo, "add", "-A");
+    git(repo, "commit", "-q", "-m", "feat: new");
+    expect(reviewOf(repo)).toMatchObject({ verdict: "1 finding, fixed", edited: r.edited });
+    // an edit after the record: the committed tree has no verdict
+    writeFileSync(join(repo, "new.txt"), "three\n");
+    git(repo, "commit", "-q", "-am", "fix: three");
     expect(reviewOf(repo)).toBeUndefined();
-    expect(reviewOf(repo, head)).toBeUndefined();
-    // An untracked file doesn't count.
-    git(repo, "checkout", "--", "tracked.txt");
+    expect(record(repo, "again")).not.toBeString();
+    expect(record(repo, "twice")).toContain("already has a verdict");
+  });
+
+  test("a verdict is for one tree and doesn't overwrite one without --again", () => {
+    const { repo } = family();
     writeFileSync(join(repo, "untracked.txt"), "x\n");
     const first = record(repo, "first");
     if (typeof first === "string") throw new Error(first);
-    // HEAD has a record: refused, the old verdict named, until --again.
+    // the tree has a record: refused, the old verdict named, until --again.
     const again = record(repo, "second");
     expect(again).toContain("already has a verdict (first)");
     expect(again).toContain("--again");
-    expect(reviewOf(repo)?.verdict).toBe("first");
     expect(run(repo, ["bun", join(KIT, "review.ts"), repo, "second"]).code).toBe(1);
     expect(run(repo, ["bun", join(KIT, "review.ts"), repo, "--again", "second"]).code).toBe(0);
-    expect(reviewOf(repo, now)?.verdict).toBe("second");
+    git(repo, "add", "-A");
+    git(repo, "commit", "-q", "-m", "chore: x");
+    expect(reviewOf(repo)?.verdict).toBe("second");
   });
 
   test("the verdict keeps the range its reviewer read: HEAD's packet, else the newest HEAD is built on", () => {
@@ -735,7 +780,7 @@ describe("review", () => {
     if (typeof r === "string") throw new Error(r);
     expect([r.base, r.tip]).toEqual([sha(`${reviewed}~1`), reviewed]);
     expect(reviewOf(repo)).toMatchObject({ verdict: "clean (1 finding fixed)", base: sha(`${reviewed}~1`), tip: reviewed });
-    expect(readFileSync(join(stampDir(repo)!, `review-${sha("HEAD")}`), "utf8")).toContain(`\nbase: ${sha(`${reviewed}~1`)}\ntip: ${reviewed}\n`);
+    expect(readFileSync(join(stampDir(repo)!, `review-tree-${git(repo, "rev-parse", "HEAD^{tree}").out.trim()}`), "utf8")).toContain(`\nbase: ${sha(`${reviewed}~1`)}\ntip: ${reviewed}\n`);
     // what came after the tip, unread by the reviewer, written down
     expect(r.after).toEqual([`${sha("HEAD").slice(0, 7)} fix: the findings`]);
     expect(reviewOf(repo)?.after).toEqual(r.after);
@@ -751,7 +796,7 @@ describe("review", () => {
     git(repo, "remote", "add", "origin", remote);
     git(repo, "push", "-q", "-u", "origin", "main");
     commit("feat: next week");
-    const later = record(repo, "clean");
+    const later = record(repo, "clean", true);
     if (typeof later === "string") throw new Error(later);
     expect([later.packet, later.base]).toEqual([undefined, undefined]);
     // No packet at all: no range, the verdict still kept.

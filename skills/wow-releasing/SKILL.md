@@ -19,13 +19,16 @@ hook checks the stamp, not the user's go.
    `bun ../addon-kit/q.ts check -- bun run check` (or the repo's
    `harness.check`; an addon from a worktree: `bun scripts/root.ts --run
    addon-kit/q.ts check -- bun run check`). Never pipe a check into `tail`.
-2. The packet and the reviewer: `bun addon-kit/packet.ts <repo>
-   [origin/main..HEAD]`, then the `reviewer` helper on it. Check its
-   findings before acting on them, fix what holds, then record the verdict:
-   `bun addon-kit/review.ts <repo> "<verdict>"` (on the fix commit is fine:
-   it keeps the packet's range). The panel counts the review only when the
-   packet's range starts on the upstream: a narrower one (`HEAD~1..HEAD`
-   with more unpushed) shows `partial`.
+2. The review is normally done already, before each commit (packet.ts on
+   the uncommitted files, the reviewer, review.ts: the family's CLAUDE.md).
+   Here confirm it stands: `bun addon-kit/review.ts <repo>` for HEAD's tree,
+   and pre-push refuses a push no review stands behind (docs, TOCs and the
+   kit's copies need none, so a release's TOC bump goes through). A commit
+   made without one: `bun addon-kit/packet.ts <repo> [origin/main..HEAD]`,
+   the `reviewer` helper, fixes in the working files, then
+   `review.ts <repo> "<verdict>"` before committing them. The panel counts
+   the review only when the packet's range starts on the upstream: a
+   narrower one shows `partial`.
 3. A kit change goes out first: addon-kit pushed before the addons whose
    copies carry its stamp. wow-data before the addons that read its new data
    (the order and the database's wait: "Push waves" below).
