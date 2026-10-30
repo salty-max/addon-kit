@@ -16,7 +16,7 @@ re-derive it by hand. Use full Opus for the writing.
   what the resolver resolves and refuses.
 - `yonder/docs/writing.md`: the League's voice, gestures and hints, lore
   scope, `[classic]`/`[forever]`.
-- `yonder/PLAN.md`: Expeditions, Reworked, After the first test.
+- `yonder/docs/expeditions.md`, "The gates' choices" and "Rules kept from the October 2026 plan".
 
 ## The rules (the user's)
 
@@ -28,7 +28,7 @@ re-derive it by hand. Use full Opus for the writing.
   share an action (an arrival, a reading, a conversation, a gesture), so
   never invent an emote only because another riddle has the natural one.
   The resolver refuses a reused subject (a group's companions included) and
-  overlapping arrival footprints (yonder's PLAN, After the first test).
+  overlapping arrival footprints (`yonder/docs/expeditions.md`).
 - Not a quest's target, giver, ender or story. A quest place only for a
   distinct experience (a gesture, an overlooked detail), recorded as
   `quest_overlap` + `quest_context`; never a copied objective or a quest
