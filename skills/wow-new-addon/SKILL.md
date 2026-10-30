@@ -67,7 +67,7 @@ From `~/code/wow-addons/<repo>`, after `git init`:
   `addon-data.yml`'s header comment, a wow-data commit.
 - `CLAUDE.md` as a map (what it is, where things are, the commands, the
   hard rules) and `docs/architecture.md`, Yours Truly's as the pattern.
-- The hooks: `bun addon-kit/hooks.ts install <repo>`, then `bun run
+- The hooks (the `wow-harness-init` skill): `bun addon-kit/hooks.ts install <repo>`, then `bun run
   check` through q and the first commit (`feat: <addon>'s first …`).
 
 ## The family's lists
