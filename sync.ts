@@ -222,11 +222,11 @@ if (import.meta.main) {
 
   // The finders of the family folder, in the repository's scripts/ (the
   // working directory's): root.ts always, root.py beside Python scripts,
-  // the languages' core beside scripts/locales.ts, the package's beside
-  // scripts/package.ts.
+  // the languages' core beside scripts/locales.ts or scripts/package.ts
+  // (package-lib.ts reads its LOCALES), the package's beside scripts/package.ts.
   const scripts = "scripts";
   const finders: [string, string][] = [["root.ts", "//"]];
-  if (existsSync(join(scripts, "locales.ts"))) finders.push(["locales-lib.ts", "//"]);
+  if (existsSync(join(scripts, "locales.ts")) || existsSync(join(scripts, "package.ts"))) finders.push(["locales-lib.ts", "//"]);
   if (existsSync(join(scripts, "package.ts"))) finders.push(["package-lib.ts", "//"]);
   if (existsSync(scripts) && readdirSync(scripts).some((f) => f.endsWith(".py") && f !== "root.py")) finders.push(["root.py", "#"]);
   if (check && existsSync(join(scripts, "root.py")) && !finders.some(([n]) => n === "root.py"))

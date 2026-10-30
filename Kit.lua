@@ -9,7 +9,7 @@
 -- welcome page that offers them, and the opt-in that shares what the game
 -- tells of the world with the addons' database (K.collect). Its source is the addon-kit repository
 -- (Kit.lua), beside the addons' own in ~/code/wow-addons; each addon keeps a
--- copy, loaded into its own namespace (ns.kit, and ns.forever and ns.tbc),
+-- copy, loaded into its own namespace (ns.kit, and ns.forever),
 -- made by its kit:sync. Edit the kit, then sync: never the copy. Its globals,
 -- shared on purpose by every copy: SaltyMaxCollector (who collects, K.collect),
 -- SaltyMaxWelcomes (the welcomes' turn, K.welcomeOnce) and
@@ -27,14 +27,13 @@ ns.kit = K
 
 -- ── which game ───────────────────────────────────────────────────────────────
 -- World of Warcraft: Forever (the original world on the modern client,
--- interface 16xxx), TBC Anniversary (2xxxx), else Classic Era. The kit says
--- it once for the addon too (ns.forever, ns.tbc): no addon tests the number.
+-- interface 16xxx), else Classic Era (1xxxx below it): any other client is
+-- neither. The kit says it once for the addon too (ns.forever): no addon
+-- tests the number.
 K.toc = GetBuildInfo and select(4, GetBuildInfo()) or 0
 K.forever = K.toc >= 16000 and K.toc < 20000
-K.tbc = K.toc >= 20000 and K.toc < 30000
-K.classic = not K.forever and not K.tbc
-K.GAME = K.forever and "forever" or K.tbc and "tbc" or "classic"
-ns.forever, ns.tbc = K.forever, K.tbc
+K.classic = K.toc < 16000
+ns.forever = K.forever
 -- Forever hides some values from addons ("secret values", in combat or
 -- instances): never compare or print one.
 K.secret = issecretvalue or function() return false end
@@ -372,8 +371,8 @@ function K.card(parent)
 end
 
 -- Classic's panels: the game's inset, shaded for the text; behind a list
--- (book), the quest log's dark book (TBC's two-pane log, where the game has
--- it), tinted by the theme.
+-- (book), the quest log's dark book (the two-pane log's art, where the game
+-- has it), tinted by the theme.
 function K.inset(parent, book)
   local ok, f = pcall(CreateFrame, "Frame", nil, parent, "InsetFrameTemplate")
   if not (ok and f) then f = CreateFrame("Frame", nil, parent) end
@@ -567,7 +566,6 @@ end
 -- A medal pinned on a round picture's lower edge: a seal's coin in a ring of
 -- its colour. K.setBadge(b, seal): seal = { icon, name, text, colour }, nil:
 -- none. The seal is the medal; the picture stays the subject's.
-K.GOLD = { "Interface\\Icons\\INV_Misc_Coin_01", "Gold", "", { 1, 0.82, 0 } }
 function K.badge(portrait, size)
   size = size or 20
   local b = K.roundIcon(portrait, size, true)
@@ -797,7 +795,6 @@ end
 -- The sound of an achievement earned, the same in every addon unless the
 -- player picks another (the user's call, 27 October 2026): the game's fanfare,
 -- Quest complete where the client has none; the choices K.SOUNDS's after it.
-K.FANFARE = FANFARE
 K.ACHIEVEMENT_SOUND = FANFARE
 K.ACHIEVEMENT_SOUNDS = { { FANFARE, "Achievement fanfare" } }
 for _, s in ipairs(K.SOUNDS) do

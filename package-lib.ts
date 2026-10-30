@@ -1,8 +1,7 @@
 /**
  * The family's package, one way for every addon: addon/<Name> as it is, one
  * zip for every game, each game loading its own TOC (<Name>_Vanilla.toc:
- * Classic Era; _TBC.toc: TBC Anniversary; _Camelot.toc: World of Warcraft:
- * Forever). The BigWigs packager makes the release's (.pkgmeta,
+ * Classic Era; _Camelot.toc: World of Warcraft: Forever). The BigWigs packager makes the release's (.pkgmeta,
  * .github/workflows/release.yml); this one is for a test in the game before a
  * release, and checks the TOCs: each game's interface first, the same header
  * and files but for the interface and each game's own files, every one of
@@ -24,18 +23,15 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { LOCALES } from "./locales-lib";
 
 // Each game's TOC suffix and interface (preflight.ts checks them against
 // wow-data's pins).
 export const GAMES = {
   classic: { suffix: "Vanilla", interface: "11509" },
-  tbc: { suffix: "TBC", interface: "20506" },
   forever: { suffix: "Camelot", interface: "16001" },
 } as const;
 export type Game = keyof typeof GAMES;
-
-// (the client's own language file: Text_[TextLocale].lua, one per language)
-const LOCALES = ["enUS", "enGB", "deDE", "frFR", "esES", "esMX", "ruRU", "ptBR", "itIT", "koKR", "zhCN", "zhTW"];
 
 export type Toc = { game: Game; toc: string; interface: string; own: string[] };
 export type Also = {
@@ -83,6 +79,7 @@ export function run(o: {
     if (!toc.startsWith(`## Interface: ${t.interface}\n`)) fail(`${t.toc}: not "## Interface: ${t.interface}" first`);
     const files = lines(toc);
     for (const f of files) {
+      // (the client's own language file: Text_[TextLocale].lua, one per language)
       const each = f.includes("[TextLocale]") ? LOCALES.map((l) => f.replace("[TextLocale]", l)) : [f];
       for (const one of each) {
         if (!existsSync(join(SRC, one))) fail(`${t.toc} loads ${one}, which isn't there`);

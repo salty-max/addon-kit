@@ -85,6 +85,17 @@ describe("sync", () => {
     expect(r.stderr.toString()).toContain("scripts/root.ts: not the kit's");
   });
 
+  test("the package's lib comes with the languages' core it imports, locales.ts or not", () => {
+    const k = kit();
+    for (const f of ["package-lib.ts", "locales-lib.ts"]) copyFileSync(join(import.meta.dir, f), join(k, f));
+    commitAll(k, "libs");
+    const dir = repo(false);
+    writeFileSync(join(dir, "scripts", "package.ts"), "");
+    expect(run(dir, ["bun", join(k, "sync.ts"), "addon/X"]).exitCode).toBe(0);
+    expect(existsSync(join(dir, "scripts", "package-lib.ts"))).toBe(true);
+    expect(existsSync(join(dir, "scripts", "locales-lib.ts"))).toBe(true);
+  });
+
   test("a copy is the kit's at its stamp: a hand edit or a made-up stamp fails, a stale one fails but in CI", () => {
     const k = kit();
     const go = (cwd: string, ...args: string[]) => run(cwd, ["bun", join(k, "sync.ts"), ...args]);

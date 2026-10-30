@@ -501,15 +501,18 @@ do
   local played = {}
   PlaySound = function(id)
     table.insert(played, id)
-    return id ~= K.FANFARE
+    return id ~= K.ACHIEVEMENT_SOUND
   end
   K.achievementSound()
-  check(played[1] == K.FANFARE and played[2] == 878, "achievement sound: the fanfare, Quest complete without it")
+  check(
+    played[1] == K.ACHIEVEMENT_SOUND and played[2] == 878,
+    "achievement sound: the fanfare, Quest complete without it"
+  )
   played = {}
   K.achievementSound(3175)
   check(#played == 1 and played[1] == 3175, "achievement sound: the player's own")
   check(
-    K.ACHIEVEMENT_SOUNDS[1][1] == K.FANFARE and #K.ACHIEVEMENT_SOUNDS == #K.SOUNDS + 1,
+    K.ACHIEVEMENT_SOUNDS[1][1] == K.ACHIEVEMENT_SOUND and #K.ACHIEVEMENT_SOUNDS == #K.SOUNDS + 1,
     "achievement sounds: the fanfare first, the kit's after"
   )
   PlaySound = nil
@@ -881,7 +884,10 @@ do
     _G.SaltyMaxCollector = nil
     local other = { share = true }
     load().collect({ saved = function() return other end }):start()
-    check(_G.SaltyMaxCollector == nil and other.game == nil, "collect: never TBC's world nor the Season of Discovery's")
+    check(
+      _G.SaltyMaxCollector == nil and other.game == nil,
+      "collect: never another client's world (20506) nor the Season of Discovery's"
+    )
   end
   C_Seasons = nil
   _G.SaltyMaxCollector = nil
@@ -906,12 +912,13 @@ end
 
 -- Which game, from the client's interface number; ns told too.
 do
-  for _, g in ipairs({ { 11509, "classic" }, { 16001, "forever" }, { 17000, "forever" }, { 20506, "tbc" } }) do
+  -- (20506, TBC Anniversary's, is no game of the family's: neither)
+  for _, g in ipairs({ { 11509, "classic" }, { 16001, "forever" }, { 17000, "forever" }, { 20506, "neither" } }) do
     GetBuildInfo = function() return "x", "1", "d", g[1] end
     local ns = {}
     assert(loadfile("Kit.lua"))("Test", ns)
     check(
-      ns.kit.GAME == g[2] and ns.forever == (g[2] == "forever") and ns.tbc == (g[2] == "tbc"),
+      ns.kit.classic == (g[2] == "classic") and ns.kit.forever == (g[2] == "forever") and ns.forever == ns.kit.forever,
       "game: " .. g[1] .. " is " .. g[2]
     )
   end

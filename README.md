@@ -2,7 +2,7 @@
 
 The Lua every addon of the family carries but Keyring (Hearthtale,
 Lorekeeper's Codex, Yonder, Second Wind, Palaver, Mealbook, Goodwill, Yours
-Truly): which game this is (`K.GAME`, `K.forever`; `ns.forever` set for the
+Truly): which game this is (`K.classic`, `K.forever`; `ns.forever` set for the
 addon), its events (`K.events`: each listener behind its own pcall), search
 words (`K.plain`, `K.finds`), the books' look (one family, a theme each), the pieces their
 windows are made of (the list on the left, the page on the right and every part
@@ -476,8 +476,8 @@ ships since the last tag, grouped (feat, fix, data, kit, other: the release
 notes' material) with a version suggested (a feature a minor step, else a
 patch; `release.sh` takes no default and refuses without `--version
 X.Y.Z`, printing this suggestion); the TOCs (one
-version, each game's interface against wow-data's pinned build, TBC by
-hand, the store ids, Notes in every translated language, esMX beside esES);
+version, each game's interface against wow-data's pinned build, the store
+ids, Notes in every translated language, esMX beside esES);
 the store page (Support with Ko-fi before Source, its summary the TOCs'
 Notes, no semicolon, Other addons naming tagged siblings by their Wago ids);
 the live pages through `store.ts`'s dry run (whether `--apply` is due);

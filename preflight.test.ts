@@ -49,16 +49,16 @@ describe("preflight", () => {
 
   test("an unsuffixed TOC's interface finds its game by its line", () => {
     const pins = { classic: { build: "1.15.10.71000" }, forever: { build: "1.60.1.70450" } };
-    expect(gameOfInterface("11509", pins)).toBe("classic"); // (stale, so shown as wrong, not as TBC)
+    expect(gameOfInterface("11509", pins)).toBe("classic"); // (stale, so shown as wrong)
     expect(gameOfInterface("16001", pins)).toBe("forever");
-    expect(gameOfInterface("20506", pins)).toBe("tbc");
+    expect(gameOfInterface("20506", pins)).toBeUndefined(); // (TBC Anniversary's: no game of the family's)
     expect(gameOfInterface("30403", pins)).toBeUndefined();
   });
 
   test("a TOC's game by its suffix", () => {
     expect(gameOf("Yonder/Yonder_Vanilla.toc")).toBe("classic");
     expect(gameOf("Yonder_Camelot.toc")).toBe("forever");
-    expect(gameOf("Keyring_TBC.toc")).toBe("tbc");
+    expect(gameOf("Keyring_TBC.toc")).toBeUndefined();
     expect(gameOf("WowLocker.toc")).toBeUndefined();
   });
 

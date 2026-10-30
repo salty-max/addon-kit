@@ -54,7 +54,7 @@ export type Toc = {
   wago?: string;
   notes: Record<string, string>; // locale → Notes (enUS: the plain ## Notes)
 };
-export type Game = "classic" | "forever" | "tbc";
+export type Game = "classic" | "forever";
 export type Preflight = {
   name: string;
   tag?: string;
@@ -74,8 +74,8 @@ export function interfaceOf(build: string): string | undefined {
 
 /** The game a TOC loads in, by its suffix (each game reads its own). */
 export function gameOf(toc: string): Game | undefined {
-  const games: Record<string, Game> = { Vanilla: "classic", Camelot: "forever", TBC: "tbc" };
-  const m = basename(toc, ".toc").match(/_(Vanilla|Camelot|TBC)$/);
+  const games: Record<string, Game> = { Vanilla: "classic", Camelot: "forever" };
+  const m = basename(toc, ".toc").match(/_(Vanilla|Camelot)$/);
   return m ? games[m[1]] : undefined;
 }
 
@@ -97,14 +97,14 @@ export function readToc(file: string, text: string): Toc {
 export type Pins = Partial<Record<Game, { build: string }>>;
 
 /**
- * An unsuffixed TOC's interface's game (WowLocker.toc's "11509, 20506"): the
- * pin on the same line (115xx classic, 160xx forever), so a stale number
- * still finds its game and shows as wrong, else TBC's 2xxxx (no pin).
+ * An unsuffixed TOC's interface's game (WowLocker.toc's "11509"): the pin on
+ * the same line (115xx classic, 160xx forever), so a stale number still
+ * finds its game and shows as wrong; any other (TBC's 20506) has none.
  */
 export function gameOfInterface(i: string, pinned: Pins): Game | undefined {
   const line = (n: string | undefined) => Math.floor(Number(n) / 100);
   const pin = (Object.keys(pinned) as Game[]).find((g) => line(interfaceOf(pinned[g]!.build)) === line(i));
-  return pin ?? (/^2\d{4}$/.test(i) ? "tbc" : undefined);
+  return pin;
 }
 
 /** A commit's place in the release notes, by its Conventional subject. */
@@ -282,19 +282,19 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
     for (const i of t.interfaces) {
       const game = t.game ?? gameOfInterface(i, pinned);
       if (!game) {
-        seen.set(`? ${i}`, { mark: "✗", label: "interface", text: `${i} in ${t.file}: no pinned game's line, nor TBC's` });
+        seen.set(`? ${i}`, { mark: "✗", label: "interface", text: `${i} in ${t.file}: no pinned game's line` });
         continue;
       }
       const key = `${game} ${i}`;
       if (seen.has(key)) continue;
       const pin = pinned[game];
       const want = pin && interfaceOf(pin.build);
-      if (!pin) seen.set(key, { mark: "·", label: "interface", text: `${game === "tbc" ? "TBC" : game} ${i}: no pin in wow-data, by hand` });
+      if (!pin) seen.set(key, { mark: "·", label: "interface", text: `${game} ${i}: no pin in wow-data, by hand` });
       else if (want === i) seen.set(key, { mark: "✓", label: "interface", text: `${game} ${i}, the pinned ${pin.build}` });
       else seen.set(key, { mark: "✗", label: "interface", text: `${game} ${i} in ${t.file}, the pinned build ${pin.build} is ${want}` });
     }
   }
-  const order = ["classic", "forever", "TBC"];
+  const order = ["classic", "forever"];
   const ifaces = [...seen.values()].sort((a, b) => order.indexOf(a.text.split(" ")[0]) - order.indexOf(b.text.split(" ")[0]));
   const good = ifaces.filter((r) => r.mark === "✓");
   if (good.length) add("✓", "interface", good.map((r) => r.text).join(" · "));

@@ -391,6 +391,8 @@ globals:
     any: true
   HasFullControl:
     any: true
+  HasNewMail:
+    any: true
   hooksecurefunc:
     any: true
   InboxFrame:
@@ -503,6 +505,10 @@ globals:
     any: true
   MinimapBackdrop:
     any: true
+  MinimapCluster:
+    any: true
+  MiniMapMailFrame:
+    any: true
   mixed:
     any: true
   MoneyFrame_Update:
@@ -523,6 +529,9 @@ globals:
     any: true
   PlayAutoAcceptQuestSound:
     any: true
+  PlayMusic:
+    args:
+      - type: any
   PlaySound:
     any: true
   QUEST_MONSTERS_KILLED:
@@ -569,6 +578,8 @@ globals:
     any: true
   StaticPopupDialogs:
     any: true
+  StopMusic:
+    args: []
   strsplit:
     any: true
   strtrim:
@@ -640,6 +651,8 @@ globals:
   UnitHealth:
     any: true
   UnitHealthMax:
+    any: true
+  UnitIsConnected:
     any: true
   UnitIsDead:
     any: true
