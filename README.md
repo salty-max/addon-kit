@@ -92,7 +92,10 @@ The client's game type, not its folder, picks the TOC: `_forever_` loads
 `_Camelot.toc` (Blizzard's own TOCs say `AllowLoadGameType: camelot`).
 Windows' own `tar.exe` does the unzipping, no PowerShell. The game's folder
 is found where Battle.net puts it, else asked once and kept in
-`wow-folder.txt`. CRLF line endings: batch files need them. After the
+`wow-folder.txt`. CRLF line endings: batch files need them, and
+`windows/eol.test.ts` (in `bun run check`) fails on a bare LF (a copy
+written after checkout keeps LF while git calls it clean: `rm` it and `git
+checkout` it again). After the
 addons it offers Ravenpost: the newest `Ravenpost/ravenpost-*-windows-<arch>.exe`
 beside it (arm64 or x64, by the processor) is copied, on a yes, to
 `%LOCALAPPDATA%\Ravenpost\Ravenpost.exe` and started. Ravenpost's builds live
