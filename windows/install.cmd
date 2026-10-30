@@ -106,6 +106,7 @@ if exist "!HERE!Ravenpost\" for /f "delims=" %%r in ('dir /b /a-d /o-d "!HERE!Ra
 if defined RAVEN (
   echo.
   echo Ravenpost: !RAVEN!
+  echo   more about it: https://ravenpost-site.vercel.app
   choice /c YN /n /m "Install it for this user and start it? [Y/N] "
   if not errorlevel 2 (
     if not exist "!LOCALAPPDATA!\Ravenpost\" mkdir "!LOCALAPPDATA!\Ravenpost"

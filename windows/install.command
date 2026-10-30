@@ -70,6 +70,7 @@ RAVEN=$(ls -t "$HERE"/Ravenpost/ravenpost-*-macos.zip 2>/dev/null | head -n 1)
 if [ -n "$RAVEN" ]; then
   echo
   echo "Ravenpost: $(basename "$RAVEN")"
+  echo "  more about it: https://ravenpost-site.vercel.app"
   read -r -p "Install it into /Applications and open it? [y/N] " yn
   if [ "$yn" = y ] || [ "$yn" = Y ]; then
     tmp=$(mktemp -d)
