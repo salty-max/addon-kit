@@ -15,7 +15,8 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | Every repository at once: status, one command each, secrets | `README.md` "Every repository at once"; `status.ts`, `each.ts`, `secret.ts` |
 | The harness: q, hooks, packet, review (before the commit), board, sessions opened by sessions, the event log. **Stamped copies of the standalone `../harness/` repository** (its tools and `githooks/`): edit them there, never here, then `bun harness/harness-sync.ts .` from the family folder. On a new machine the family root needs its one-line `harness.toml`: `include = "addon-kit/harness.family.toml"` | `harness/CLAUDE.md`, `harness/docs/design.md`; the config `harness.family.toml` (the family root's `harness.toml` includes it); the family's own extensions `packet-extras.ts` (riddle cards), `status-extras.ts` (iCloud builds); the plan and what was built: `docs/harness.md` |
 | The desktop panel and status line (piece D, a Claude Code mod) | `harness-view/README.md` |
-| The family's procedures as skills (riddles, translating, releasing and push waves, store pages, data audits, a kit change carried into the addons, a test in the game, a new addon, the harness in a repository, opening and closing child sessions) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
+| The data's daily pull requests and runs (Pins, Players' facts, Game data) | `README.md` "The data's pull requests"; `data-prs.ts`, the `wow-data-prs` skill |
+| The family's procedures as skills (riddles, translating, releasing and push waves, store pages, data audits, the data's pull requests, a kit change carried into the addons, a test in the game, a new addon, the harness in a repository, opening and closing child sessions) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
 | Before a release: everything a script can tell, nothing changed | `README.md` "Before a release"; `preflight.ts` |
 | Store pages on CurseForge, Wago and GitHub | `README.md` "The store page"; `store.ts`, `store-ui.ts` |
 | Game names for translations (glossary, building areas) | `glossary.py`, `subzones.py` (their docstrings) |
@@ -38,7 +39,8 @@ addon-kit/review.ts <repo> "<verdict>"`, `bun addon-kit/coldread.ts <repo>
 "<verdict>" [lang…]`, `bun addon-kit/board.ts
 add|set|list`, `bun addon-kit/session.ts "<title>" --repos a,b --kind
 code|prose -- "<task>"`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
---all|--ui`, `bun addon-kit/preflight.ts [repo…]`. Usage of each in
+--all|--ui`, `bun addon-kit/preflight.ts [repo…]`, `bun addon-kit/data-prs.ts
+[facts|db-diff]`. Usage of each in
 `README.md`.
 
 ## Hard rules

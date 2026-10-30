@@ -170,6 +170,24 @@ project with `--vercel <dir>`; it checks the token's shape first
 prints the value. Their pure parts are tested in `tools.test.ts` (`bun
 test`).
 
+## The data's pull requests
+
+The daily jobs' pull requests and runs (wow-data's Pins, Players and
+Databases, each addon's Game data), handled by the `wow-data-prs` skill:
+
+```bash
+bun addon-kit/data-prs.ts                    # each job's last run, every data pull request open
+bun addon-kit/data-prs.ts facts [<pr>] [--out <file>]   # a players' facts pull request, line by line against the databases
+bun addon-kit/data-prs.ts db-diff <before.db> <after.db>  # two builds of a database: rows, ids lost, English names
+```
+
+`facts` reads only what the pull request adds (against the fork point) and
+gives each line a verdict against the game's database: known (the game's
+tokens count as the same), fills a gap, new (an id no source has), differs,
+or flagged (a broken shape, a value out of bounds, a link, markup, the
+game's escape codes, hidden characters, a sighting far from every spawn).
+Its pure parts are tested in `data-prs.test.ts`.
+
 ## Regional names
 
 A game name is held once, in wow-data (26 October 2026): esMX takes esES's
@@ -424,7 +442,7 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   `~/.claude/skills/harness-view`. Its tests run in `bun run check`.
 - **skills/**: the family's procedures as Claude Code skills (`wow-riddles`,
   `wow-translating`, `wow-releasing` (with its push waves),
-  `wow-store-pages`, `wow-data-audit`, `wow-kit-change`, `wow-game-test`,
+  `wow-store-pages`, `wow-data-audit`, `wow-data-prs`, `wow-kit-change`, `wow-game-test`,
   `wow-new-addon`, and `child`: `/child <task>` opens it as a child session, `/child` alone
   makes the session the dispatch), each linked into `~/.claude/skills/` so every session finds them. A fresh
   machine links them again:
