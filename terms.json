@@ -1,0 +1,56 @@
+{
+  "about": "The family's terms (ideas/audit/en-fr-base.md section B, the user's answers of 31 October 2026). terms.ts checks every addon's interface words and TOC notes against it, warnings only for now. A term applies to an English key that holds `en` as a whole word (a plural allowed); the French must then hold `frFR` or one of `frFR_forms` (any case), and no `avoid.frFR` text may appear in it. `avoid.en` is checked in every English key. `repos` limits a term to those repositories. Not copied into the addons, so changing it moves no stamp.",
+  "terms": {
+    "achievements": { "en": "achievement", "frFR": "haut fait", "frFR_forms": ["hauts faits"], "avoid": { "frFR": ["succès"] }, "source": "client:ACHIEVEMENTS" },
+    "feats": { "en": "feats", "frFR": "exploit", "source": "family" },
+    "minimap": { "en": "minimap", "frFR": "minicarte", "avoid": { "frFR": ["mini-carte", "mini carte"] }, "source": "client:MINIMAP_LABEL" },
+    "settings": {
+      "en": "settings",
+      "frFR": "réglages",
+      "avoid": { "en": ["the addon's Options"], "frFR": ["vos options"] },
+      "source": "family",
+      "note": "the client mixes Paramètres and Réglages. Options is the game's window (client:GAMEMENU_OPTIONS)"
+    },
+    "codex-window": { "en": "codex", "frFR": "codex", "repos": ["lorekeepers-codex"], "avoid": { "en": ["/codex opens the book"] }, "source": "family", "note": "the Codex's own window is the codex, the book is the button's picture" },
+    "yonder-window": { "en": "journal", "frFR": "journal", "repos": ["yonder"], "avoid": { "en": ["/yonder opens the book"] }, "source": "family", "note": "Yonder's own window is the journal" },
+    "nothing-found": { "en": "nothing found", "frFR": "aucun résultat", "avoid": { "frFR": ["rien trouvé"] }, "source": "family", "note": "Q2" },
+    "hide": { "en": "hide", "frFR": "masqu", "optional": true, "avoid": { "frFR": ["cacher", "cachez"] }, "source": "family", "note": "masquer for the interface, caché for secrets (riddles, hidden amounts)" },
+    "alert": { "en": "alert", "frFR": "alerte", "avoid": { "en": ["Alerts for achievements"] }, "source": "family", "note": "the toggle is singular: Alert for achievements" },
+    "banner": { "en": "banner", "frFR": "bannière", "source": "family" },
+    "drag": { "en": "drag", "frFR": "glisser", "avoid": { "frFR": ["faites glisser pour le déplacer"] }, "source": "family", "note": "faites-le glisser" },
+    "journeyman": { "en": "journeyman", "frFR": "compagnon", "source": "client:JOURNEYMAN" },
+    "apprentice": { "en": "apprentice", "frFR": "apprenti", "source": "client:APPRENTICE" },
+    "exalted": { "en": "exalted", "frFR": "exalté", "source": "client:FACTION_STANDING_LABEL8" },
+    "elite": { "en": "elite", "frFR": "élite", "avoid": { "frFR": ["un élite"] }, "source": "client:ELITE", "note": "Q4: Une créature d'élite, never Un élite" },
+    "rare-elite": {
+      "en": "rare elite",
+      "frFR": "élite rare",
+      "frFR_forms": ["élites rares"],
+      "avoid": { "frFR": ["rare élite", "rares élites"] },
+      "source": "client:MAP_LEGEND_RAREELITE (forever)",
+      "note": "Q4. Classic has no such string"
+    },
+    "hardcore": { "en": "hardcore", "frFR": "extrême", "frFR_forms": ["extrêmes"], "avoid": { "frFR": ["hardcore"] }, "source": "client:HARDCORE_REALM_NAME", "note": "Q3: Extrême. The addon's name and a slash command stay as written" },
+    "close-call": { "en": "close call", "frFR": "mort frôlée", "frFR_forms": ["morts frôlées", "frôler la mort"], "source": "family" },
+    "hunts": { "en": "hunts", "frFR": "chasse", "source": "family" },
+    "quarry": { "en": "quarry", "frFR": "proie", "source": "family" },
+    "riddle": { "en": "riddle", "frFR": "énigme", "source": "family" },
+    "expedition": { "en": "expedition", "frFR": "expédition", "source": "family" },
+    "chapter": { "en": "chapter", "frFR": "chapitre", "source": "family" },
+    "mailbox": { "en": "mailbox", "frFR": "boîte aux lettres", "source": "client:MINIMAP_TRACKING_MAILBOX" },
+    "recipe": { "en": "recipe", "frFR": "recette", "source": "client:PROFESSIONS_RECIPES_TAB" },
+    "quest": { "en": "quest", "frFR": "quête", "source": "client:QUEST_WATCH_QUEST_COMPLETE" },
+    "tooltip": { "en": "tooltip", "frFR": "infobulle", "source": "family" },
+    "from-the-start": { "en": "from the start", "frFR": "dès le début", "avoid": { "frFR": ["dès le départ"] }, "source": "family" }
+  },
+  "typography": {
+    "frFR": {
+      "note": "Q1: a no-break space (U+00A0) before : ? ! and %, as the client writes it. Straight apostrophes stay",
+      "nbspBefore": [":", "?", "!", "%"]
+    }
+  },
+  "english": {
+    "note": "A1 to A3 of the rubric over the interface keys: no semicolon (a gender token's aside), plain ASCII, British spelling in lowercase uses (a capital is almost always a game name)",
+    "american": ["honor", "honors", "honored", "color", "colors", "colored", "armor", "favor", "favorite", "behavior", "harbor", "labor", "rumor", "valor", "savior", "center", "centers", "theater", "gray", "traveler", "travelers", "traveled", "traveling", "realize", "realized", "recognize", "recognized", "organize", "organized", "apologize", "defense", "offense", "catalog", "jewelry"]
+  }
+}

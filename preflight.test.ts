@@ -1,6 +1,7 @@
 // preflight.ts's pure parts (bun test).
 import { describe, expect, test } from "bun:test";
 import {
+  contentLines,
   coverage,
   gameOf,
   gameOfInterface,
@@ -122,6 +123,13 @@ describe("preflight", () => {
       { name: "Lorekeeper's Codex", wago: undefined },
     ]);
     expect(othersNamed("# X\n")).toEqual([]);
+  });
+
+  test("an authored text generator's stale count joins the language's line", () => {
+    const out = "  fr: x\nfrFR: 73 translations (2 stale)\ndeDE: 73 translations (0 stale)\n✓ 73 letters";
+    const lines = contentLines(out);
+    expect([...lines]).toEqual([["frFR", "73 translations (2 stale)"], ["deDE", "73 translations (0 stale)"]]);
+    expect(coverage(`106/106 words, ${lines.get("frFR")}`)).toEqual({ complete: true, stale: 2, flagged: false });
   });
 
   test("a language's coverage line", () => {

@@ -267,6 +267,7 @@ bun addon-kit/hooks.ts install yonder          # (or --all); uninstall puts its 
 bun addon-kit/packet.ts yonder [a..b]          # the reviewer's packet: .cache/review/<sha>.md
 bun addon-kit/review.ts yonder "2 findings"    # the reviewer's verdict, recorded for the working tree before the commit (--again to replace)
 bun addon-kit/coldread.ts yonder "read, fixed" [frFR deDE]  # a cold read of every language (or those named), recorded for HEAD: preflight's flag counts from here, not the tag
+bun addon-kit/coldread.ts yonder "read, fixed" enUS    # English, on purpose (never in the default): its text is the content folders and i18n/words.json
 bun addon-kit/board.ts add yonder "Eight riddles" --repos yonder,wow-data   # a session's first write: running
 bun addon-kit/board.ts set yonder-eight-riddles --status waiting-test --try "…"
 bun addon-kit/board.ts set yonder-eight-riddles --on wow-data-trainers     # blocked, waiting on that card
@@ -458,6 +459,29 @@ session opened at `~/code/wow-addons`; the same list in
 `~/.claude/settings.json` covers every other session (a repository's, a
 worktree's). What holds and what doesn't is in `docs/harness.md`. Tests:
 `../harness/harness.test.ts`.
+
+## English and French as the base
+
+English and French are finished first and German and Spanish are translated
+from them (`ideas/audit/en-fr-base.md`; the rubric and the terms in the
+`wow-translating` skill). The family's tools, run by path and not copied into
+the addons:
+
+```bash
+bun addon-kit/terms.ts [repo…]              # terms.json against every addon's words and TOC notes, the rubric's A1 to A3 and the French typography (U+00A0 before : ? ! %). Warning mode: it exits 0 (--strict exits 1); preflight shows the count
+python3 addon-kit/rubric.py [repo…]         # the rubric's measurable parts as lists for the reader: fragments, unnumbered blanks, long sentences, spelling, idioms (--out FILE)
+bun addon-kit/base.ts                       # each addon: are English and French final? (the gate German and Spanish wait behind)
+bun addon-kit/base.ts yonder                # the detail; exit 1 while German and Spanish must wait
+bun addon-kit/base.ts yonder baseline       # what German and Spanish were translated against (HEAD, or deDE=<sha> esES=<sha>)
+bun addon-kit/base.ts yonder freeze         # i18n/base.json "final" at HEAD, when the proofs hold (cold reads of enUS and frFR, the French one the user's; French whole, none stale; 0 terms warnings; nothing uncommitted), then commit i18n/base.json as its own commit
+```
+
+`terms.json` is the terms table (a term: English word, French word and forms,
+words to avoid, the source: the client's own string or the family); it is
+not copied into the addons, so changing it moves no stamp. In Goodwill, Yours
+Truly and Mealbook `--stamp` takes a language (`--stamp frFR`, or `all`), and
+their `--check` prints `frFR: 73 translations (2 stale)`, the count preflight
+reads beside the interface's.
 
 ## Before a release
 

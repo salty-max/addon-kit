@@ -254,3 +254,25 @@ describe("root.ts and root.py", () => {
     }
   });
 });
+
+describe("rubric.py", () => {
+  test("lists a seeded addon's fragments, blanks, semicolon, spelling and long sentences, and exits 0", () => {
+    const { root } = family();
+    const dir = join(root, "goodwill");
+    mkdirSync(join(dir, "i18n"), { recursive: true });
+    mkdirSync(join(dir, "content", "x"), { recursive: true });
+    writeFileSync(join(dir, "i18n", "words.json"), JSON.stringify({ "found here": "", "%s killed %s": "", "One; two": "", "The color red": "", "Fine.": "" }));
+    const long = `${"A word ".repeat(40)}ends here.`;
+    writeFileSync(join(dir, "content", "x", "a.md"), `---\nfaction: x\n---\nThe harbor is gray. ${long}\n`);
+    const r = run(root, ["python3", join(KIT, "rubric.py"), dir]);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("goodwill 5 1 1 0 1 0 1 0"); // keys, fragments, blanks, long, semicolon, non-ASCII, American, idiom
+    expect(r.out).toContain("goodwill 1 2 82 82 1 0 0 1");
+    const detail = run(root, ["python3", join(KIT, "rubric.py"), dir, "--out", join(root, "r.txt")]);
+    expect(detail.code).toBe(0);
+    const text = readFileSync(join(root, "r.txt"), "utf8");
+    expect(text).toContain('"found here"');
+    expect(text).toContain("American spelling lines: 1");
+    expect(text).toMatch(/over 35 words 1 /);
+  });
+});

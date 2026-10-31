@@ -18,6 +18,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | The data's daily pull requests and runs (Pins, Players' facts, Game data) | `README.md` "The data's pull requests"; `data-prs.ts`, the `wow-data-prs` skill |
 | The family's procedures as skills (riddles, translating, releasing and push waves, store pages, data audits, the data's pull requests, a kit change carried into the addons, a test in the game, a new addon, the harness in a repository, opening and closing child sessions) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
 | Before a release: everything a script can tell, nothing changed | `README.md` "Before a release"; `preflight.ts` |
+| English and French as the base: the terms, the rubric, the gate German and Spanish wait behind | `README.md` "English and French as the base"; `terms.json`, `terms.ts`, `rubric.py`, `base.ts`; the `wow-translating` skill |
 | Store pages on CurseForge, Wago and GitHub | `README.md` "The store page"; `store.ts`, `store-ui.ts` |
 | Game names for translations (glossary, building areas) | `glossary.py`, `subzones.py` (their docstrings) |
 | Saved ids never dropped by a regeneration (each addon's `saved-ids.json`) | `README.md` "Saved ids"; `ids.ts` |

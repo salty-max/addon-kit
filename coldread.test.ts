@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { authoredChanged, coldBase, coldReadOf, languages, record as recordColdRead } from "./coldread";
+import { authoredChanged, coldBase, coldReadOf, languages, readable, record as recordColdRead } from "./coldread";
 import { stampDir } from "./q";
 import { family, git, KIT, run, useFixtures } from "./test-fixtures";
 
@@ -68,6 +68,41 @@ describe("cold read", () => {
     // the stamp's commit leaves HEAD's history: the tag measures again
     git(repo, "reset", "-q", "--hard", "v1.0.0");
     expect(coldBase(repo, "deDE", "v1.0.0")).toEqual({ base: "v1.0.0" });
+  });
+
+  test("English is read on purpose: its text is the content folders and the interface's keys, never a default", () => {
+    const { repo } = family();
+    text(repo, "frFR", "meta.json", "{}\n");
+    text(repo, "frFR", "words.json", '{"a":"un"}\n');
+    mkdirSync(join(repo, "content"), { recursive: true });
+    writeFileSync(join(repo, "content", "page.md"), "A page.\n");
+    writeFileSync(join(repo, "content", "data.json"), "{}\n"); // (not prose)
+    mkdirSync(join(repo, "i18n"), { recursive: true });
+    writeFileSync(join(repo, "i18n", "words.json"), '{"a":""}\n');
+    commitAll(repo, "feat: english and french");
+    expect(readable(repo)).toEqual(["enUS", "frFR"]);
+    expect(languages(repo)).toEqual(["frFR"]);
+    expect(authoredChanged(repo, "enUS").sort()).toEqual(["content/page.md", "i18n/words.json"]);
+    // a French read does not read English
+    const fr = recordColdRead(repo, "french read");
+    if (typeof fr === "string") throw new Error(fr);
+    expect(coldReadOf(repo, "enUS")).toBeUndefined();
+    // English named: recorded, and only a change to its text clears the next measure
+    expect(recordColdRead(repo, "uncommitted", ["enUS"])).not.toBeString();
+    const base = coldBase(repo, "enUS").base;
+    expect(authoredChanged(repo, "enUS", base)).toEqual([]);
+    text(repo, "frFR", "words.json", '{"a":"une"}\n'); // (French changes leave English read)
+    commitAll(repo, "fix: french");
+    expect(authoredChanged(repo, "enUS", base)).toEqual([]);
+    writeFileSync(join(repo, "content", "page.md"), "Another page.\n");
+    expect(recordColdRead(repo, "dirty", ["enUS"])).toContain("enUS: authored text has uncommitted changes");
+    commitAll(repo, "fix: english");
+    expect(authoredChanged(repo, "enUS", base)).toEqual(["content/page.md"]);
+    expect(run(repo, ["bun", join(KIT, "coldread.ts"), repo]).out).toContain("enUS: uncommitted");
+    // a repository with no English text of its own has nothing to read
+    const bare = family().repo;
+    expect(readable(bare)).toEqual([]);
+    expect(recordColdRead(bare, "x", ["enUS"])).toContain("not a language of this repository");
   });
 });
 

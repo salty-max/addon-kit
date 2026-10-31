@@ -38,6 +38,7 @@ import { ships as shipsPaths, type Build } from "./status-extras";
 // (the repository status.ts reads, with the test build the family's status extension adds)
 type Repo = StatusRepo & { build?: Build };
 import { addons, due, inspect, readPage } from "./store";
+import { checkRepo as termWarnings } from "./terms";
 
 const ROOT = familyRoot(); // the family folder, from a worktree too (root.ts)
 
@@ -158,6 +159,16 @@ export function othersNamed(text: string): { name: string; wago?: string }[] {
     return m ? [{ name: m[1], wago: l.match(/addons\.wago\.io\/addons\/([A-Za-z0-9]+)/)?.[1] }] : [];
   });
 }
+
+/**
+ * The stale count of an addon whose authored text has a generator of its own
+ * (Goodwill's chapters, Yours Truly's letters, Mealbook's pages), which prints
+ * "frFR: 73 translations (2 stale)" in --check: locales.ts says nothing of it.
+ */
+export function contentLines(out: string): Map<string, string> {
+  return new Map([...out.matchAll(/^([a-z]{2}[A-Z]{2}): (\d+ translations \(\d+ stale\))$/gm)].map((m) => [m[1], m[2]]));
+}
+const CONTENT_SCRIPTS = ["chapters.ts", "letters.ts", "pages.ts"];
 
 /** One of locales.ts --check's lines ("deDE: 326/326 texts (0 stale), 660/660 words, flagged"). */
 export function coverage(line: string): { complete: boolean; stale: number; flagged: boolean } {
@@ -363,17 +374,24 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
     const check = existsSync(join(dir, "scripts", "locales.ts")) ? await run(["bun", "scripts/locales.ts", "--check"], dir) : undefined;
     if (check && !check.ok) add("✗", "locales", `locales.ts --check failed: ${check.out.split("\n").slice(-2).join(" ").slice(0, 200)}`);
     const lines = new Map([...(check?.out ?? "").matchAll(/^([a-z]{2}[A-Z]{2}): (.+)$/gm)].map((m) => [m[1], m[2]]));
+    // (the authored text's own generator: its stale count joins the language's line, where coverage() reads "(N stale)")
+    const script = CONTENT_SCRIPTS.find((f) => existsSync(join(dir, "scripts", f)));
+    const content = script ? contentLines((await run(["bun", join("scripts", script), "--check"], dir)).out) : new Map<string, string>();
     for (const l of langs) {
       const lender = BORROWS[l];
       if (!lines.has(l) && lender && !existsSync(join(dir, "i18n", l, "words.json"))) {
         add("·", l, `${lender}'s words, borrowed (its own names beside them)`);
         continue;
       }
-      const line = lines.get(l) ?? wordsLine(dir, l);
-      if (!line) continue;
+      const base = lines.get(l) ?? wordsLine(dir, l);
+      if (!base) continue;
+      const line = content.has(l) ? `${base}, ${content.get(l)}` : base;
       const c = coverage(line);
       add(c.complete && !c.stale ? "✓" : "!", l, `${line}${c.complete ? "" : ": English where it's missing"}`);
     }
+    // the family's terms (terms.json), warning mode
+    const warned = termWarnings(dir);
+    if (warned.length) add("!", "terms", `${warned.length} warning${warned.length > 1 ? "s" : ""} (terms.json, rubric A1 to A3, French typography): bun addon-kit/terms.ts ${name}. Warning mode: nothing fails yet`);
     // (from the language's last recorded cold read, else the tag: coldread.ts)
     const changed: string[] = [];
     const read: string[] = [];

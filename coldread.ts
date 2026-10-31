@@ -8,6 +8,12 @@
  *   bun addon-kit/coldread.ts <repo> "<verdict>" [lang…]   recorded for HEAD (every language the repo has, by default)
  *   bun addon-kit/coldread.ts <repo>                       each language's last cold read, if any
  *
+ * English is a language here too, named on purpose (`enUS`, never a default: a
+ * French read must not mark English read). Its authored text is not i18n/<locale>/
+ * but the repository's content folders (writing, content, atlas, notes,
+ * expeditions, recipes, letters: those that exist) and the interface's keys,
+ * i18n/words.json.
+ *
  * It refuses while a language's authored text (the files preflight's
  * isAuthored names) has uncommitted changes: the read belongs to HEAD, and
  * the text read is the text committed.
@@ -33,6 +39,18 @@ const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 /** A language's file someone wrote (a cold read's business), not the game's names a script made. */
 export const isAuthored = (path: string) => /\.md$|(^|\/)(words|sections|chapters)\.json$|-by-hand\.json$/.test(path);
 
+export const ENGLISH = "enUS";
+const ENGLISH_DIRS = ["writing", "content", "atlas", "notes", "expeditions", "recipes", "letters"];
+
+/** Where a language's authored text lives, from the repository root (English: its content folders and the interface's keys). */
+export function sourcePaths(dir: string, lang: string): string[] {
+  if (lang !== ENGLISH) return [`i18n/${lang}`];
+  return [...ENGLISH_DIRS, "i18n/words.json"].filter((p) => existsSync(join(dir, p)));
+}
+
+/** A file of a language's authored text (English: none of the translations' folders, the interface's keys aside). */
+const authoredOf = (lang: string, f: string) => isAuthored(f) && (lang !== ENGLISH || !f.startsWith("i18n/") || f === "i18n/words.json");
+
 /** The client languages an addon has words of its own for (not English, each with its meta.json). */
 export function languages(dir: string): string[] {
   const i18n = join(dir, "i18n");
@@ -40,6 +58,11 @@ export function languages(dir: string): string[] {
   return readdirSync(i18n)
     .filter((l) => /^[a-z]{2}[A-Z]{2}$/.test(l) && l !== "enUS" && existsSync(join(i18n, l, "meta.json")))
     .sort();
+}
+
+/** languages(), and English where the repository has English text of its own to read. */
+export function readable(dir: string): string[] {
+  return [...(sourcePaths(dir, ENGLISH).length ? [ENGLISH] : []), ...languages(dir)];
 }
 
 export type ColdRead = { verdict: string; head: string; at?: string };
@@ -73,7 +96,9 @@ export function coldBase(dir: string, lang: string, tag?: string): { base?: stri
 
 /** The authored files of a language that differ between a base (none: from nothing) and HEAD. */
 export function authoredChanged(dir: string, lang: string, base?: string): string[] {
-  return (git(dir, "diff", "--name-only", base ?? EMPTY_TREE, "HEAD", "--", `i18n/${lang}`) ?? "").split("\n").filter((f) => f && isAuthored(f));
+  const paths = sourcePaths(dir, lang);
+  if (!paths.length) return [];
+  return (git(dir, "diff", "--name-only", base ?? EMPTY_TREE, "HEAD", "--", ...paths) ?? "").split("\n").filter((f) => f && authoredOf(lang, f));
 }
 
 export function record(dir: string, verdict: string, langs?: string[]): ColdRead | string {
@@ -82,13 +107,13 @@ export function record(dir: string, verdict: string, langs?: string[]): ColdRead
   if (!head || !stamps) return `${dir}: not a repository with a commit`;
   const one = verdict.replace(/\s+/g, " ").trim();
   if (!one) return "the verdict is empty";
-  const have = languages(dir);
-  const picked = langs?.length ? langs : have;
+  const have = readable(dir);
+  const picked = langs?.length ? langs : languages(dir);
   if (!picked.length) return `${dir}: no language of its own to read (i18n/<locale>/meta.json)`;
   const unknown = picked.filter((l) => !have.includes(l));
   if (unknown.length) return `${unknown.join(", ")}: not a language of this repository (${have.join(", ") || "none"})`;
   // The read belongs to HEAD: authored text changed and uncommitted would land on the commit before.
-  const dirty = picked.filter((l) => (git(dir, "status", "--porcelain", "--", `i18n/${l}`) ?? "").split("\n").some((r) => r && isAuthored(r.slice(3))));
+  const dirty = picked.filter((l) => (git(dir, "status", "--porcelain", "--", ...sourcePaths(dir, l)) ?? "").split("\n").some((r) => r && authoredOf(l, r.slice(3))));
   if (dirty.length) return `${dirty.join(", ")}: authored text has uncommitted changes: commit first, the cold read is recorded for HEAD`;
   mkdirSync(stamps, { recursive: true });
   const r: ColdRead = { verdict: one, head, at: new Date().toISOString() };
@@ -105,7 +130,7 @@ if (import.meta.main) {
   }
   const dir = isAbsolute(repo) || repo.startsWith(".") ? resolve(repo) : join(familyRoot(), repo);
   if (!rest.length) {
-    const langs = languages(dir);
+    const langs = readable(dir);
     if (!langs.length) console.log("no language of its own");
     for (const l of langs) {
       const c = coldReadOf(dir, l);
