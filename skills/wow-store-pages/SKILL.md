@@ -16,11 +16,27 @@ putting it up on the stores publishes, so that waits for the user's go.
   has never heard of it. Screenshots are the user's (galleries by hand).
 - No semicolons; English, with the translated clients' lines as the other
   pages have them.
+- **Register** (from the nine shipped pages, 31 October 2026): plain, warm and
+  factual, in the second person ("you"), the present tense, British spelling.
+  The first paragraph says what the addon does and when it speaks, never a
+  slogan. Defaults and limits in **bold**, short sections under `##`, no
+  exclamation marks, no hype, no semicolons. One line says which clients get
+  which language and that German and Spanish are first translations with
+  corrections welcome on GitHub. (A line inviting a native German or Spanish
+  reader to send corrections is decided but deferred, 31 October 2026: not
+  on the pages yet.) Two real ones, from Second Wind's page: "Second Wind gives you a debrief
+  after a close call or death. Once the fight is over, you can see the hits
+  that hurt most, how your health fell, and which potions or abilities were
+  ready but went unused." and "Second Wind is free and will stay free. If the
+  debriefs have helped you survive the next fight, you can support the addon
+  with a coffee on Ko-fi. Thank you."
 - The siblings' "Other addons" lines, each in its own words.
-- `## Support` just before `## Source`: "<Addon> is free, and will stay
-  free. If <what it gave you, in its own terms>, you can say thanks with a
-  coffee on [Ko-fi](https://ko-fi.com/salty_max): it helps <it> keep
-  growing. Thank you." Graceful, never pushy.
+- `## Support` just before `## Source`: "<Addon> is free and will stay
+  free. If <what it gave you, in its own terms>, you can support the addon
+  with a coffee on [Ko-fi](https://ko-fi.com/salty_max). Thank you."
+  Graceful, never pushy. (Goodwill's and Yours Truly's older "say thanks ...
+  it helps <it> keep growing" form is to be brought to this one when their
+  pages next change.)
 - `## Source`: the GitHub repository.
 - The `prose-reader` helper reads a new or rewritten page cold before the
   user does.
