@@ -4,7 +4,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { formatArgs, kitKeys, ownKeys, problems, wordsIn } from "./locales-lib";
+import { formatArgs, grown, kitKeys, ownKeys, problems, sharedWords, tokens, wordsIn } from "./locales-lib";
 
 const made: string[] = [];
 afterAll(() => {
@@ -32,6 +32,18 @@ describe("the words", () => {
     expect(kitKeys(join(root, "addon/X"))).toContain("No sound");
     expect(kitKeys(join(root, "addon/X"))).toContain("A named fanfare");
     expect(kitKeys(join(root, "addon/X"))).toContain("Oct");
+    // the lines the addons share, the kit's from its list (K.SHARED_WORDS)
+    expect(kitKeys(join(root, "addon/X"))).not.toContain("Minimap button");
+    write(root, "addon/X/Kit.lua", 'local x = L["The kit\'s"]\nK.SHARED_WORDS = {\n  "Minimap button",\n  "The game\'s \\"own\\"",\n}\n');
+    expect(kitKeys(join(root, "addon/X"))).toContain("Minimap button");
+    expect(kitKeys(join(root, "addon/X"))).toContain('The game\'s "own"');
+  });
+  test("the kit's own list of shared lines: each one translated in every language of the kit", () => {
+    const kit = (f: string) => JSON.parse(readFileSync(join(import.meta.dir, "i18n", f), "utf8"));
+    const shared = sharedWords(readFileSync(join(import.meta.dir, "Kit.lua"), "utf8"));
+    expect(shared).toContain("Minimap button");
+    expect(shared.length).toBeGreaterThan(0);
+    for (const l of ["frFR", "deDE", "esES"]) expect(shared.filter((k) => !kit(`${l}.json`)[k])).toEqual([]);
   });
 });
 
@@ -48,6 +60,22 @@ describe("the checks", () => {
     expect(errors.join()).toContain("%s found");
     expect(errors.join()).toContain("a semicolon");
     expect(problems({ "$gVieux:Vieille; ami": "$gVieux:Vieille; ami" }, []).errors).toEqual([]);
+  });
+  test("the game's escapes carried over: colours, line breaks, pictures; gender tokens whole", () => {
+    expect(tokens("|cffff0000Red|r\nnext |TInterface\\Icons\\X:14|t")).toBe("|c1 |r1 \\n1 |T1");
+    expect(tokens("a|nb")).toBe(tokens("a\nb"));
+    const ok = { "|cffffd100%s|r found": "|cffffd100%s|r trouvé", "Two\nlines": "Deux|nlignes", "A friend": "$gUn ami:Une amie;" };
+    expect(problems(ok, Object.keys(ok)).errors).toEqual([]);
+    // seeded: a colour not closed, a line break lost, a picture dropped, a gender token half written
+    const bad = { "|cffffd100%s|r found": "|cffffd100%s trouvé", "Two\nlines": "Deux lignes", "|TX:14|t Gold": "Or", "A friend": "$gUn ami:Une amie" };
+    const errors = problems(bad, Object.keys(bad)).errors;
+    expect(errors.filter((e) => e.startsWith("the colours")).length).toBe(3);
+    expect(errors.filter((e) => e.startsWith("a gender token")).length).toBe(1);
+  });
+  test("a short label grown 1.8 times is said, a long line or a modest one is not", () => {
+    expect(grown({ Lifelines: "Recursos de emergencia", Achievements: "Hauts faits", "A whole sentence here.": "Une phrase entière ici, beaucoup plus longue que l'anglais." })).toEqual([
+      '"Lifelines" → "Recursos de emergencia"',
+    ]);
   });
 });
 
@@ -81,5 +109,26 @@ describe("a simple addon's languages", () => {
     const said = bad.stderr.toString();
     expect(said).toContain("the kit's i18n/kit/frFR.json lacks \"Copy\"");
     expect(said).toContain("the blanks differ");
+  });
+  test("a line the addons share: the kit's translation wins, the addon's own copy leaves its words", () => {
+    const root = mkdtempSync(join(tmpdir(), "locales-shared-"));
+    made.push(root);
+    write(root, "addon/X/Core.lua", 'print(L["Mine"], L["Nothing found"])');
+    write(root, "addon/X/Kit.lua", 'local w = L["Begin"]\nK.SHARED_WORDS = {\n  "Nothing found",\n}\n');
+    write(root, "i18n/frFR/words.json", JSON.stringify({ Mine: "À moi", "Nothing found": "Rien trouvé" }));
+    write(root, "i18n/frFR/meta.json", JSON.stringify({ plural: "fr" }));
+    const months = Object.fromEntries(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m) => [m, m.toLowerCase()]));
+    write(root, "i18n/kit/frFR.json", JSON.stringify({ Begin: "Commencer", "Nothing found": "Aucun résultat", ...months }));
+    const script = join(root, "go.ts");
+    writeFileSync(script, `import { run } from ${JSON.stringify(join(import.meta.dir, "locales-lib.ts"))};\nrun({ root: ${JSON.stringify(root)}, addon: "addon/X" });\n`);
+    const go = (...args: string[]) => Bun.spawnSync(["bun", script, ...args], { stdout: "pipe", stderr: "pipe" });
+    expect(go("--keys").exitCode).toBe(0);
+    expect(JSON.parse(readFileSync(join(root, "i18n/words.json"), "utf8"))).toEqual({ Mine: "" });
+    const out = go();
+    expect(out.exitCode).toBe(0);
+    expect(out.stdout.toString()).toContain("the kit's own, its translation used: Nothing found");
+    const fr = readFileSync(join(root, "addon/X/Text_frFR.lua"), "utf8");
+    expect(fr).toContain('["Nothing found"] = "Aucun résultat"');
+    expect(fr).not.toContain("Rien trouvé");
   });
 });

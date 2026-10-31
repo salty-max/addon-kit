@@ -9,7 +9,8 @@
  *
  * WARNING MODE: it prints what it finds and exits 0 (preflight shows the count).
  * It becomes a failure, and moves into locales-lib.ts (a stamp wave), once the
- * English and French passes have cleaned every addon (EF-1 on).
+ * English and French passes have cleaned every addon. The kit's own words are
+ * held to it already: terms.test.ts fails on any warning about them.
  *
  * A term applies to an English key holding `en` as a whole word (a plural
  * allowed): the French must hold `frFR` or one of `frFR_forms` (any case) and

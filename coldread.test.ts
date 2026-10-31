@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { authoredChanged, coldBase, coldReadOf, languages, readable, record as recordColdRead } from "./coldread";
+import { neverRecorded } from "./preflight";
 import { stampDir } from "./q";
 import { family, git, KIT, run, useFixtures } from "./test-fixtures";
 
@@ -103,6 +104,20 @@ describe("cold read", () => {
     const bare = family().repo;
     expect(readable(bare)).toEqual([]);
     expect(recordColdRead(bare, "x", ["enUS"])).toContain("not a language of this repository");
+  });
+  test("a language never recorded is said by preflight, and leaves once its read is recorded", () => {
+    const { repo } = family();
+    text(repo, "frFR", "meta.json", "{}\n");
+    text(repo, "frFR", "words.json", '{"a":"un"}\n');
+    commitAll(repo, "feat: french");
+    expect(neverRecorded(repo, ["frFR"])).toEqual(["frFR"]);
+    expect(neverRecorded(repo, ["deDE"])).toEqual([]); // (no text of its own)
+    text(repo, "esMX", "meta.json", "{}\n");
+    text(repo, "esMX", "regional.json", "{}\n");
+    expect(neverRecorded(repo, ["esMX"])).toEqual([]); // (a script's files only, nothing authored)
+    const r = recordColdRead(repo, "read cold", ["frFR"]);
+    if (typeof r === "string") throw new Error(r);
+    expect(neverRecorded(repo, ["frFR"])).toEqual([]);
   });
 });
 

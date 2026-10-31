@@ -13,15 +13,20 @@
  *                              its days), translated once for every addon in
  *                              addon-kit/i18n/ and copied here by kit:sync:
  *                              one reading in every addon, the kit's winning
+ *                              (the lines the addons share among them, in
+ *                              Kit.lua's K.SHARED_WORDS: an addon drops its
+ *                              own copy)
  *
  * A language without its own folder may borrow another's (esMX: esES), its
  * own meta.json over the borrowed one's (esMX's decimal point).
  *
  * The checks, every addon's: a word without its translation, a sentence's
  * blanks dropped, changed or doubled (numbered ones, %1$s, may move), a
- * stray %, a semicolon in what players read (the gender token's own aside),
- * a word no longer used (said), i18n/words.json not the addon's words, a
- * Text file out of date, a kit word the kit's translations lack.
+ * stray %, the game's escapes not carried over (|c…|r, \n or |n, |T…|t), a
+ * gender token half written, a semicolon in what players read (the gender
+ * token's own aside), a word no longer used (said), i18n/words.json not the
+ * addon's words, a Text file out of date, a kit word the kit's translations
+ * lack. Said, never a failure: a short label grown 1.8 times (grown).
  */
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -57,14 +62,24 @@ export function ownKeys(addon: string, skip = /^Text_/, more: string[] = []): st
   }
   return [...found].sort();
 }
-/** The kit's own words: its copy's beside the addon's files, the months (K.day), its sounds' names (K.SOUNDS). */
+/**
+ * The kit's own words: its copy's beside the addon's files, the months (K.day),
+ * its sounds' names (K.SOUNDS), and the lines the addons share (K.SHARED_WORDS:
+ * "Minimap button", the welcome's settings line), translated once in the kit.
+ */
 export function kitKeys(addon: string): string[] {
   const file = join(addon, "Kit.lua");
   if (!existsSync(file)) return [];
   const src = readFileSync(file, "utf8");
   const found = wordsIn(src, new Set(MONTHS));
   for (const m of src.matchAll(/\{ (?:-?\d+|[A-Z_]+), "([^"]+)" \}/g)) found.add(m[1]);
+  for (const w of sharedWords(src)) found.add(w);
   return [...found].sort();
+}
+/** The lines the addons share, as Kit.lua lists them (K.SHARED_WORDS). */
+export function sharedWords(kitLua: string): string[] {
+  const list = kitLua.match(/^K\.SHARED_WORDS = \{\n([\s\S]*?)\n\}/m);
+  return [...(list?.[1].matchAll(/"((?:[^"\\]|\\.)*)"/g) ?? [])].map((m) => unq(m[1]));
 }
 /** The kit's translations a language has (i18n/kit/<locale>.json; a borrowing language its lender's). */
 export function kitWords(i18n: string, locale: string, borrows = BORROWS): Record<string, string> {
@@ -83,7 +98,22 @@ export function formatArgs(s: string): string[] {
 }
 const semicolon = (s: string) => s.replace(/\$g[^:;]*:[^;]*;/g, "").includes(";");
 
-/** What is wrong with a language's words against the English: missing ones, blanks, stray %, semicolons; and the unused. */
+/** The game's escapes a line carries, counted: a colour's start and end (|c, |r), a line break (\n or |n), a picture (|T…|t). */
+export function tokens(s: string): string {
+  const count = (re: RegExp) => (s.match(re) ?? []).length;
+  return `|c${count(/\|c[0-9a-fA-F]{8}/g)} |r${count(/\|r/g)} \\n${count(/\n|\|n/g)} |T${count(/\|T[^|]*\|t/g)}`;
+}
+/** A gender token left open or half written: $g without its "masc:fem;". */
+const badGender = (s: string) => s.replace(/\$g[^:;$]*:[^;$]*;/g, "").includes("$g");
+
+/** A short label (14 letters or less) whose translation grew to 1.8 times its length: a pointer for the game test, never a failure. */
+export function grown(words: Record<string, string>): string[] {
+  return Object.entries(words)
+    .filter(([english, word]) => word && english.length <= 14 && word.length >= english.length * 1.8)
+    .map(([english, word]) => `${JSON.stringify(english)} → ${JSON.stringify(word)}`);
+}
+
+/** What is wrong with a language's words against the English: missing ones, blanks, stray %, the game's escapes, gender tokens, semicolons; and the unused. */
 export function problems(words: Record<string, string>, keys: string[]): { missing: string[]; unused: string[]; errors: string[] } {
   const known = new Set(keys);
   const errors: string[] = [];
@@ -95,6 +125,8 @@ export function problems(words: Record<string, string>, keys: string[]): { missi
     const got = formatArgs(word);
     const stray = want.length > 0 && word.replace(/%%|%(?:\d+\$)?0?\d*(?:\.\d+)?[sdfi]/g, "").includes("%");
     if (want.join() !== got.join() || stray) errors.push(`the blanks differ: ${JSON.stringify(english)} → ${JSON.stringify(word)}`);
+    if (tokens(english) !== tokens(word)) errors.push(`the colours, line breaks or pictures differ (${tokens(english)} against ${tokens(word)}): ${JSON.stringify(english)} → ${JSON.stringify(word)}`);
+    if (badGender(word)) errors.push(`a gender token not written $gmasc:fem;: ${JSON.stringify(word)}`);
     if (semicolon(word)) errors.push(`a semicolon in what players read: ${JSON.stringify(word)}`);
   }
   return { missing: keys.filter((k) => !words[k]), unused: Object.keys(words).filter((k) => !known.has(k)), errors };
@@ -184,6 +216,8 @@ export function run(o: Options, args = process.argv.slice(2)): void {
     if (kitInMine.length) console.log(`  the kit's own, its translation used: ${kitInMine.join(" | ")} (bun scripts/locales.ts --keys, and out of words.json)`);
     const gone = unused.filter((k) => !kitSet.has(k));
     if (gone.length) console.log(`  words no longer used: ${gone.join(" | ")}`);
+    const long = grown(words);
+    if (long.length) console.log(`  ${long.length} short label${long.length > 1 ? "s" : ""} grown 1.8 times or more (a look in the game, never a failure): ${long.slice(0, 3).join(" | ")}${long.length > 3 ? " …" : ""}`);
   }
   for (const k of own) if (semicolon(k)) fail(`a semicolon in what players read: ${JSON.stringify(k)}`);
   if (bad) process.exit(1);

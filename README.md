@@ -38,7 +38,17 @@ file fills it before anything is drawn, with the language's plural rule
 words are translated once, in `i18n/<locale>.json` (French, German,
 Spanish), copied into each addon's `i18n/kit/`: its `scripts/locales.ts`
 (on the languages' core, `locales-lib.ts`) writes them into its language
-files with its own.
+files with its own. The lines several addons say alike ("Minimap button",
+"Nothing found", the welcome's settings line with the command as its blank)
+are kit words too, though the kit never shows them: their English is listed
+in `Kit.lua`'s `K.SHARED_WORDS`, `kitKeys` counts them the kit's, and an addon that
+says one drops its own copy (`locales.ts --keys`, then out of its
+`words.json`), the kit's translation winning. The kit's French follows the
+family's typography (a no-break space before `: ? !` and `%`): `terms.test.ts`
+fails on any `terms.ts` warning about the kit's own words. The languages' core
+also refuses a translation that loses a colour (`|c`, `|r`), a line break
+(`\n`, `|n`) or a picture (`|T…|t`), or writes a gender token half, and says
+(never a failure) which short labels grew to 1.8 times their English.
 
 `Media/` holds the kit's pictures: `Ring.tga`, the game's bronze ring
 (`COMMON/BlueMenuRing`) with the shadow baked into its file removed, worn by
@@ -468,7 +478,7 @@ from them (`ideas/audit/en-fr-base.md`; the rubric and the terms in the
 the addons:
 
 ```bash
-bun addon-kit/terms.ts [repo…]              # terms.json against every addon's words and TOC notes, the rubric's A1 to A3 and the French typography (U+00A0 before : ? ! %). Warning mode: it exits 0 (--strict exits 1); preflight shows the count
+bun addon-kit/terms.ts [repo…]              # terms.json against every addon's words and TOC notes, the rubric's A1 to A3 and the French typography (U+00A0 before : ? ! %). Warning mode for the addons: it exits 0 (--strict exits 1); preflight shows the count. The kit's own words must have none (terms.test.ts)
 python3 addon-kit/rubric.py [repo…]         # the rubric's measurable parts as lists for the reader: fragments, unnumbered blanks, long sentences, spelling, idioms (--out FILE)
 bun addon-kit/base.ts                       # each addon: are English and French final? (the gate German and Spanish wait behind)
 bun addon-kit/base.ts yonder                # the detail; exit 1 while German and Spanish must wait

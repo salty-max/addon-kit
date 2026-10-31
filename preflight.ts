@@ -27,9 +27,9 @@
  * What a script can't judge stays a read: whether the store page still says
  * what ships, the release notes themselves, the languages' cold reads.
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import { authoredChanged, coldBase, isAuthored, languages } from "./coldread";
+import { authoredChanged, coldBase, coldReadOf, isAuthored, languages, sourcePaths } from "./coldread";
 import { reviewOf } from "./review";
 import { familyRoot } from "./root";
 import { read as readRepo, type Repo as StatusRepo } from "./status";
@@ -67,6 +67,14 @@ export type Preflight = {
 };
 
 // ── pure parts (preflight.test.ts) ──────────────────────────────────────────
+/** The languages with authored text of their own whose cold read was never recorded (coldread.ts): silent in the changed-since line once nothing moves. */
+export function neverRecorded(dir: string, langs: string[]): string[] {
+  const authored = (path: string): boolean =>
+    existsSync(join(dir, path)) &&
+    (statSync(join(dir, path)).isDirectory() ? readdirSync(join(dir, path)).some((f) => authored(join(path, f))) : isAuthored(path));
+  return langs.filter((l) => !coldReadOf(dir, l) && sourcePaths(dir, l).some(authored));
+}
+
 /** A client build's interface number: 1.15.9.70003 → 11509. */
 export function interfaceOf(build: string): string | undefined {
   const m = build.match(/^(\d+)\.(\d+)\.(\d+)/);
@@ -395,14 +403,19 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
     // (from the language's last recorded cold read, else the tag: coldread.ts)
     const changed: string[] = [];
     const read: string[] = [];
+    const never: string[] = [];
+    const unread = new Set(neverRecorded(dir, langs));
     for (const l of langs) {
       const { base, read: stamp } = coldBase(dir, l, tag);
       const files = authoredChanged(dir, l, base);
       if (files.length) changed.push(`${l} (${files.length} file${files.length > 1 ? "s" : ""}${stamp ? `, since the cold read at ${stamp.head.slice(0, 7)}` : ""})`);
       else if (stamp) read.push(`${l} at ${stamp.head.slice(0, 7)}`);
+      else if (unread.has(l)) never.push(l); // (one changed since the tag is in the line above already)
     }
     if (changed.length)
       add("!", "cold read", `authored text ${tag ? `changed since ${tag} or the last cold read` : "never released"}: ${changed.join(", ")}. A cold read of each (the prose-reader), then bun addon-kit/coldread.ts ${name} '<verdict>'`);
+    // (a language read cold but never recorded is silent above once nothing changes: said here)
+    if (never.length) add("!", "cold read", `never recorded: ${never.join(", ")}. A cold read (the prose-reader), then bun addon-kit/coldread.ts ${name} '<verdict>' ${never.join(" ")}`);
     if (read.length) add("·", "cold read", `read cold, nothing authored changed since: ${read.join(", ")}`);
   }
 

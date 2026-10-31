@@ -165,6 +165,28 @@ K.L = L
 function K.isOne(n) return n == 1 end
 function K.plural(n, one, many) return K.isOne(n) and L[one] or L[many] end
 
+-- The lines the addons say alike, translated once in the kit (addon-kit/i18n)
+-- though the kit never shows them: an addon says them through its L as its
+-- own words, and its scripts count them the kit's (kitKeys, locales-lib.ts),
+-- so no addon keeps a copy. The welcome's settings line takes the whole
+-- command as its blank ("/x settings"), "it" where the welcome has one choice.
+K.SHARED_WORDS = {
+  "%d%%",
+  "%s: %s",
+  "Achievements",
+  "Alert for achievements",
+  "Change it any time: %s, or a right-click on the minimap button.",
+  "Change them any time: %s, or a right-click on the minimap button.",
+  "Minimap button",
+  "Nothing found",
+  "Open the book",
+  "Show each achievement earned in the game's achievement alert. A click on it opens the achievements.",
+  "The book by the minimap: click to open it, drag to move it.",
+  "level %d",
+  "rare",
+  "under 1%",
+}
+
 -- The family's ways of speaking outside the book, one in every addon (the
 -- user's calls, 27 October 2026). K.prefix: the addon's name before its lines
 -- in chat ("Mealbook: "), in its own accent (its theme set first).
@@ -2825,7 +2847,7 @@ function K.collect(o)
       if frame then frame:UnregisterAllEvents() end
       if SaltyMaxCollector == o.saved then SaltyMaxCollector = nil end
       if was and o.prefix then
-        print(o.prefix .. L["Sharing what you see is off now. The addon's Options can turn it back on."])
+        print(o.prefix .. L["Sharing what you see is off now. The addon's settings can turn it back on."])
       end
     end
   end

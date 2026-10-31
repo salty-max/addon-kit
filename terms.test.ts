@@ -25,6 +25,7 @@ describe("terms", () => {
     expect(rules("Find a hide", "Trouvez une peau")).toEqual([]);
     // Q5, the welcome line: the command word stays, the window word is still read
     expect(rules("Change them any time: %s settings, or a right-click.", `Modifiez-les quand vous voulez${NB}: %s settings, ou un clic droit.`)).toEqual([]);
+    expect(rules("Change them any time: %s, or a right-click on the minimap button.", `Modifiez-les quand vous voulez${NB}: %s, ou un clic droit sur le bouton de la minicarte.`)).toEqual([]);
     expect(rules("/yonder opens the journal.", "/yonder ouvre le journal.")).toEqual([]);
     expect(rules("/yonder opens the journal.", "/yonder ouvre le livre.")).toEqual(["term:yonder-window"]);
     expect(rules("Name World of Warcraft: Forever", "World of Warcraft: Forever")).toEqual([]);
@@ -63,6 +64,10 @@ describe("terms", () => {
     expect(rules("Level: %d", "Niveau: %d")).toEqual(["typography"]);
     expect(rules("Visit: %s", "Visitez http://x.y")).toEqual([]);
     expect(rules("under 1%", "moins de 1%")).toEqual(["typography"]);
+  });
+
+  test("the kit's own words raise no warning: its French typography and terms are enforced, not warned", () => {
+    expect(checkRepo(KIT, t).map((w) => `[${w.rule}] ${w.text}`)).toEqual([]);
   });
 
   test("a repository's words and TOC notes are read, and the CLI never fails in warning mode", () => {
