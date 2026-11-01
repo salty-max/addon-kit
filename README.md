@@ -483,7 +483,7 @@ esES, esMX) is the one list. Each hidden language's `Text_<locale>.lua` is
 written as a names-only stub, like koKR's (the game's own names by id, which
 the journals need to save a place as an id, and no translated words), so the
 zip carries no German or Spanish text; `package-lib.ts` refuses a TOC that
-still has their `Notes-<locale>` lines, and preflight no longer wants them.
+still has any field of theirs (`Notes-`, `Title-`, `Category-<locale>`…), and preflight no longer wants them.
 `package-lib.ts` also refuses a shipped file of such a language (`Text_`,
 `Chapters_`, `Pages_`, `Letters_`) without the mark `holdBack()` writes, so
 an addon's own generator cannot forget. Their `i18n/` stays and is checked

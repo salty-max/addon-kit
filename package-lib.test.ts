@@ -69,6 +69,14 @@ describe("the package", () => {
     expect(r.code).toBe(1);
     expect(r.out).toContain("X_Vanilla.toc has Notes-deDE, a language held back");
   });
+  test("any field in a language held back: refused", () => {
+    if (!HIDDEN_LOCALES.includes("esMX")) return;
+    const s = scratch();
+    writeFileSync(join(s.src, "X_Vanilla.toc"), `## Interface: 11509\n## Title: X\n## X-Category-esMX: Hola\n## Version: 1.0.0\nCore.lua\nData_Classic.lua\n`);
+    const r = s.go("--check");
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("X_Vanilla.toc has X-Category-esMX, a language held back");
+  });
   test("a held-back language's file shipped without the mark: refused", () => {
     if (!HIDDEN_LOCALES.includes("deDE")) return;
     const s = scratch();
