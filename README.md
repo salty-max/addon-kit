@@ -411,7 +411,7 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   remote committed since it started (another card there or not), or
   uncommitted changes no other running card explains. `claude --bg`
   sessions never show in the desktop app's sidebar: a desktop opener
-  opens its children with the app's own session tool (the `child` skill,
+  opens its children with the app's own session tool (the `child` skill in `../harness/skills/`,
   the prompt from `--desktop`) and archives them after `check
   <local_id>`, close's verdict without the stop, the record or the
   opener's question (the app shows whose child it is). Tests stub
@@ -457,10 +457,11 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
 - **skills/**: the family's procedures as Claude Code skills (`wow-riddles`,
   `wow-translating`, `wow-releasing` (with its push waves),
   `wow-store-pages`, `wow-data-audit`, `wow-data-prs`, `wow-kit-change`, `wow-game-test`,
-  `wow-new-addon`, and `child`: `/child <task>` opens it as a child session, `/child` alone
-  makes the session the dispatch), each linked into `~/.claude/skills/` so every session finds them. A fresh
+  `wow-new-addon`, and `wow-child`, the addendum to the harness's generic `child`: `/child <task>` opens it as a child session, `/child` alone
+  makes the session the dispatch; `child` lives in `../harness/skills/child`), each linked into `~/.claude/skills/` so every session finds them. A fresh
   machine links them again:
   `for s in ~/code/wow-addons/addon-kit/skills/*; do ln -sfn "$s" ~/.claude/skills/; done`
+  (and the harness's: `for s in ~/code/wow-addons/harness/skills/*; do ln -sfn "$s" ~/.claude/skills/; done`)
 
 The root `.claude/settings.json` asks before a push, a release
 (`scripts/release.sh`, `gh release`), `gh workflow run`, a Vercel deploy and

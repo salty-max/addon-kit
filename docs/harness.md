@@ -509,7 +509,7 @@ next report quotes the user's words and what they cover (repository, range
 by sha, push only). The opener checks the quote before pushing, never
 pushes on a summary, and relays "child X waits for your go" in place of
 asking itself. A push go never covers a deploy or a release. The rule is
-in the family CLAUDE.md, the `child` skill, session.ts's child prompt and
+in the family CLAUDE.md, the `child` and `wow-child` skills, session.ts's child prompt and
 the push waves of `wow-releasing`.
 
 **Desktop children** (the same night, the user: children "do not appear
@@ -527,7 +527,7 @@ names whose child it is). The model: code a Sonnet id, prose inherits the
 opener's (a Sonnet opener opens a prose child with session.ts), plan
 inherits it in plan mode and the opener moves it to Sonnet once the plan
 is approved (`set_session_model`). A CLI opener keeps `claude --bg`. The
-`child` skill carries both.
+`child` skill carries both (moved on 1 November 2026 to `harness/skills/child`, generic: it reads the tools folder from `config.ts show`, so warcraft-puzzles uses it too; the family's part is `wow-child`).
 
 **The panel**: a session opened this way is in Claude Code's registry like
 any other (`kind: "bg"`, `entrypoint: "cli"`, its `-n` name), so the
