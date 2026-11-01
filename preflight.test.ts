@@ -1,4 +1,5 @@
 // preflight.ts's pure parts (bun test).
+import { HIDDEN_LOCALES } from "./locales-lib";
 import { describe, expect, test } from "bun:test";
 import {
   contentLines,
@@ -147,10 +148,12 @@ describe("preflight", () => {
     expect(isAuthored("i18n/frFR/subzones.json")).toBe(false);
   });
 
-  test("Notes for each translation, Mexico's beside Spain's", () => {
-    expect(notesWanted(["deDE", "esES", "frFR"])).toEqual(["deDE", "esES", "frFR", "esMX"]);
-    expect(notesWanted(["frFR"])).toEqual(["frFR"]);
-    expect(notesWanted(["esES", "esMX"])).toEqual(["esES", "esMX"]);
+  test("Notes for each translation, Mexico's beside Spain's, the languages held back left out", () => {
+    // (whatever HIDDEN_LOCALES holds while German and Spanish wait)
+    const shown = (l: string) => !HIDDEN_LOCALES.includes(l);
+    expect(notesWanted(["deDE", "esES", "frFR"])).toEqual(["deDE", "esES", "frFR", "esMX"].filter(shown));
+    expect(notesWanted(["frFR", "ruRU"])).toEqual(["frFR", "ruRU"]);
+    expect(notesWanted(["esES", "esMX"])).toEqual(["esES", "esMX"].filter(shown));
   });
 
   test("how many TOCs, in words", () => {

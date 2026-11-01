@@ -41,6 +41,17 @@ translation keeps its paragraph marks and records its English's hash.
 - Saved data stays ids; complete name tables for every language, English
   one of them, no English fallback.
 
+## German and Spanish are held out of the zips
+
+From 1 November 2026, until English and French are final, German and Spanish
+do not reach players: `HIDDEN_LOCALES` in addon-kit's `locales-lib.ts`
+(deDE, esES, esMX) makes every addon's `locales.ts` write those `Text_*.lua`
+as names-only stubs (the game's own names by id stay, the translated words
+go), and the TOCs carry no `Notes-` line for them. The translations, their
+`i18n/` and the generators stay and are checked as ever; keep translating
+into them if the task asks. Bringing them back: empty the list, `kit:sync`,
+`bun scripts/locales.ts`, the Notes lines, the store pages' words.
+
 ## The English is the base
 
 Every other language is translated from the English, so the English is

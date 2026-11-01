@@ -1,5 +1,6 @@
 // The family's package (package-lib.ts) on a scratch addon: its TOCs checked,
 // the folder and the zip made, and what it refuses (bun test).
+import { HIDDEN_LOCALES, LOCALES } from "./locales-lib";
 import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -59,6 +60,25 @@ describe("the package", () => {
     const r = s.go("--check");
     expect(r.code).toBe(1);
     expect(r.out).toContain("Data_Forever.lua: a TOC loads it, but git doesn't carry it");
+  });
+  test("a Notes line in a language held back: refused", () => {
+    if (!HIDDEN_LOCALES.includes("deDE")) return;
+    const s = scratch();
+    writeFileSync(join(s.src, "X_Vanilla.toc"), `## Interface: 11509\n## Title: X\n## Notes-deDE: Hallo\n## Version: 1.0.0\nCore.lua\nData_Classic.lua\n`);
+    const r = s.go("--check");
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("X_Vanilla.toc has Notes-deDE, a language held back");
+  });
+  test("a held-back language's file shipped without the mark: refused", () => {
+    if (!HIDDEN_LOCALES.includes("deDE")) return;
+    const s = scratch();
+    writeFileSync(join(s.src, "X_Vanilla.toc"), toc("11509", "Data_Classic.lua").replace("Core.lua\n", "Core.lua\nText_[TextLocale].lua\n"));
+    writeFileSync(join(s.src, "X_Camelot.toc"), toc("16001", "Data_Forever.lua").replace("Core.lua\n", "Core.lua\nText_[TextLocale].lua\n"));
+    for (const l of LOCALES) writeFileSync(join(s.src, `Text_${l}.lua`), l === "deDE" ? "ns.translate({})\n" : "-- x\n");
+    s.git("add", "-A");
+    const r = s.go("--check");
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("Text_deDE.lua is shipped with a language held back");
   });
   test("the TOCs differing in more than their own files: refused", () => {
     const s = scratch();

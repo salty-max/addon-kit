@@ -23,7 +23,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { LOCALES } from "./locales-lib";
+import { HELD_BACK, HIDDEN_LOCALES, LOCALES } from "./locales-lib";
 
 // Each game's TOC suffix and interface (preflight.ts checks them against
 // wow-data's pins).
@@ -77,6 +77,11 @@ export function run(o: {
     if (!existsSync(join(SRC, t.toc))) fail(`${t.toc}: none`);
     const toc = readFileSync(join(SRC, t.toc), "utf8");
     if (!toc.startsWith(`## Interface: ${t.interface}\n`)) fail(`${t.toc}: not "## Interface: ${t.interface}" first`);
+    // (the languages held back show no Notes or Title of their own)
+    for (const l of HIDDEN_LOCALES) {
+      const line = toc.match(new RegExp(`^##\\s*((?:Notes|Title)-${l})\\s*:`, "m"));
+      if (line) fail(`${t.toc} has ${line[1]}, a language held back (locales-lib.ts's HIDDEN_LOCALES)`);
+    }
     const files = lines(toc);
     for (const f of files) {
       // (the client's own language file: Text_[TextLocale].lua, one per language)
@@ -84,6 +89,10 @@ export function run(o: {
       for (const one of each) {
         if (!existsSync(join(SRC, one))) fail(`${t.toc} loads ${one}, which isn't there`);
         loaded.add(one);
+        // (a held-back language's file is generated with the mark: its words, if any, are English)
+        const lang = LOCALES.find((l) => one.endsWith(`_${l}.lua`));
+        if (lang && HIDDEN_LOCALES.includes(lang) && !readFileSync(join(SRC, one), "utf8").includes(HELD_BACK.slice(0, 40)))
+          fail(`${one} is shipped with a language held back (HIDDEN_LOCALES), without the mark: bun scripts/locales.ts (and the addon's own generators)`);
       }
     }
     for (const f of t.own) if (!files.includes(f)) fail(`${t.toc} doesn't load ${f}, its own`);

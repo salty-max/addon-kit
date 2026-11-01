@@ -29,6 +29,7 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
+import { HIDDEN_LOCALES } from "./locales-lib";
 import { authoredChanged, coldBase, coldReadOf, isAuthored, languages, sourcePaths } from "./coldread";
 import { reviewOf } from "./review";
 import { familyRoot } from "./root";
@@ -198,7 +199,8 @@ const BORROWS: Record<string, string> = { esMX: "esES" };
 export function notesWanted(langs: string[]): string[] {
   const out = new Set(langs);
   if (out.has("esES")) out.add("esMX");
-  return [...out];
+  // (the languages held back have none: locales-lib.ts's HIDDEN_LOCALES)
+  return [...out].filter((l) => !HIDDEN_LOCALES.includes(l));
 }
 
 // ── reading ─────────────────────────────────────────────────────────────────

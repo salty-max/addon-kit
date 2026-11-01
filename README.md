@@ -475,7 +475,24 @@ worktree's). What holds and what doesn't is in `docs/harness.md`. Tests:
 
 English and French are finished first and German and Spanish are translated
 from them (`ideas/audit/en-fr-base.md`; the rubric and the terms in the
-`wow-translating` skill). The family's tools, run by path and not copied into
+`wow-translating` skill).
+
+**German and Spanish are held out of the zips** (1 November 2026, until
+English and French are final): `HIDDEN_LOCALES` in `locales-lib.ts` (deDE,
+esES, esMX) is the one list. Each hidden language's `Text_<locale>.lua` is
+written as a names-only stub, like koKR's (the game's own names by id, which
+the journals need to save a place as an id, and no translated words), so the
+zip carries no German or Spanish text; `package-lib.ts` refuses a TOC that
+still has their `Notes-<locale>` lines, and preflight no longer wants them.
+`package-lib.ts` also refuses a shipped file of such a language (`Text_`,
+`Chapters_`, `Pages_`, `Letters_`) without the mark `holdBack()` writes, so
+an addon's own generator cannot forget. Their `i18n/` stays and is checked
+as ever. Bringing them back: empty the list, `kit:sync`, `bun
+scripts/locales.ts` and the addon's other generators (Yonder's and the
+Codex's own `locales.ts`, Goodwill's `chapters.ts`, Mealbook's `pages.ts`,
+Yours Truly's `letters.ts`), the Notes lines back in the TOCs, the store
+pages' words, and the addons' German and Spanish sims (`test/german.lua`,
+`spanish.lua`, which load the files). The family's tools, run by path and not copied into
 the addons:
 
 ```bash

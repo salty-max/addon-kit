@@ -4,7 +4,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { formatArgs, grown, kitKeys, ownKeys, problems, sharedWords, tokens, wordsIn } from "./locales-lib";
+import { formatArgs, grown, HELD_BACK, HIDDEN_LOCALES, kitKeys, ownKeys, problems, sharedWords, tokens, wordsIn } from "./locales-lib";
 
 const made: string[] = [];
 afterAll(() => {
@@ -87,8 +87,11 @@ describe("a simple addon's languages", () => {
     write(root, "addon/X/Kit.lua", 'local w = L["Begin"]');
     write(root, "i18n/frFR/words.json", JSON.stringify({ Mine: "À moi", "%d pages": "%d pages" }));
     write(root, "i18n/frFR/meta.json", JSON.stringify({ plural: "fr" }));
+    write(root, "i18n/deDE/words.json", JSON.stringify({ Mine: "Meins", "%d pages": "%d Seiten" }));
+    write(root, "i18n/deDE/meta.json", JSON.stringify({ plural: "one" }));
     const months = Object.fromEntries(["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m) => [m, m.toLowerCase()]));
     write(root, "i18n/kit/frFR.json", JSON.stringify({ Begin: "Commencer", ...months }));
+    write(root, "i18n/kit/deDE.json", JSON.stringify({ Begin: "Beginnen", ...months }));
     const script = join(root, "go.ts");
     writeFileSync(script, `import { run } from ${JSON.stringify(join(import.meta.dir, "locales-lib.ts"))};\nrun({ root: ${JSON.stringify(root)}, addon: "addon/X" });\n`);
     const go = (...args: string[]) => Bun.spawnSync(["bun", script, ...args], { stdout: "pipe", stderr: "pipe" });
@@ -99,7 +102,13 @@ describe("a simple addon's languages", () => {
     expect(fr).toContain('["Begin"] = "Commencer"');
     expect(fr).toContain('["Mine"] = "À moi"');
     expect(fr).toContain('plural = "fr"');
-    expect(readFileSync(join(root, "addon/X/Text_deDE.lua"), "utf8")).toContain("no translation yet");
+    expect(readFileSync(join(root, "addon/X/Text_ptBR.lua"), "utf8")).toContain("no translation yet");
+    // a held-back language (HIDDEN_LOCALES) with words of its own: still a stub, still checked
+    const de = readFileSync(join(root, "addon/X/Text_deDE.lua"), "utf8");
+    if (HIDDEN_LOCALES.includes("deDE")) {
+      expect(de).toContain(HELD_BACK);
+      expect(de).not.toContain("translate");
+    } else expect(de).toContain('["Mine"] = "Meins"');
     expect(go("--check").exitCode).toBe(0);
     // a kit word the kit's translations lack, a dropped blank: refused
     write(root, "addon/X/Kit.lua", 'local w = L["Begin"] .. L["Copy"]');
