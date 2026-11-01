@@ -59,7 +59,7 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
   slot, a page's list of cards, the figures; the rest is tested by each
   addon's simulation), commit.
 - `bun run check` runs them all (stylua's check, `luajit test.lua`, `bun
-  test`, the panel's tests and manifest); through q.ts it stamps the tree,
+  test`, the harness copies' `harness-sync --check`); through q.ts it stamps the tree,
   which a push asks for.
 - In each addon: `bun run kit:sync`, then its own checks. The copy's stamp
   is the kit's last commit that touched what it copies (`Kit.lua`, `Media/`,
@@ -451,9 +451,9 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   file for each q.ts run going on, written as it starts and removed
   before its verdict is logged (a killed run's is swept by the next), so
   the panel lights its gates only while one runs.
-- **harness-view/**: piece D, the desktop app's live pane and status line (a
-  Claude Code mod; `harness-view/README.md`), loaded through the link
-  `~/.claude/skills/harness-view`. Its tests run in `bun run check`.
+- **harness-view** (moved to `../harness/pane/` on 1 November 2026): piece D, the desktop app's live pane and status line (a
+  Claude Code mod; `../harness/pane/README.md`), loaded through the link
+  `~/.claude/skills/harness-view`. Its tests run in the harness's check.
 - **skills/**: the family's procedures as Claude Code skills (`wow-riddles`,
   `wow-translating`, `wow-releasing` (with its push waves),
   `wow-store-pages`, `wow-data-audit`, `wow-data-prs`, `wow-kit-change`, `wow-game-test`,

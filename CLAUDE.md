@@ -14,7 +14,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | How the kit reaches the addons (copies, stamps, kit:sync) | `README.md`, `sync.ts` |
 | Every repository at once: status, one command each, secrets | `README.md` "Every repository at once"; `status.ts`, `each.ts`, `secret.ts` |
 | The harness: q, hooks, packet, review (before the commit), board, sessions opened by sessions, the event log. **Stamped copies of the standalone `../harness/` repository** (its tools and `githooks/`): edit them there, never here, then `bun harness/harness-sync.ts .` from the family folder. On a new machine the family root needs its one-line `harness.toml`: `include = "addon-kit/harness.family.toml"` | `harness/CLAUDE.md`, `harness/docs/design.md`; the config `harness.family.toml` (the family root's `harness.toml` includes it); the family's own extensions `packet-extras.ts` (riddle cards), `status-extras.ts` (iCloud builds); the plan and what was built: `docs/harness.md` |
-| The desktop panel and status line (piece D, a Claude Code mod) | `harness-view/README.md` |
+| The desktop panel and status line (piece D, a Claude Code mod) | `../harness/pane/README.md` (moved to the harness repository, 1 November 2026) |
 | The data's daily pull requests and runs (Pins, Players' facts, Game data) | `README.md` "The data's pull requests"; `data-prs.ts`, the `wow-data-prs` skill |
 | The family's procedures as skills (riddles, translating, releasing and push waves, store pages, data audits, the data's pull requests, a kit change carried into the addons, a test in the game, a new addon, the harness in a repository, opening and closing child sessions) | `skills/<name>/SKILL.md`, linked into `~/.claude/skills/` |
 | Before a release: everything a script can tell, nothing changed | `README.md` "Before a release"; `preflight.ts` |
@@ -27,7 +27,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 ## Commands
 
 ```bash
-bun run check                                  # stylua, luajit test.lua, bun test, the panel's tests and manifest
+bun run check                                  # stylua, luajit test.lua, bun test, the harness copies' sync check
 bun q.ts check -- bun run check               # the same, quiet, stamping the tree (a push asks for the stamp)
 luajit test.lua                                # the kit's Lua tests alone
 stylua Kit.lua                                 # format (the addons' stylua.toml)
@@ -63,6 +63,6 @@ code|prose -- "<task>"`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
 - Conventional Commits, lowercase subjects, no AI trailers (the
   commit-msg hook refuses them). Commit locally; ask before a push. The
   pre-push hook wants a passing check stamp on the tree.
-- `harness-view/` and `skills/` are loaded live by every new session
-  through their links in `~/.claude/skills/`: a broken edit breaks the panel
-  or a skill everywhere. The panel's tests run in `bun run check`.
+- `skills/` are loaded live by every new session through their links in
+  `~/.claude/skills/`: a broken edit breaks a skill everywhere. (The panel,
+  `harness/pane/`, is the harness repository's now.)

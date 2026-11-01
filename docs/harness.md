@@ -287,7 +287,7 @@ coloured label, block-character bars, a colour per model, statuses green,
 amber, red) with a live log at the bottom: `addon-kit/events.ts` is the
 one-line log q.ts, review.ts, board.ts and the git hooks append to, and
 the helpers and the push or release prompts the user answered come from
-the transcripts. What it can't draw: `harness-view/README.md`.
+the transcripts. What it can't draw: `../harness/pane/README.md`.
 
 The board as the lock (that evening, the decision above): a card's
 `repos` (every repository the task writes), `waits` (a blocked card's
@@ -399,8 +399,8 @@ finds its docs and the skills.
   session, worktrees included, once at the root. Tried: a fresh session in each of the eleven repositories
   names its `docs/architecture.md` and `wow-releasing`.
 - **D's mod** moved from the root's `.claude/mods/` to
-  `addon-kit/harness-view`, the link repointed; its tests (`bin/`, `claude
-  plugin test` and `validate`) run in addon-kit's check, `hooks/` left out
+  `addon-kit/harness-view` (since 1 November 2026 `harness/pane`, its check moved with it), the link repointed; its tests (`bin/`, `claude
+  plugin test` and `validate`) ran in addon-kit's check, `hooks/` left out
   of `bun test` (it needs Claude Code's runtime).
 - **MEMORY.md** lost 27 pointers whose rule the family CLAUDE.md, a map, a
   doc or a skill now carries; the files moved to

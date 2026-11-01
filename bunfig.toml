@@ -1,3 +1,0 @@
-[test]
-# (the panel's hook tests need Claude Code's runtime: bun run check leaves them out the same way)
-pathIgnorePatterns = ["harness-view/hooks/**"]
