@@ -125,7 +125,7 @@ flat to dodge a register: the voice wins.
 | Mealbook: Kendor and Eunice | vous | **Ihr** ("Backt", "Würzt") | tú |
 | Goodwill: the 35 voices | vous, except **Bor** (tu from the first page), **Gorn** (vous, then tu at Revered) and **Lokhtos** (vous, then tu at Exalted) | **Ihr**, except Bor (du throughout), and Gorn and Lokhtos dropping to du where their cards say | tú, except Gorn and Lokhtos (usted at first, the same scale) |
 | Yours Truly: 73 writers | vous, except six who tutoient: Thazzril, Bernice Stonefield, Hawkwind, Gaxim Rustfizzle, Iverron, Gazlowe | Ihr/Euch for the writers who vouvoient in French, du for the six | tú for every writer |
-| Hearthtale | vous (interface only, the journal is English on every client) | du | tú |
+| Hearthtale | vous (the interface); the journal je, its narrator agreeing (`$gmasc:fem;`) | du | tú |
 
 Gazlowe tutoies in Yours Truly and vouvoies in Goodwill (as the game's
 French Gazlowe does). The family decided (31 October 2026) to align his
@@ -158,8 +158,10 @@ then the table follows the shipped letter.
   llave, opciones. Hearthtale: diario, entrada, Salón de los Caídos.
 - **Every language**: no semicolons (gender tokens' own `;` aside); tile
   captions stay one line at 11pt (short words); commands and addon names
-  unchanged. Hearthtale's journal stays English on every client: only its
-  interface is translated. English is British.
+  unchanged. Hearthtale's journal is English or French, the character's
+  own (hearthtale `docs/writing.md` "The French"): German and Spanish
+  clients write it in English, only its interface translated. English is
+  British.
 - A new language: `i18n/<locale>/meta.json` (plural rule, decimal,
   `flagged: true` until a native reader), TOC `Notes-<locale>`, a store
   page line, a sim block on that client.
