@@ -4,9 +4,8 @@
  * addon) serves a page on 127.0.0.1 and opens it. Check runs every addon's
  * dry run, its log streamed into a window, each addon's state on its card,
  * its changes a click away; Put up publishes one addon (CurseForge's page,
- * Wago's page and summary, GitHub's description), asked first, refused when
- * its CURSEFORGE.md changed since it was checked, then read back. A
- * CurseForge summary still goes by hand, on its General page.
+ * the summary, Wago's page and summary, GitHub's description), asked first,
+ * refused when its CURSEFORGE.md changed since it was checked, then read back.
  *
  * The cookies never leave this computer. The server answers this machine
  * only (127.0.0.1, its Host checked), and a key made at each start, carried
@@ -218,6 +217,7 @@ function demo(): Deps {
       await Bun.sleep(800);
       live = yonder;
       say("  ✓ project 1728396: the live page is the file");
+      say("  ✓ project 1728396: the summary is the file's");
       say("  ✓ Wago's yonder: the page and summary are the file's");
     },
   };
@@ -289,13 +289,13 @@ async function run(path,body,onLine){
   const reader=res.body.getReader(),dec=new TextDecoder();let buf="";
   for(;;){const {value,done}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;while((i=buf.indexOf("\\n"))>=0){const line=buf.slice(0,i);buf=buf.slice(i+1);if(line)onLine(JSON.parse(line))}}
 }
-const state=(v)=>v.due.length?["gold","to put up"]:v.summary.curseforge!==undefined||v.notes!==undefined?["gold","summary by hand"]:v.wago.error?["ok","✓ (Wago not read)"]:["ok","✓ its file"];
+const state=(v)=>v.due.length?["gold","to put up"]:v.notes!==undefined?["gold","TOC Notes differ"]:v.wago.error?["ok","✓ (Wago not read)"]:["ok","✓ its file"];
 function row(k,v){return "<li><span class=\\"k\\">"+k+"</span><span class=\\"v\\">"+v+"</span></li>"}
 function card(v){
   views[v.repo]=v;const el=$("card-"+v.repo);if(!el)return;el.classList.remove("busy");
   const [t,label]=state(v);
   const page=v.page.state==="same"?"<span class=ok-t>✓ the file</span>":v.page.state==="format"?"<span class=gold-t>same words, to become Markdown</span>":"<span class=gold-t>changed</span>";
-  const sum=v.summary.curseforge===undefined?"<span class=ok-t>✓ the file's</span>":"<span class=gold-t>differs: by hand, on</span> <a href=\\"https://authors.curseforge.com/#/projects/"+v.id+"/general\\" target=_blank rel=noopener>its General page ↗</a>";
+  const sum=v.summary.curseforge===undefined?"<span class=ok-t>✓ the file's</span>":"<span class=gold-t>differs, saved with the page</span>";
   const notes=v.notes===undefined?"<span class=ok-t>✓ the summary</span>":"<span class=blood-t>differ from the summary</span>";
   const gh=!v.github.note?"<span>no note in the file</span>":v.github.now===undefined?"<span class=ok-t>✓ the file's</span>":"<span class=gold-t>differs</span>";
   const w=v.wago.error?"<span>not read: "+esc(v.wago.error)+"</span>":(v.wago.state==="same"?"<span class=ok-t>✓ the file</span>":v.wago.state==="comments"?"<span class=gold-t>same words, comments to go</span>":"<span class=gold-t>changed</span>")+(v.wago.summary!==undefined?" · <span class=gold-t>summary differs</span>":"");
@@ -316,13 +316,13 @@ function changes(v){
   else if(v.wago.state==="comments")h+="<h3>Wago's page</h3><p class=sub>The same words, with the file's comments a hand paste left: put up, they go.</p>";
   const pair=(store,now)=>"<div class=pair><span>"+store+"</span><span>"+esc(now)+"</span><span>The file's</span><span>"+esc(v.summary.file)+"</span></div>";
   if(v.wago.summary!==undefined)h+="<h3>Wago's summary</h3>"+pair("Wago's",v.wago.summary);
-  if(v.summary.curseforge!==undefined)h+="<h3>CurseForge's summary</h3><p class=sub>By hand, on the project's General page (its save sends the whole project).</p>"+pair("CurseForge's",v.summary.curseforge);
+  if(v.summary.curseforge!==undefined)h+="<h3>CurseForge's summary</h3><p class=sub>Saved with the page.</p>"+pair("CurseForge's",v.summary.curseforge);
   if(v.notes!==undefined)h+="<h3>TOC Notes</h3><div class=pair><span>The TOCs'</span><span>"+esc(v.notes)+"</span><span>The summary</span><span>"+esc(v.summary.file)+"</span></div>";
   if(v.github.now!==undefined)h+="<h3>GitHub's description</h3><div class=pair><span>GitHub's</span><span>"+esc(v.github.now)+"</span><span>The file's</span><span>"+esc(v.github.note)+"</span></div>";
   modal(v.title+": what differs",h||"<p class=sub>Nothing differs.</p>",v.due.length?"<button class=\\"btn btn-gold\\" data-put=\\""+esc(v.repo)+"\\">Put up…</button>":"");
 }
-function status(){const vs=Object.values(views),due=vs.filter(v=>v.due.length).length,hand=vs.filter(v=>v.summary.curseforge!==undefined).length;
-  $("status").textContent=(due?due+" addon"+(due>1?"s":"")+" to put up: read the changes first.":"Every page checked is its file.")+(hand?" "+hand+" CurseForge summar"+(hand>1?"ies":"y")+" to change by hand.":"")}
+function status(){const vs=Object.values(views),due=vs.filter(v=>v.due.length).length;
+  $("status").textContent=(due?due+" addon"+(due>1?"s":"")+" to put up: read the changes first.":"Every page checked is its file.")}
 function setBusy(b){busy=b;$("check").disabled=b;document.querySelectorAll("[data-put],[data-recheck]").forEach(x=>x.disabled=b);$("m-close").disabled=b}
 async function check(repo){
   if(busy)return;setBusy(true);
@@ -337,7 +337,7 @@ async function check(repo){
 }
 function confirmPut(repo){
   const v=views[repo];if(!v)return;
-  modal("Put up "+v.title+"?","<p>This publishes at once, players see it:</p><ul>"+v.due.map(d=>"<li><b>"+esc(d)+"</b></li>").join("")+"</ul><p class=sub>From its CURSEFORGE.md as checked. If the file changed since, nothing is saved. Each store is read back after.</p>"+(v.summary.curseforge!==undefined?"<p class=sub>CurseForge's summary stays: change it by hand on the General page.</p>":""),
+  modal("Put up "+v.title+"?","<p>This publishes at once, players see it:</p><ul>"+v.due.map(d=>"<li><b>"+esc(d)+"</b></li>").join("")+"</ul><p class=sub>From its CURSEFORGE.md as checked. If the file changed since, nothing is saved. Each store is read back after.</p>",
     "<button class=btn id=cancel>Cancel</button><button class=\\"btn btn-blood\\" id=go>Publish</button>");
   $("cancel").onclick=close;$("go").onclick=()=>put(repo);
 }

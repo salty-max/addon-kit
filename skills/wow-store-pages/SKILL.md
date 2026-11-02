@@ -55,8 +55,9 @@ bun addon-kit/store.ts --ui            # the same in a page on this computer, th
 - A dry run first, always; show the user what would change and ask before
   `--apply` (the ask rules prompt too, in every session: a guard, not the
   go).
-- The CurseForge summary is changed by hand on the project's General page
-  (its save sends the whole project); Wago's summary goes up with its page.
+- Both summaries go up with `--apply` (the file's `Summary` note, which the
+  TOCs' Notes repeat): Wago's with its page, CurseForge's through the General
+  page's own save, every other field sent as read and the project read back.
 - The cookies (`~/.config/wow-addons/curseforge-cookie`, `wago-cookie`) are
   the user's whole-account logins: never printed, committed, sent to a
   server or put in CI. An expired one: the script says so, the user copies

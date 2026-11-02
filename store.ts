@@ -1,9 +1,9 @@
 /**
  * An addon's store pages on CurseForge and Wago, from its `addon/CURSEFORGE.md`:
  * the file as the page, Markdown, its comments left out (the summary's and
- * the GitHub description's notes stay in the file). On Wago the summary goes
- * up with the page (its form carries every field); on CurseForge it is
- * checked only (below).
+ * the GitHub description's notes stay in the file). The summary goes up with
+ * the page on Wago (its form carries every field), and on CurseForge through
+ * its own save (below).
  *
  *   bun ../addon-kit/store.ts <addon repo>           the live page against the
  *                                                    file: what would change
@@ -17,10 +17,8 @@
  *                                                    (store-ui.ts)
  *
  * Beside the page, it checks the summary (the file's note against
- * CurseForge's and the TOCs' Notes: a summary is changed by hand on the
- * General page, whose save sends the whole project, links among them, which
- * no read gives) and GitHub's description (the file's note, put up through
- * gh with --apply).
+ * CurseForge's, put up with --apply, and against the TOCs' Notes) and
+ * GitHub's description (the file's note, put up through gh with --apply).
  *
  * CurseForge has no API for a project's description: this is what its authors
  * site's own editor does (authors.curseforge.com/_api, read on 19 October
@@ -29,6 +27,16 @@
  * projects/description/<id> ({ description, descriptionType }). Type 5 is
  * Markdown (the server renders it, comments dropped), 1 the editor's HTML.
  * The project's id: the TOCs' X-Curse-Project-ID.
+ *
+ * The summary has no call of its own: it is a field of the General page's
+ * save, read from the site's own code on 2 November 2026: PUT
+ * projects/<id>/update-details with the whole of the General page (summary,
+ * slug, name, avatarUrl, primaryCategoryId, subCategoryIds, allowComments,
+ * enableProjectPages, wikiUrl, donationTypeId, donationIdentifier, links,
+ * unlisted, isFreemium). All but the links are fields of GET projects/<id>;
+ * the links are GET projects/social-links/<id> ({ links: [{ url, type }] }).
+ * So the save sends every field as read and only the summary from the file,
+ * then reads the project back and fails if any other field moved.
  *
  * The session: the signed-in browser's cookie for authors.curseforge.com, in
  * ~/.config/wow-addons/curseforge-cookie (or CURSEFORGE_COOKIE): the Cookie
@@ -93,6 +101,38 @@ async function call(method: string, path: string, body?: unknown) {
   if (!r.ok) throw new Error(`CurseForge said ${r.status} to ${method} ${path}: ${(await r.text()).slice(0, 300)}`);
   const text = await r.text();
   return text ? JSON.parse(text) : null;
+}
+
+/** The project as GET projects/<id> gives it: what the General page's save sends back. */
+export type Project = Record<string, any>;
+export type Link = { url: string; type: number };
+
+/** The General page's save (PUT projects/<id>/update-details): every field as read, the summary the file's. */
+export function detailsBody(project: Project, links: Link[], summary: string) {
+  return {
+    summary,
+    slug: project.slug,
+    name: project.name,
+    avatarUrl: project.avatarUrl,
+    primaryCategoryId: project.primaryCategoryId,
+    subCategoryIds: project.subCategoryIds,
+    allowComments: project.allowComments,
+    enableProjectPages: project.enableProjectPages,
+    wikiUrl: project.wikiUrl || "",
+    donationTypeId: project.donationTypeId,
+    donationIdentifier: project.donationIdentifier || "",
+    links,
+    unlisted: project.unlisted,
+    isFreemium: project.isFreemium,
+  };
+}
+
+/** The fields of the General page's save that differ between two reads of a project (the summary aside). */
+export function movedFields(before: Project, after: Project, linksBefore: Link[], linksAfter: Link[]): string[] {
+  const same = (x: unknown, y: unknown) => JSON.stringify(x ?? null) === JSON.stringify(y ?? null);
+  const x = detailsBody(before, linksBefore, "") as Record<string, unknown>;
+  const y = detailsBody(after, linksAfter, "") as Record<string, unknown>;
+  return Object.keys(x).filter((k) => k !== "summary" && !same(x[k], y[k]));
 }
 
 type Live = { Description: string; DescriptionType: number };
@@ -323,7 +363,7 @@ export async function inspect(repo: string): Promise<Report> {
   const changes =
     now.DescriptionType === MARKDOWN ? diff(now.Description.trimEnd() + "\n", page.body) : diff(words(now.Description), words(await rendered(page.body)));
   const state = changes ? "changed" : now.DescriptionType === MARKDOWN ? "same" : "format";
-  const project = (await call("GET", `projects/${id}`)) as { summary?: string };
+  const project = (await call("GET", `projects/${id}`)) as Project;
   const report: Report = { repo, page, id, state, changes, wago: await inspectWago(repo, page) };
   if (page.summary && project.summary?.trim() !== page.summary) report.summary = project.summary ?? "";
   const notes = tocNotes(repo);
@@ -342,7 +382,7 @@ export function tell(r: Report, verbose: boolean, say: Say = console.log) {
   const line = (label: string, text: string) => say(`  ${label.padEnd(10)} ${text}`);
   say(`${name} (project ${r.id})`);
   line("page", r.state === "same" ? "✓ the file" : r.state === "format" ? "the same words, to become Markdown" : `changed${verbose ? " (below)" : ""}`);
-  line("summary", r.summary === undefined ? "✓ CurseForge's is the file's" : `differs, change it on the project's General page. CurseForge's: "${r.summary}"`);
+  line("summary", r.summary === undefined ? "✓ CurseForge's is the file's" : `differs, saved by --apply. CurseForge's: "${r.summary}"`);
   if (r.summary !== undefined) line("", `the file's: "${r.page.summary}"`);
   line("TOC Notes", r.notes === undefined ? "✓ the file's summary" : `differ from the file's summary: "${r.notes}"`);
   line("GitHub", r.page.github ? (r.github ? `differs: "${r.github.now}"` : "✓ the file's") : "(no note in the file)");
@@ -360,7 +400,45 @@ export const wagoDue = (r: Report) => typeof r.wago !== "string" && (r.wago.stat
 
 /** What --apply puts up for this addon: CurseForge's page, Wago's page and summary, GitHub's description. */
 export function due(r: Report): string[] {
-  return [r.state !== "same" && "CurseForge's page", wagoDue(r) && "Wago's page and summary", r.github && r.page.github && "GitHub's description"].filter((x): x is string => !!x);
+  return [r.state !== "same" && "CurseForge's page", r.summary !== undefined && r.page.summary && "CurseForge's summary", wagoDue(r) && "Wago's page and summary", r.github && r.page.github && "GitHub's description"].filter((x): x is string => !!x);
+}
+
+// The summary: the General page's save with every field as read, then read
+// back (the project and its links) to see that only the summary moved.
+export type Caller = (method: string, path: string, body?: unknown) => Promise<any>;
+
+// (a project as GET gives it must carry every field the save sends, the
+// optional ones aside (a wiki, a donation type and name: a project without
+// them lacks them, and the page sends them as it read them): any other field
+// the read lacks would be cleared by the save, and the read-back couldn't tell)
+const OPTIONAL = ["wikiUrl", "donationTypeId", "donationIdentifier"];
+export function checkRead(project: Project, links: unknown): Link[] {
+  const lacking = Object.entries(detailsBody(project, [], ""))
+    .filter(([k, v]) => v === undefined && k !== "links" && !OPTIONAL.includes(k))
+    .map(([k]) => k);
+  if (lacking.length) throw new Error(`the project read lacks ${lacking.join(", ")}: nothing sent, the save would clear them`);
+  const list = (links as { links?: unknown } | null)?.links;
+  if (!Array.isArray(list)) throw new Error("the links read isn't a list of links: nothing sent, the save would clear them");
+  return list as Link[];
+}
+
+export async function applySummary(r: Pick<Report, "id" | "page">, say: Say, api: Caller = call, wait = 1500) {
+  const summary = r.page.summary!;
+  const read = async () => {
+    const project = (await api("GET", `projects/${r.id}`)) as Project;
+    return { project, links: checkRead(project, await api("GET", `projects/social-links/${r.id}`)) };
+  };
+  const before = await read();
+  await api("PUT", `projects/${r.id}/update-details`, detailsBody(before.project, before.links, summary));
+  let after = await read();
+  for (let i = 0; i < 8 && after.project.summary?.trim() !== summary; i++) {
+    await Bun.sleep(wait);
+    after = await read();
+  }
+  if (after.project.summary?.trim() !== summary) throw new Error(`project ${r.id}: the summary saved, but the project read back differs from the file: look at it on the site`);
+  const moved = movedFields(before.project, after.project, before.links, after.links);
+  if (moved.length) throw new Error(`project ${r.id}: the summary saved, but the save changed ${moved.join(", ")}: look at it on the site`);
+  say(`  ✓ project ${r.id}: the summary is the file's`);
 }
 
 export async function apply(r: Report, say: Say = console.log) {
@@ -377,6 +455,7 @@ export async function apply(r: Report, say: Say = console.log) {
     if (!same(after)) throw new Error(`project ${r.id}: saved, but the page read back differs from the file: look at it on the site`);
     say(`  ✓ project ${r.id}: the live page is the file`);
   }
+  if (r.summary !== undefined && r.page.summary) await applySummary(r, say);
   if (wagoDue(r)) await applyWago(r.wago as WagoReport, r.page, say);
   if (r.github && r.page.github) {
     const e = gh("repo", "edit", r.github.slug, "--description", r.page.github);
@@ -435,7 +514,7 @@ if (import.meta.main) {
     process.exit(unread.length ? 1 : 0);
   }
   if (!args.includes("--apply")) {
-    console.log(`(nothing saved: --apply puts ${todo.length} of them up${reports.some((r) => r.summary !== undefined) ? ". A summary is changed by hand, on the General page" : ""})`);
+    console.log(`(nothing saved: --apply puts ${todo.length} of them up)`);
     if (unread.length) console.log(`✗ ${unread.length} not read: ${unread.join(", ")}`);
     process.exit(unread.length ? 1 : 0);
   }

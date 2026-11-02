@@ -491,7 +491,6 @@ async function live(p: Preflight): Promise<Row[]> {
         ? { mark: "!", label: "live", text: `store.ts --apply due: ${todo.join(", ")} (bun addon-kit/store.ts ${p.name}: the dry run, then --apply on the go)` }
         : { mark: "✓", label: "live", text: "CurseForge's page, Wago's and GitHub's are the file" },
     );
-    if (r.summary !== undefined) rows.push({ mark: "!", label: "live", text: `CurseForge's summary isn't the file's: by hand, on the project's General page` });
     if (typeof r.wago === "string") rows.push({ mark: "·", label: "live", text: `Wago not read: ${r.wago}` });
     return rows;
   } catch (e) {

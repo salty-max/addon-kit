@@ -573,9 +573,11 @@ from pressing its buttons. `--ui --demo` shows made-up addons, nothing read
 or saved. `bun test` runs its tests.
 
 Beside each page it checks the summary: the file's note against CurseForge's
-(changed by hand on the project's General page: its save sends the whole
-project, links among them, which no read gives back) and the TOCs' English
-Notes. With a GitHub note in the file, GitHub's description too (put up
+(put up with `--apply`, through the General page's own save,
+`PUT projects/<id>/update-details`: it sends the whole page, so every field
+is sent as read, the links from `projects/social-links/<id>`, only the
+summary from the file, and the project is read back to see nothing else
+moved) and the TOCs' English Notes. With a GitHub note in the file, GitHub's description too (put up
 through `gh` with `--apply`).
 
 It needs the signed-in browser's cookie for authors.curseforge.com in
