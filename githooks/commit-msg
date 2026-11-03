@@ -1,5 +1,5 @@
 #!/bin/sh
-# harness 8e7e78ff5: a copy; edit it in the harness repository instead
+# harness 9d4d5e9bf: a copy; edit it in the harness repository instead
 # The project's rule, kept by git (harness.toml [hooks] trailers): no AI co-author and no "generated with"
 # line in a commit message. Then the repository's own commit-msg, if any
 # (HARNESS_NO_CHAIN=1: this check alone, as packet.ts runs it on commits).

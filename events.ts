@@ -1,4 +1,4 @@
-// harness 8e7e78ff5: a copy; edit it in the harness repository instead
+// harness 9d4d5e9bf: a copy; edit it in the harness repository instead
 /**
  * The harness's event log: one line for each thing a tool did that the
  * desktop panel's log shows (harness-view). The tools whose own files keep
