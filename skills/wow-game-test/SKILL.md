@@ -46,8 +46,9 @@ through Finder or AppleScript.
 
 ## After: the screenshots
 
-On the Forever launch night the findings are in `bun addon-kit/launch.ts notes`
-(the dashboard's ticks and notes): read it first, then the screenshots it names.
+On the Forever launch night the findings are Watchtower's Launch night page's
+ticks and notes (`bun watchtower/server/control.ts notes`, or the page's "Copy the
+notes" button): read them first, then the screenshots they name.
 
 1. The user's screenshots land in the iCloud Drive root
    (`~/Library/Mobile Documents/com~apple~CloudDocs/`, Snipping Tool's
