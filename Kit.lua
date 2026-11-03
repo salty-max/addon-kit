@@ -1,6 +1,6 @@
 -- The kit every addon of the family carries but Keyring (Hearthtale,
 -- Lorekeeper's Codex, Yonder, Second Wind, Palaver, Mealbook, Goodwill, Yours
--- Truly): which game this is and the addon's events, its words, the books'
+-- Truly, Primer): which game this is and the addon's events, its words, the books'
 -- look and the pieces their windows are made of
 -- (the list on the left, the page on the right and every part of a page, a
 -- board of achievements, a strip of figures), the banners that tell of a deed
@@ -3408,6 +3408,8 @@ end
 --   M:update() after a change of either setting; M.button
 -- K.MINIMAP_ANGLES: the family's buttons' places, apart (a button is 31
 -- pixels, 25 degrees around the minimap's edge): a new addon takes a free one.
+-- Classic Era's own zoom buttons sit at about 290 to 345 degrees (ui.ts frame
+-- MinimapZoomIn, MinimapZoomOut): never there. Its clock is at 270.
 K.MINIMAP_ANGLES = {
   YoursTruly = 115,
   Goodwill = 140,
@@ -3416,6 +3418,7 @@ K.MINIMAP_ANGLES = {
   Yonder = 225,
   SecondWind = 250,
   LorekeepersCodex = 275,
+  Primer = 90,
 }
 function K.minimapButton(o)
   local M = {}

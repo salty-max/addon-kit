@@ -2,7 +2,7 @@
 
 The Lua every addon of the family carries but Keyring (Hearthtale,
 Lorekeeper's Codex, Yonder, Second Wind, Palaver, Mealbook, Goodwill, Yours
-Truly): which game this is (`K.classic`, `K.forever`; `ns.forever` set for the
+Truly, Primer): which game this is (`K.classic`, `K.forever`; `ns.forever` set for the
 addon), its events (`K.events`: each listener behind its own pcall), search
 words (`K.plain`, `K.finds`), the books' look (one family, a theme each), the pieces their
 windows are made of (the list on the left, the page on the right and every part

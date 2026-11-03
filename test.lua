@@ -1152,6 +1152,15 @@ do
   M:update()
   check(not M.button.shown, "minimap: hidden by its setting")
   check(K.MINIMAP_ANGLES.LorekeepersCodex ~= K.MINIMAP_ANGLES.Hearthtale, "minimap: the family's places apart")
+  -- (a button is 25 degrees wide: every place at least that far from every other, round the circle)
+  local apart = true
+  for a, x in pairs(K.MINIMAP_ANGLES) do
+    for b, y in pairs(K.MINIMAP_ANGLES) do
+      local d = math.abs(x - y) % 360
+      if a ~= b and math.min(d, 360 - d) < 25 then apart = false end
+    end
+  end
+  check(apart, "minimap: every place 25 degrees from every other")
   Minimap = nil
 end
 
