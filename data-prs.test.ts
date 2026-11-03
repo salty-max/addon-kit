@@ -194,7 +194,7 @@ describe("two builds of a database", () => {
 describe("the pull requests and runs as data (--json)", () => {
   const ok = { conclusion: "success", status: "completed", createdAt: "2026-10-30T04:17:00Z", url: "https://run/1" };
   const red = { ...ok, conclusion: "failure", url: "https://run/2" };
-  const pr = (headRefName: string, number: number) => ({ number, title: `t${number}`, headRefName, createdAt: "2026-10-29T09:00:00Z", url: `https://pr/${number}` });
+  const pr = (headRefName: string, number: number) => ({ number, title: `t${number}`, headRefName, createdAt: "2026-10-29T09:00:00Z", url: `https://pr/${number}`, additions: number * 10, deletions: number, changedFiles: 2 });
   // (a made-up gh: wow-data has a Pins, a Players and a stray pull request, and the Players checks are red)
   const src = {
     remote: (repo: string) => `git@github.com:salty-max/${repo.split("/").pop()}.git`,
@@ -219,6 +219,11 @@ describe("the pull requests and runs as data (--json)", () => {
     expect(d.prs[1].checks).toMatchObject({ mark: "✗", run: { url: "https://run/2" } });
     expect(d.prs[2].checks).toBeUndefined();
     expect(d.prs[1].next).toContain("data-prs.ts facts");
+  });
+  test("a pull request carries its diff's size, zero when gh gives none", () => {
+    expect(d.prs[0]).toMatchObject({ additions: 70, deletions: 7, changedFiles: 2 });
+    const bare = collect(root, { ...src, ghJson: <T>(...a: string[]): T => (a[0] === "run" ? ([ok] as T) : ([{ number: 1, title: "t", headRefName: "x", createdAt: "2026-10-29T09:00:00Z", url: "u" }] as T)) }, NOW);
+    expect(bare.prs[0]).toMatchObject({ additions: 0, deletions: 0, changedFiles: 0 });
   });
   test("it round-trips as JSON", () => {
     expect(JSON.parse(JSON.stringify(d))).toEqual(d);

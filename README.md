@@ -538,7 +538,8 @@ each language's coverage (locales.ts's own line, else the words counted;
 esMX borrowing esES's) and the languages whose authored text (words, pages,
 riddles, the files by hand, not the game's names) changed since the
 language's last recorded cold read (`coldread.ts`), else since the tag, each
-for a cold read by the prose-reader; CI on HEAD, the daily game data,
+for a cold read by the prose-reader (a language held out of the zips, HIDDEN_LOCALES,
+is listed with a `·` and has no cold read due); CI on HEAD, the daily game data,
 open pull requests; the check stamp, the review on HEAD, the iCloud test
 build; the kit copy's commit on addon-kit's origin; the release workflow's
 secrets and HOLD_STORES.

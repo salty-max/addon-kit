@@ -195,6 +195,12 @@ export const inTocs = (n: number) => (n === 1 ? "in its TOC" : n === 2 ? "in bot
 // locales.ts: esMX esES's), its own game names beside them.
 const BORROWS: Record<string, string> = { esMX: "esES" };
 
+/** A language's mark: ✓ whole, ! partial or stale, · held out of the zips (HIDDEN_LOCALES: never a warning while it waits). */
+export function languageMark(lang: string, complete: boolean, stale: number): "✓" | "!" | "·" {
+  if (HIDDEN_LOCALES.includes(lang)) return "·";
+  return complete && !stale ? "✓" : "!";
+}
+
 /** The TOC Notes a set of translations wants: each one's, Mexico's beside Spain's. */
 export function notesWanted(langs: string[]): string[] {
   const out = new Set(langs);
@@ -397,7 +403,8 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
       if (!base) continue;
       const line = content.has(l) ? `${base}, ${content.get(l)}` : base;
       const c = coverage(line);
-      add(c.complete && !c.stale ? "✓" : "!", l, `${line}${c.complete ? "" : ": English where it's missing"}`);
+      const held = HIDDEN_LOCALES.includes(l);
+      add(languageMark(l, c.complete, c.stale), l, `${held ? "held out of the zips (HIDDEN_LOCALES): " : ""}${line}${c.complete ? "" : ": English where it's missing"}`);
     }
     // the family's terms (terms.json), warning mode
     const warned = termWarnings(dir);
@@ -407,7 +414,8 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
     const read: string[] = [];
     const never: string[] = [];
     const unread = new Set(neverRecorded(dir, langs));
-    for (const l of langs) {
+    // (a language held out of the zips has no cold read due: HIDDEN_LOCALES)
+    for (const l of langs.filter((x) => !HIDDEN_LOCALES.includes(x))) {
       const { base, read: stamp } = coldBase(dir, l, tag);
       const files = authoredChanged(dir, l, base);
       if (files.length) changed.push(`${l} (${files.length} file${files.length > 1 ? "s" : ""}${stamp ? `, since the cold read at ${stamp.head.slice(0, 7)}` : ""})`);

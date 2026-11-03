@@ -38,7 +38,7 @@ import { familyRoot } from "./root";
 
 export type Job = { repo: string; workflow: string; label: string };
 export type Run = { conclusion: string; status: string; createdAt: string; url: string; event?: string };
-export type Pr = { number: number; title: string; headRefName: string; createdAt: string; url: string };
+export type Pr = { number: number; title: string; headRefName: string; createdAt: string; url: string; additions?: number; deletions?: number; changedFiles?: number };
 
 /** The family's daily data jobs: wow-data's, then each addon's game-data.yml. */
 export function jobs(root: string, addons: string[]): Job[] {
@@ -422,7 +422,7 @@ const ADDONS = ["hearthtale", "lorekeepers-codex", "yonder", "second-wind", "pal
 /** One daily job's last run, or why it couldn't be read. */
 export type JobRow = { repo: string; workflow: string; label: string; run?: Run; mark: string; text: string; error?: string };
 /** One open pull request; `checks` only for the jobs whose checks are a dispatched ci.yml run (Pins, Players). */
-export type PrRow = { repo: string; number: number; title: string; branch: string; kind: ReturnType<typeof prKind>; createdAt: string; url: string; next: string; checks?: { run?: Run; mark: string; text: string; error?: string } };
+export type PrRow = { repo: string; number: number; title: string; branch: string; kind: ReturnType<typeof prKind>; createdAt: string; url: string; additions: number; deletions: number; changedFiles: number; next: string; checks?: { run?: Run; mark: string; text: string; error?: string } };
 /** `repos` is the order the repositories were read in, which the printed report follows. */
 export type DataPrs = { at: string; repos: string[]; jobs: JobRow[]; prs: PrRow[]; errors: { repo: string; error: string }[] };
 
@@ -447,14 +447,14 @@ export function collect(root: string, src: Source = live, now = Date.now()): Dat
   }
   for (const repo of ["wow-data", ...ADDONS.filter((a) => existsSync(join(root, a)))]) {
     out.repos.push(repo);
-    const prs = tried(() => src.ghJson<Pr[]>("pr", "list", "-R", slug(repo), "--state", "open", "--json", "number,title,headRefName,createdAt,url"));
+    const prs = tried(() => src.ghJson<Pr[]>("pr", "list", "-R", slug(repo), "--state", "open", "--json", "number,title,headRefName,createdAt,url,additions,deletions,changedFiles"));
     if (prs instanceof Error) {
       out.errors.push({ repo, error: prs.message });
       continue;
     }
     for (const pr of prs) {
       const kind = prKind(pr);
-      const row: PrRow = { repo, number: pr.number, title: pr.title, branch: pr.headRefName, kind, createdAt: pr.createdAt, url: pr.url, next: NEXT[kind] };
+      const row: PrRow = { repo, number: pr.number, title: pr.title, branch: pr.headRefName, kind, createdAt: pr.createdAt, url: pr.url, additions: pr.additions ?? 0, deletions: pr.deletions ?? 0, changedFiles: pr.changedFiles ?? 0, next: NEXT[kind] };
       if (kind === "pins" || kind === "players") {
         const ci = tried(() => src.ghJson<Run[]>("run", "list", "-R", slug(repo), "--workflow", "ci.yml", "--branch", pr.headRefName, "--event", "workflow_dispatch", "--limit", "1", "--json", "conclusion,status,createdAt,url"));
         row.checks = ci instanceof Error ? { mark: "?", text: ci.message, error: ci.message } : { run: ci[0], ...runMark(ci[0], now) };

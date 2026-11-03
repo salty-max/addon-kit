@@ -3,6 +3,7 @@ import { HIDDEN_LOCALES } from "./locales-lib";
 import { describe, expect, test } from "bun:test";
 import {
   contentLines,
+  languageMark,
   coverage,
   gameOf,
   gameOfInterface,
@@ -154,6 +155,13 @@ describe("preflight", () => {
     expect(notesWanted(["deDE", "esES", "frFR"])).toEqual(["deDE", "esES", "frFR", "esMX"].filter(shown));
     expect(notesWanted(["frFR", "ruRU"])).toEqual(["frFR", "ruRU"]);
     expect(notesWanted(["esES", "esMX"])).toEqual(["esES", "esMX"].filter(shown));
+  });
+
+  test("a language held out of the zips is never a warning, the others still are", () => {
+    expect(languageMark("frFR", true, 0)).toBe("✓");
+    expect(languageMark("frFR", true, 2)).toBe("!");
+    expect(languageMark("frFR", false, 0)).toBe("!");
+    for (const l of HIDDEN_LOCALES) expect(languageMark(l, false, 5)).toBe("·");
   });
 
   test("how many TOCs, in words", () => {
