@@ -32,6 +32,16 @@ its own.
   card holds its repositories, the first to run first; another session
   that needs one blocks its card on the holder and waits, holding nothing
   meanwhile.
+- **No worktrees at all** (3 Nov 2026, confirming the 20 October choice of the
+  board over worktrees): they left stray folders and branches and a second
+  copy of a repository per task. `worktree.bgIsolation: "none"` in the
+  family folder's `.claude/settings.json` turns Claude Code's automatic
+  isolation of background sessions off ([agent view, "How file edits are
+  isolated"](https://code.claude.com/docs/en/agent-view.md#how-file-edits-are-isolated)),
+  so a session edits the repository's own checkout and the board is the lock.
+  Not verified: that the desktop app's background sessions read the key, and
+  that a session no longer calls EnterWorktree on the prompt's say-so; the
+  first background session after this settles both.
 - **Models by kind.** `opusplan` for code and mechanical work (this build
   included), full Opus for prose, voices, translations and design. Helpers
   unchanged: reviewer Opus, data-scout and prose-reader Sonnet.
