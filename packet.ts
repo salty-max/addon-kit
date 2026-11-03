@@ -1,4 +1,4 @@
-// harness 1fc3fd464: a copy; edit it in the harness repository instead
+// harness 8e7e78ff5: a copy; edit it in the harness repository instead
 /**
  * The reviewer's packet: what a review needs before its first turn, in one
  * file, so the reviewer spends its turns on judgement. The commits, the diff

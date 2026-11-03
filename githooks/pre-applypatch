@@ -1,4 +1,4 @@
 #!/bin/sh
-# harness 1fc3fd464: a copy; edit it in the harness repository instead
+# harness 8e7e78ff5: a copy; edit it in the harness repository instead
 # Nothing of the harness's here: the repository's own pre-applypatch, if any.
 exec "$(dirname "$0")/_chain" pre-applypatch "$@"

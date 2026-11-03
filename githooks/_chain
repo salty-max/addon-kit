@@ -1,5 +1,5 @@
 #!/bin/sh
-# harness 1fc3fd464: a copy; edit it in the harness repository instead
+# harness 8e7e78ff5: a copy; edit it in the harness repository instead
 # The repository's own hook of this name, where it had a hooks folder before
 # the harness's (husky's .husky/_, say): hooks.ts install keeps that folder
 # in harness.chain. Nothing to chain to is no failure.

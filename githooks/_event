@@ -1,5 +1,5 @@
 #!/bin/sh
-# harness 1fc3fd464: a copy; edit it in the harness repository instead
+# harness 8e7e78ff5: a copy; edit it in the harness repository instead
 # A hook's refusal in the harness's event log, the file events.ts writes and
 # the desktop panel reads: _event <tone> <text>. HARNESS_EVENTS names another
 # file, "off" none. Never a failure of the hook that calls it.

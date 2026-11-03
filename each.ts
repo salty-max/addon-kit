@@ -1,4 +1,4 @@
-// harness 1fc3fd464: a copy; edit it in the harness repository instead
+// harness 8e7e78ff5: a copy; edit it in the harness repository instead
 /**
  * One command in every repository of the project, one after the other: a
  * line for each that passed, the end of the output of each that failed, and
