@@ -32,13 +32,16 @@ export function ships(name: string): string[] {
 }
 
 
-// The addon's package name (its zip's): scripts/package.ts's NAME, else the
-// folder under addon/ holding a TOC; Ravenpost's exe by the repo's name.
+// The addon's package name (its zip's): scripts/package.ts's NAME or the
+// `name:` of its run({…}) call, else the folder under addon/ holding a TOC;
+// Ravenpost's exe by the repo's name. (The folder alone picked Yonder's
+// FieldJournal handover and Hearthtale's French companion, 3 Nov 2026.)
 export function buildName(dir: string, name: string): string | undefined {
   if (name === "ravenpost") return name;
   const pkg = join(dir, "scripts", "package.ts");
   if (existsSync(pkg)) {
-    const m = readFileSync(pkg, "utf8").match(/^const NAME = "([^"]+)"/m);
+    const text = readFileSync(pkg, "utf8");
+    const m = text.match(/^const NAME = "([^"]+)"/m) ?? text.match(/^run\(\{[^\n]*?\bname: "([^"]+)"/m);
     if (m) return m[1];
   }
   const addon = join(dir, "addon");

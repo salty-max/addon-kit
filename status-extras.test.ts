@@ -1,6 +1,9 @@
 // The family's status extension: a test build's version from its file name (bun test).
 import { describe, expect, test } from "bun:test";
-import { buildVersion } from "./status-extras";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { buildName, buildVersion } from "./status-extras";
 
 describe("status extension", () => {
   test("a test build's version from its name", () => {
@@ -11,4 +14,17 @@ describe("status extension", () => {
     expect(buildVersion("ravenpost-v0.4.0-windows-x64.exe", "ravenpost")).toBe("v0.4.0");
   });
 
+
+  test("a package's name from its run() call, not the first folder holding a TOC", () => {
+    const dir = mkdtempSync(join(tmpdir(), "buildname-"));
+    for (const [folder, toc] of [["FieldJournal", "FieldJournal.toc"], ["Yonder", "Yonder.toc"]]) {
+      mkdirSync(join(dir, "addon", folder), { recursive: true });
+      writeFileSync(join(dir, "addon", folder, toc), "## Title: x\n");
+    }
+    mkdirSync(join(dir, "scripts"));
+    writeFileSync(join(dir, "scripts", "package.ts"), 'import { run } from "./package-lib";\nrun({ root: dir, name: "Yonder", games: { classic: [], forever: [] } });\n');
+    expect(buildName(dir, "yonder")).toBe("Yonder");
+    writeFileSync(join(dir, "scripts", "package.ts"), 'const NAME = "Other";\n');
+    expect(buildName(dir, "yonder")).toBe("Other");
+  });
 });
