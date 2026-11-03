@@ -1,4 +1,4 @@
-// harness 712f407a9: a copy; edit it in the harness repository instead
+// harness 1fc3fd464: a copy; edit it in the harness repository instead
 /**
  * A new task opened in a session of its own (the family's "one session per
  * task"): a session asked a task that isn't its own opens one here, tells
