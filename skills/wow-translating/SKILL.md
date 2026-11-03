@@ -125,7 +125,7 @@ flat to dodge a register: the voice wins.
 | Mealbook: Kendor and Eunice | vous | **Ihr** ("Backt", "Würzt") | tú |
 | Goodwill: the 35 voices | vous, except **Bor** (tu from the first page), **Gorn** (vous, then tu at Revered) and **Lokhtos** (vous, then tu at Exalted) | **Ihr**, except Bor (du throughout), and Gorn and Lokhtos dropping to du where their cards say | tú, except Gorn and Lokhtos (usted at first, the same scale) |
 | Yours Truly: 73 writers | vous, except six who tutoient: Thazzril, Bernice Stonefield, Hawkwind, Gaxim Rustfizzle, Iverron, Gazlowe | Ihr/Euch for the writers who vouvoient in French, du for the six | tú for every writer |
-| Hearthtale | vous (the interface); the journal je, its narrator agreeing (`$gmasc:fem;`) | du | tú |
+| Hearthtale | vous (the interface); the journal je, its narrator agreeing (`$gmasc:fem;`) | du (the interface, the journal English) | tú (the interface, the journal English) |
 
 Gazlowe tutoies in Yours Truly and vouvoies in Goodwill (as the game's
 French Gazlowe does). The family decided (31 October 2026) to align his
