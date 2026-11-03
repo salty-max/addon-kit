@@ -1,7 +1,7 @@
 // data-prs.ts's pure parts (bun test).
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
-import { addedFacts, age, dbDiff, type Facts, factsOf, judge, prKind, report, runMark, sameText, shapeProblem, slugOf, textProblem } from "./data-prs";
+import { addedFacts, age, collect, dbDiff, type Facts, factsOf, judge, prKind, render, report, runMark, sameText, shapeProblem, slugOf, textProblem } from "./data-prs";
 
 const NOW = Date.parse("2026-10-30T12:00:00Z");
 
@@ -188,5 +188,90 @@ describe("two builds of a database", () => {
       "  gone: creature 2",
     ]);
     expect(dbDiff(after, after)[1]).toBe("Rows by table: the same in every table");
+  });
+});
+
+describe("the pull requests and runs as data (--json)", () => {
+  const ok = { conclusion: "success", status: "completed", createdAt: "2026-10-30T04:17:00Z", url: "https://run/1" };
+  const red = { ...ok, conclusion: "failure", url: "https://run/2" };
+  const pr = (headRefName: string, number: number) => ({ number, title: `t${number}`, headRefName, createdAt: "2026-10-29T09:00:00Z", url: `https://pr/${number}` });
+  // (a made-up gh: wow-data has a Pins, a Players and a stray pull request, and the Players checks are red)
+  const src = {
+    remote: (repo: string) => `git@github.com:salty-max/${repo.split("/").pop()}.git`,
+    ghJson: <T>(...args: string[]): T => {
+      const at = (flag: string) => args[args.indexOf(flag) + 1];
+      if (args[0] === "run" && at("--workflow") === "ci.yml") return [at("--branch") === "players" ? red : ok] as T;
+      if (args[0] === "run") return [ok] as T;
+      return (at("-R") === "salty-max/wow-data" ? [pr("pins", 7), pr("players", 8), pr("feat/x", 9)] : []) as T;
+    },
+  };
+  const root = "/nonexistent-family";
+  const d = collect(root, src, NOW);
+
+  test("every job has a mark and its run's address", () => {
+    expect(d.at).toBe("2026-10-30T12:00:00.000Z");
+    expect(d.jobs.map((j) => j.label)).toEqual(["Pins (the builds)", "Players (facts)", "Databases"]);
+    expect(d.jobs.every((j) => j.mark === "✓" && j.run?.url === "https://run/1")).toBe(true);
+  });
+  test("a pull request carries its kind, its next step, and its checks for Pins and Players only", () => {
+    expect(d.prs.map((p) => [p.number, p.kind])).toEqual([[7, "pins"], [8, "players"], [9, "other"]]);
+    expect(d.prs[0].checks).toMatchObject({ mark: "✓", run: { url: "https://run/1" } });
+    expect(d.prs[1].checks).toMatchObject({ mark: "✗", run: { url: "https://run/2" } });
+    expect(d.prs[2].checks).toBeUndefined();
+    expect(d.prs[1].next).toContain("data-prs.ts facts");
+  });
+  test("it round-trips as JSON", () => {
+    expect(JSON.parse(JSON.stringify(d))).toEqual(d);
+  });
+  test("the report printed from the data is the one the command always printed", () => {
+    const lines = render(d, NOW);
+    expect(lines[0]).toBe("Runs (each job's last):");
+    expect(lines[1]).toBe("  ✓ wow-data           Pins (the builds)  success, today");
+    expect(lines).toContain("\nOpen pull requests:");
+    expect(lines.find((l) => l.startsWith("  wow-data #8"))).toBe("  wow-data #8 t8 (players, opened 1 day ago, its checks ✗ failure, today)\n      strangers' facts: data-prs.ts facts, then the user's go  https://pr/8");
+  });
+  test("a repository that fails is said on its row, a red job prints its run's address, nothing open says none", () => {
+    const boom = (): never => {
+      throw new Error("gh: down");
+    };
+    const failing = { ...src, ghJson: <T>(...args: string[]): T => (args[0] === "run" ? ([red] as T) : boom()) };
+    const f = collect(root, failing, NOW);
+    expect(f.prs).toEqual([]);
+    expect(f.errors[0]).toEqual({ repo: "wow-data", error: "gh: down" });
+    expect(render(f, NOW).join("\n")).toContain("? wow-data: gh: down");
+    expect(render(f, NOW).join("\n")).toContain("failure, today  https://run/2");
+    const none = collect(root, { ...src, ghJson: <T>(...a: string[]): T => (a[0] === "run" ? ([ok] as T) : ([] as T)) }, NOW);
+    expect(render(none, NOW).at(-1)).toBe("  none");
+  });
+  test("a job whose gh call fails is a ? row with its message", () => {
+    const j = collect(root, { ...src, ghJson: () => { throw new Error("gh: no auth"); } }, NOW);
+    expect(j.jobs[0]).toMatchObject({ mark: "?", error: "gh: no auth" });
+    expect(render(j, NOW)[1]).toBe("  ? wow-data           Pins (the builds)  gh: no auth");
+  });
+});
+
+describe("the report keeps the order and the none it always had", () => {
+  const ok = { conclusion: "success", status: "completed", createdAt: "2026-10-30T04:17:00Z", url: "https://run/1" };
+  test("a failing repository is said where it was read, between the others, and none stays off when a pull request is open", () => {
+    const addonRoot = "/Users/max/code/wow-addons";
+    const src = {
+      remote: (repo: string) => `git@github.com:salty-max/${repo.split("/").pop()}.git`,
+      ghJson: <T>(...args: string[]): T => {
+        const repo = args[args.indexOf("-R") + 1];
+        if (args[0] === "run") return [ok] as T;
+        if (repo === "salty-max/hearthtale") throw new Error("gh: down");
+        return (repo === "salty-max/wow-data" ? [{ number: 7, title: "t", headRefName: "feat/x", createdAt: "2026-10-29T09:00:00Z", url: "https://pr/7" }] : []) as T;
+      },
+    };
+    const lines = render(collect(addonRoot, src, NOW), NOW);
+    const at = (s: string) => lines.findIndex((l) => l.startsWith(s));
+    expect(at("  wow-data #7")).toBeGreaterThan(-1);
+    expect(at("  ? hearthtale: gh: down")).toBeGreaterThan(at("  wow-data #7"));
+    expect(lines).not.toContain("  none");
+  });
+  test("errors alone still print none, as before", () => {
+    const lines = render(collect("/Users/max/code/wow-addons", { remote: () => "git@github.com:salty-max/x.git", ghJson: <T>(...a: string[]): T => (a[0] === "run" ? ([ok] as T) : (() => { throw new Error("gh: down"); })()) }, NOW), NOW);
+    expect(lines.at(-1)).toBe("  none");
+    expect(lines.some((l) => l.startsWith("  ? wow-data: gh: down"))).toBe(true);
   });
 });

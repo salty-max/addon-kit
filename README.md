@@ -190,6 +190,7 @@ Databases, each addon's Game data), handled by the `wow-data-prs` skill:
 
 ```bash
 bun addon-kit/data-prs.ts                    # each job's last run, every data pull request open
+bun addon-kit/data-prs.ts --json             # the same as data (jobs, prs, errors), for Watchtower
 bun addon-kit/data-prs.ts facts [<pr>] [--out <file>]   # a players' facts pull request, line by line against the databases
 bun addon-kit/data-prs.ts db-diff <before.db> <after.db>  # two builds of a database: rows, ids lost, English names
 ```
@@ -596,6 +597,7 @@ bun ../addon-kit/store.ts .           # the live page against the file: nothing 
 bun ../addon-kit/store.ts . --apply   # the live page replaced, then read back
 bun ../addon-kit/store.ts . --show    # the title, summary and GitHub notes the file gives
 bun addon-kit/store.ts --all          # every addon beside the kit (from ~/code/wow-addons)
+bun addon-kit/store.ts yonder --json  # the dry run as data, one addon or --all (a name, a path or . inside it: only an addon with a store page; never with --apply)
 bun addon-kit/store.ts --all --apply  # every page that differs put up, GitHub's descriptions too
 bun addon-kit/store.ts --ui           # the same in a browser page on this computer
 ```

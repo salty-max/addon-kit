@@ -12,6 +12,16 @@
  *                                                    the file, then read back
  *   bun ../addon-kit/store.ts <addon repo> --show    what the file gives
  *   bun ../addon-kit/store.ts --all [--apply]        every addon beside the kit
+ *   bun ../addon-kit/store.ts <addon repo>|--all --json
+ *                                                    the dry run as data (one
+ *                                                    entry per addon: pages,
+ *                                                    what --apply would put up,
+ *                                                    or why one wasn't read),
+ *                                                    for the control centre;
+ *                                                    never with --apply
+ *
+ * The repository argument must be an addon with a store page (its path, "."
+ * inside it, or its bare name), in text mode too: anything else exits 2.
  *   bun ../addon-kit/store.ts --ui                   the same in a browser page,
  *                                                    from this computer
  *                                                    (store-ui.ts)
@@ -49,7 +59,7 @@
  */
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { familyRoot } from "./root";
 
 const API = "https://authors.curseforge.com/_api";
@@ -464,6 +474,35 @@ export async function apply(r: Report, say: Say = console.log) {
   }
 }
 
+
+/** The addon a repository argument names: a known addon's folder (its path, "." inside it, or its bare name beside the kit), else why not. */
+export function resolveRepo(arg: string, known: string[], cwd: string, root = ROOT): string {
+  const there = [resolve(cwd, arg), resolve(root, arg)];
+  const hit = known.find((k) => there.includes(resolve(k)));
+  if (!hit) throw new Error(`${arg}: not an addon with a store page (${known.map((k) => basename(k)).join(", ")})`);
+  return hit;
+}
+
+export type JsonEntry =
+  | { repo: string; read: true; title: string; id: number; curseforge: { page: Report["state"]; summary?: string; notes?: string }; github: "none" | "same" | { now: string }; wago: { state: WagoReport["state"]; summary?: string } | { notRead: string }; due: string[]; semicolon: boolean }
+  | { repo: string; read: false; why: "not-on-curseforge" | "unread"; error?: string };
+
+/** One report as data: what the page says and what --apply would put up, never the page itself or the diffs. */
+export function toJson(r: Report): JsonEntry {
+  const w = r.wago;
+  return {
+    repo: basename(r.repo),
+    read: true,
+    title: r.page.title,
+    id: r.id,
+    curseforge: { page: r.state, ...(r.summary !== undefined && { summary: r.summary }), ...(r.notes !== undefined && { notes: r.notes }) },
+    github: !r.page.github ? "none" : r.github ? { now: r.github.now } : "same",
+    wago: typeof w === "string" ? { notRead: w } : { state: w.state, ...(w.summary !== undefined && { summary: w.summary }) },
+    due: due(r),
+    semicolon: r.page.body.includes(";"),
+  };
+}
+
 if (import.meta.main) {
   const args = process.argv.slice(2);
   if (args.includes("--ui")) {
@@ -471,7 +510,21 @@ if (import.meta.main) {
     await new Promise(() => {}); // (serving until stopped)
   }
   const all = args.includes("--all");
-  const repos = all ? addons() : [args.find((a) => !a.startsWith("--")) ?? "."];
+  const json = args.includes("--json");
+  if (json && args.includes("--apply")) {
+    console.error("--json is the dry run as data: it never goes with --apply");
+    process.exit(2);
+  }
+  let repos: string[];
+  try {
+    repos = all ? addons() : [resolveRepo(args.find((a) => !a.startsWith("--")) ?? ".", addons(), process.cwd())];
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    process.exit(2);
+  }
+  // (--json: stdout is the data alone, every line below goes nowhere)
+  const say: Say = json ? () => {} : console.log;
+  const entries: JsonEntry[] = [];
   if (args.includes("--show")) {
     for (const repo of repos) {
       const page = readPage(readFileSync(join(repo, "addon", "CURSEFORGE.md"), "utf8"));
@@ -485,11 +538,12 @@ if (import.meta.main) {
     // (every addon: one not on CurseForge yet said and passed by; one that
     // can't be read said, the others still read; a session that fails, the
     // run with it)
-    if (all) {
+    if (all || json) {
       try {
         projectId(repo);
       } catch {
-        console.log(`${basename(repo)}: not on CurseForge yet (no X-Curse-Project-ID in its TOCs)`);
+        say(`${basename(repo)}: not on CurseForge yet (no X-Curse-Project-ID in its TOCs)`);
+        entries.push({ repo: basename(repo), read: false, why: "not-on-curseforge" });
         continue;
       }
     }
@@ -498,13 +552,19 @@ if (import.meta.main) {
       r = await inspect(repo);
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e);
-      if (!all || /^(no session|CurseForge said 40[13]:)/.test(why)) throw e;
-      console.log(`✗ ${basename(repo)}: ${why}`);
+      if (!json && (!all || /^(no session|CurseForge said 40[13]:)/.test(why))) throw e;
+      say(`✗ ${basename(repo)}: ${why}`);
       unread.push(basename(repo));
+      entries.push({ repo: basename(repo), read: false, why: "unread", error: why });
       continue;
     }
     reports.push(r);
-    tell(r, true);
+    entries.push(toJson(r));
+    tell(r, true, say);
+  }
+  if (json) {
+    console.log(JSON.stringify(entries, null, 2));
+    process.exit(unread.length ? 1 : 0);
   }
 
   const todo = reports.filter((r) => due(r).length);

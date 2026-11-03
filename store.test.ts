@@ -2,7 +2,8 @@
 // PUT, and the check that only the summary moved. A made-up project, nothing
 // read from CurseForge. bun test
 import { describe, expect, test } from "bun:test";
-import { applySummary, checkRead, detailsBody, due, movedFields, type Caller, type Report } from "./store";
+import { join } from "node:path";
+import { applySummary, checkRead, detailsBody, due, movedFields, resolveRepo, toJson, type Caller, type Report } from "./store";
 
 const project = {
   id: 1,
@@ -142,5 +143,60 @@ describe("applySummary", () => {
   test("a field the save changed is reported", async () => {
     const f = fake({ saved: (b) => ({ ...project, ...b, links: undefined, allowComments: false }) });
     await expect(applySummary(r, () => {}, f.api, 0)).rejects.toThrow(/changed allowComments/);
+  });
+});
+
+describe("--json: one report as data", () => {
+  const report = (extra: Partial<Report>): Report =>
+    ({ repo: "/family/demo", page: { title: "Demo", summary: "New.", github: "A note", body: "x\n" }, id: 9, state: "same", changes: "a long diff", wago: "no session (~/.config/wow-addons/wago-cookie)", ...extra }) as Report;
+
+  test("a page that is its file, Wago unread: nothing due, the reason kept", () => {
+    expect(toJson(report({}))).toEqual({
+      repo: "demo", read: true, title: "Demo", id: 9,
+      curseforge: { page: "same" }, github: "same", wago: { notRead: "no session (~/.config/wow-addons/wago-cookie)" }, due: [], semicolon: false,
+    });
+  });
+  test("what --apply would put up, the diffs and the page left out", () => {
+    const j = toJson(report({ state: "changed", summary: "Old.", notes: "Older.", github: { slug: "salty-max/demo", now: "was" }, wago: { slug: "demo", props: {}, state: "changed", changes: "diff", summary: "Wago's" } }));
+    expect(j).toMatchObject({
+      curseforge: { page: "changed", summary: "Old.", notes: "Older." },
+      github: { now: "was" },
+      wago: { state: "changed", summary: "Wago's" },
+      due: ["CurseForge's page", "CurseForge's summary", "Wago's page and summary", "GitHub's description"],
+    });
+    expect(JSON.stringify(j)).not.toContain("diff");
+  });
+  test("a note-less file says none, a semicolon is flagged", () => {
+    const j = toJson(report({ page: { title: "D", body: "a; b\n" } }));
+    expect(j).toMatchObject({ github: "none", semicolon: true });
+  });
+});
+
+describe("resolveRepo: only a known addon", () => {
+  const known = ["/family/yonder", "/family/keyring"];
+  test("its path, a bare name beside the kit, or . inside it", () => {
+    expect(resolveRepo("/family/yonder", known, "/elsewhere", "/family")).toBe("/family/yonder");
+    expect(resolveRepo("keyring", known, "/elsewhere", "/family")).toBe("/family/keyring");
+    expect(resolveRepo(".", known, "/family/yonder", "/family")).toBe("/family/yonder");
+    expect(resolveRepo("../yonder/", known, "/family/keyring", "/family")).toBe("/family/yonder");
+  });
+  test("anything else is refused, naming the known ones", () => {
+    for (const bad of ["wow-data", "../etc", "/family/yonder/addon", "yonder; rm -rf /", "--all", ""]) expect(() => resolveRepo(bad, known, "/elsewhere", "/family")).toThrow(/not an addon with a store page \(yonder, keyring\)/);
+  });
+});
+
+describe("store.ts --json from the command line", () => {
+  const run = (...args: string[]) => Bun.spawnSync(["bun", join(import.meta.dir, "store.ts"), ...args], { stdout: "pipe", stderr: "pipe" });
+  test("--json with --apply is refused before anything is read: exit 2, stdout empty", () => {
+    const p = run("yonder", "--json", "--apply");
+    expect(p.exitCode).toBe(2);
+    expect(p.stdout.toString()).toBe("");
+    expect(p.stderr.toString()).toContain("never goes with --apply");
+  });
+  test("a repository that is no addon with a store page is refused: exit 2, stdout empty", () => {
+    const p = run("wow-data", "--json");
+    expect(p.exitCode).toBe(2);
+    expect(p.stdout.toString()).toBe("");
+    expect(p.stderr.toString()).toContain("not an addon with a store page");
   });
 });

@@ -4,6 +4,7 @@
  * procedure around it is the `wow-data-prs` skill.
  *
  *   bun addon-kit/data-prs.ts                  every data pull request open, each daily job's last run
+ *   bun addon-kit/data-prs.ts --json           the same as data (jobs, prs, errors), for the control centre
  *   bun addon-kit/data-prs.ts facts [<pr>]     a players' facts pull request (the open one by default)
  *       [--out <file>]                         the whole report to a file, the verdicts alone printed
  *   bun addon-kit/data-prs.ts db-diff <before.db> <after.db>
@@ -418,44 +419,75 @@ function tried<T>(f: () => T): T | Error {
 
 const ADDONS = ["hearthtale", "lorekeepers-codex", "yonder", "second-wind", "palaver", "mealbook", "goodwill", "yours-truly"];
 
-function status(root: string) {
+/** One daily job's last run, or why it couldn't be read. */
+export type JobRow = { repo: string; workflow: string; label: string; run?: Run; mark: string; text: string; error?: string };
+/** One open pull request; `checks` only for the jobs whose checks are a dispatched ci.yml run (Pins, Players). */
+export type PrRow = { repo: string; number: number; title: string; branch: string; kind: ReturnType<typeof prKind>; createdAt: string; url: string; next: string; checks?: { run?: Run; mark: string; text: string; error?: string } };
+/** `repos` is the order the repositories were read in, which the printed report follows. */
+export type DataPrs = { at: string; repos: string[]; jobs: JobRow[]; prs: PrRow[]; errors: { repo: string; error: string }[] };
+
+const NEXT = { pins: "the builds moved and didn't merge: the skill's Pins part", players: "strangers' facts: data-prs.ts facts, then the user's go", "game-data": "a game-data pull request left open: read why", other: "not a data job's" } as const;
+
+/** Where the data comes from: gh and git, swapped in the tests. */
+export type Source = { ghJson: <T>(...args: string[]) => T; remote: (repo: string) => string };
+const live: Source = { ghJson, remote: (repo) => sh(["git", "-C", repo, "remote", "get-url", "origin"]) };
+
+/** Every job's last run and every open pull request, as data (`--json` prints it as it is). A repository that fails is said on its row, the rest still read. */
+export function collect(root: string, src: Source = live, now = Date.now()): DataPrs {
   const slugs = new Map<string, string>();
   const slug = (repo: string) => {
-    if (!slugs.has(repo)) slugs.set(repo, slugOf(sh(["git", "-C", join(root, repo), "remote", "get-url", "origin"])) ?? repo);
+    if (!slugs.has(repo)) slugs.set(repo, slugOf(src.remote(join(root, repo))) ?? repo);
     return slugs.get(repo) as string;
   };
-  console.log("Runs (each job's last):");
+  const out: DataPrs = { at: new Date(now).toISOString(), repos: [], jobs: [], prs: [], errors: [] };
   for (const j of jobs(root, ADDONS)) {
-    const runs = tried(() => ghJson<Run[]>("run", "list", "-R", slug(j.repo), "--workflow", j.workflow, "--limit", "1", "--json", "conclusion,status,createdAt,url"));
-    if (runs instanceof Error) {
-      console.log(`  ? ${j.repo.padEnd(18)} ${j.label.padEnd(18)} ${runs.message}`);
-      continue;
-    }
-    const run = runs[0];
-    const { mark, text } = runMark(run);
-    console.log(`  ${mark} ${j.repo.padEnd(18)} ${j.label.padEnd(18)} ${text}${mark === "✗" ? `  ${run?.url}` : ""}`);
+    const runs = tried(() => src.ghJson<Run[]>("run", "list", "-R", slug(j.repo), "--workflow", j.workflow, "--limit", "1", "--json", "conclusion,status,createdAt,url"));
+    if (runs instanceof Error) out.jobs.push({ ...j, mark: "?", text: runs.message, error: runs.message });
+    else out.jobs.push({ ...j, run: runs[0], ...runMark(runs[0], now) });
   }
-  console.log("\nOpen pull requests:");
-  let any = false;
   for (const repo of ["wow-data", ...ADDONS.filter((a) => existsSync(join(root, a)))]) {
-    const prs = tried(() => ghJson<Pr[]>("pr", "list", "-R", slug(repo), "--state", "open", "--json", "number,title,headRefName,createdAt,url"));
+    out.repos.push(repo);
+    const prs = tried(() => src.ghJson<Pr[]>("pr", "list", "-R", slug(repo), "--state", "open", "--json", "number,title,headRefName,createdAt,url"));
     if (prs instanceof Error) {
-      console.log(`  ? ${repo}: ${prs.message}`);
+      out.errors.push({ repo, error: prs.message });
       continue;
     }
     for (const pr of prs) {
-      any = true;
       const kind = prKind(pr);
-      let checks = "";
+      const row: PrRow = { repo, number: pr.number, title: pr.title, branch: pr.headRefName, kind, createdAt: pr.createdAt, url: pr.url, next: NEXT[kind] };
       if (kind === "pins" || kind === "players") {
-        const ci = tried(() => ghJson<Run[]>("run", "list", "-R", slug(repo), "--workflow", "ci.yml", "--branch", pr.headRefName, "--event", "workflow_dispatch", "--limit", "1", "--json", "conclusion,status,createdAt,url"));
-        checks = ci instanceof Error ? `, its checks ? ${ci.message}` : `, its checks ${runMark(ci[0]).mark} ${runMark(ci[0]).text}`;
+        const ci = tried(() => src.ghJson<Run[]>("run", "list", "-R", slug(repo), "--workflow", "ci.yml", "--branch", pr.headRefName, "--event", "workflow_dispatch", "--limit", "1", "--json", "conclusion,status,createdAt,url"));
+        row.checks = ci instanceof Error ? { mark: "?", text: ci.message, error: ci.message } : { run: ci[0], ...runMark(ci[0], now) };
       }
-      const next = { pins: "the builds moved and didn't merge: the skill's Pins part", players: "strangers' facts: data-prs.ts facts, then the user's go", "game-data": "a game-data pull request left open: read why", other: "not a data job's" }[kind];
-      console.log(`  ${repo} #${pr.number} ${pr.title} (${pr.headRefName}, opened ${age(pr.createdAt)} ago${checks})\n      ${next}  ${pr.url}`);
+      out.prs.push(row);
     }
   }
-  if (!any) console.log("  none");
+  return out;
+}
+
+/** The report the command prints, from `collect`'s data. */
+export function render(d: DataPrs, now = Date.now()): string[] {
+  const lines = ["Runs (each job's last):"];
+  for (const j of d.jobs) {
+    if (j.error) lines.push(`  ? ${j.repo.padEnd(18)} ${j.label.padEnd(18)} ${j.error}`);
+    else lines.push(`  ${j.mark} ${j.repo.padEnd(18)} ${j.label.padEnd(18)} ${j.text}${j.mark === "✗" ? `  ${j.run?.url}` : ""}`);
+  }
+  lines.push("\nOpen pull requests:");
+  for (const repo of d.repos) {
+    const e = d.errors.find((x) => x.repo === repo);
+    if (e) lines.push(`  ? ${e.repo}: ${e.error}`);
+    for (const pr of d.prs.filter((p) => p.repo === repo)) {
+      const checks = pr.checks ? (pr.checks.error ? `, its checks ? ${pr.checks.error}` : `, its checks ${pr.checks.mark} ${pr.checks.text}`) : "";
+      lines.push(`  ${pr.repo} #${pr.number} ${pr.title} (${pr.branch}, opened ${age(pr.createdAt, now)} ago${checks})\n      ${pr.next}  ${pr.url}`);
+    }
+  }
+  if (!d.prs.length) lines.push("  none");
+  return lines;
+}
+
+function status(root: string, json: boolean) {
+  const d = collect(root);
+  console.log(json ? JSON.stringify(d, null, 2) : render(d).join("\n"));
 }
 
 async function facts(root: string, args: string[]) {
@@ -504,7 +536,7 @@ async function facts(root: string, args: string[]) {
 if (import.meta.main) {
   const [command, ...rest] = process.argv.slice(2);
   const root = familyRoot();
-  if (!command) status(root);
+  if (!command || command === "--json") status(root, command === "--json");
   else if (command === "facts") await facts(root, rest);
   else if (command === "db-diff" && rest.length === 2) {
     const { Database: Db } = await import("bun:sqlite");
@@ -512,7 +544,7 @@ if (import.meta.main) {
     console.log(dbDiff(new Db(rest[0], { readonly: true }), new Db(rest[1], { readonly: true })).join("\n"));
   }
   else {
-    console.error("usage: data-prs.ts [facts [<pr>] [--out <file>] | db-diff <before.db> <after.db>]");
+    console.error("usage: data-prs.ts [--json | facts [<pr>] [--out <file>] | db-diff <before.db> <after.db>]");
     process.exit(2);
   }
 }
