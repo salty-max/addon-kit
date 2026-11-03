@@ -20,6 +20,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 | Before a release: everything a script can tell, nothing changed | `README.md` "Before a release"; `preflight.ts` |
 | English and French as the base: the terms, the rubric, the gate German and Spanish wait behind | `README.md` "English and French as the base"; `terms.json`, `terms.ts`, `rubric.py`, `base.ts`; the `wow-translating` skill |
 | Store pages on CurseForge, Wago and GitHub | `README.md` "The store page"; `store.ts`, `store-ui.ts` |
+| Launch night's dashboard (a local page: live state, the checklist, ticks, notes) | `README.md` "Launch night"; `launch.ts`, `launch-rules.ts`, `launch-ui.ts` (`launch-page.css`, `launch-page.js`), `launch-night.json` (the checklist, data) |
 | Game names for translations (glossary, building areas) | `glossary.py`, `subzones.py` (their docstrings) |
 | Saved ids never dropped by a regeneration (each addon's `saved-ids.json`) | `README.md` "Saved ids"; `ids.ts` |
 | The test-build installers (Windows, macOS) | `windows/install.cmd`, `windows/install.command`, `README.md` |

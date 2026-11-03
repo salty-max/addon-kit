@@ -547,6 +547,41 @@ the record. A script can't say whether the store page still says what
 ships, nor write the notes or read a translation cold: those stay a read.
 Its pure parts are tested in `preflight.test.ts`.
 
+## Launch night
+
+`launch.ts` is the one page to watch while Forever's launch is tested (5 November
+2026, 00:00 CET, a Thursday): a local page, never a session. From
+`~/code/wow-addons`: `bun addon-kit/launch.ts` serves it on 127.0.0.1:4191
+(`LAUNCH_UI_PORT`) and opens it in Chrome's app window (the default browser
+without Chrome). It runs the family's own tools on timers, so it costs nothing
+while it is open: the board each minute, `status.ts --json` (CI runs, pull
+requests, through gh) every two, `preflight.ts --json` (the
+TOCs against the pins, the live store pages, the test zips) and `latest.ts`
+(has Forever's build moved?) every fifteen, the site and the inbox every five,
+forever.db's coverage and iCloud Drive's screenshots on the way. Each panel
+shows its age, and "Refresh all" reads everything now.
+
+- **Lights**: `launch-rules.ts`, unit-tested. An addon's card is its worst of
+  readiness (preflight's launch rows: ✗ on git, version, interface, CI or game
+  data is red, a stale test zip or a due store page amber) and the in-game
+  ticks (all ok green, any broken red). The Forever build is amber when
+  wago.tools has a newer build of the same version (the pins job carries it)
+  and red when the version moved (the TOCs' 16001 is wrong). The header holds
+  the worst of all.
+- **The checklist is data**: `launch-night.json` (what to look at, what ok
+  looks like, what to do, who fixes it, the risk on Forever, the timeline,
+  the open questions). Amend it without touching the code.
+- **Ticks, steps, answers and notes** are kept in `addon-kit/.cache/launch-night.json`
+  (`LAUNCH_STATE` moves it). `bun addon-kit/launch.ts notes` prints the night as
+  Markdown, the findings list for the `wow-game-test` skill. A note can carry
+  one of the screenshots from iCloud Drive's root (a background session may get
+  EPERM there: run it from your own terminal).
+- **Actions are the harmless ones**: refresh a source, a store page's dry run, a
+  card's status. A push, a release and `store.ts --apply` are never on a button.
+- `--demo` draws made-up state (its ticks in a temp file), `--once` prints one
+  snapshot as JSON. The server answers this machine only, its Host checked, and
+  a key made at each start guards every call.
+
 ## The store page
 
 `store.ts` puts an addon's `addon/CURSEFORGE.md` on its CurseForge page, as

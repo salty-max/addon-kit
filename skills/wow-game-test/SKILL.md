@@ -46,6 +46,9 @@ through Finder or AppleScript.
 
 ## After: the screenshots
 
+On the Forever launch night the findings are in `bun addon-kit/launch.ts notes`
+(the dashboard's ticks and notes): read it first, then the screenshots it names.
+
 1. The user's screenshots land in the iCloud Drive root
    (`~/Library/Mobile Documents/com~apple~CloudDocs/`, Snipping Tool's
    names, `Screenshot <date> <time>.png`), newest first. Copy each to the

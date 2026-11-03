@@ -1,0 +1,326 @@
+{
+  "launch": "2026-11-04T23:00:00Z",
+  "chainCheckAt": "2026-11-06T05:00:00Z",
+  "timeline": [
+    {
+      "id": "t-install",
+      "at": "2026-11-04T21:30:00Z",
+      "title": "Install the zips",
+      "detail": "Windows PC: Install Forever.cmd from the iCloud test folder, then Ravenpost's exe from Ravenpost/. Zips behind their tag? Refresh them first (amber on the cards)."
+    },
+    {
+      "id": "t-board",
+      "at": "2026-11-04T22:30:00Z",
+      "title": "Everything green on this page",
+      "detail": "Cards green or knowingly amber, Forever build line unchanged, no card held. Anything red now is fixed before midnight, not after."
+    },
+    {
+      "id": "t-launch",
+      "at": "2026-11-04T23:00:00Z",
+      "title": "Launch: the login screen",
+      "detail": "Bottom-left version line. 1.60.1 means our 16001 is right. Anything else: write it in Open questions, the patch wave carries the new number."
+    },
+    {
+      "id": "t-addons",
+      "at": "2026-11-04T23:05:00Z",
+      "title": "AddOn List at character select",
+      "detail": "Click AddOns. Each of the nine must read loadable. Out of date or Incompatible is a red note for that addon (TOC / interface)."
+    },
+    {
+      "id": "t-errors",
+      "at": "2026-11-04T23:10:00Z",
+      "title": "Errors on, a Skyborne in Zephras Isle",
+      "detail": "/console scriptErrors 1, make a Skyborne, enter the world. A Lua error at login is a broken check on the addon named in it."
+    },
+    {
+      "id": "t-pass",
+      "at": "2026-11-04T23:20:00Z",
+      "title": "The per-addon pass",
+      "detail": "30 to 60 minutes, in the cards' order. Tick each check. Broken ones get a note and, if you can, a screenshot."
+    },
+    {
+      "id": "t-scan",
+      "at": "2026-11-05T00:15:00Z",
+      "title": "/codex scan on",
+      "detail": "Leave it on while you play: the files feed Codex wave 2."
+    },
+    {
+      "id": "t-morning",
+      "at": "2026-11-05T07:00:00Z",
+      "title": "Morning: notes into the patch wave",
+      "detail": "bun addon-kit/launch.ts notes prints the night. A session fixes each, one patch per affected addon, your go once for the wave."
+    },
+    {
+      "id": "t-pins",
+      "at": "2026-11-05T04:17:00Z",
+      "title": "Pins job (04:17 UTC)",
+      "detail": "Does the launch build reach wow-data by itself? The Forever build line shows it."
+    },
+    {
+      "id": "t-chain",
+      "at": "2026-11-06T05:00:00Z",
+      "title": "Data chain check",
+      "detail": "Launch build merged by itself, every addon's Game data green. If not, merge by hand (wow-data-prs skill)."
+    }
+  ],
+  "questions": [
+    {
+      "id": "q-interface",
+      "title": "Interface of the release client",
+      "ask": "What does the login screen's version line say?",
+      "ok": "1.60.1 (16001). Anything else needs the patch wave."
+    },
+    {
+      "id": "q-camelot",
+      "title": "_Camelot.toc still loaded",
+      "ask": "Do the nine show in the AddOn List?",
+      "ok": "All nine, so the suffix works at launch. The wiki says it may become _Forever later."
+    },
+    {
+      "id": "q-folder",
+      "title": "The _forever_ folder",
+      "ask": "Did Install Forever.cmd find it?",
+      "ok": "Installed into _forever_. If the folder moved, the installer, Ravenpost and the site's hint all name it."
+    },
+    {
+      "id": "q-gender",
+      "title": "Battle.net gender on a Forever character",
+      "ask": "Upload a diary with Ravenpost: is the character's gender in the site's profile?",
+      "ok": "The site's French agreement reads gender from the Battle.net profile. Missing means a fallback is needed."
+    },
+    {
+      "id": "q-goodwill",
+      "title": "Goodwill's Forever data",
+      "ask": "After 4 Nov, are Forever's factions in forever.db?",
+      "ok": "The faction count in Forever data below moves past today's. Second week at the earliest."
+    },
+    {
+      "id": "q-hardcore",
+      "title": "A Forever Hardcore realm?",
+      "ask": "Does character creation offer Hardcore?",
+      "ok": "If yes, Second Wind gets Forever work. If no, it stays Era-first."
+    },
+    {
+      "id": "q-filter",
+      "title": "Store pages under Forever",
+      "ask": "On CurseForge, does the Forever filter list our addons?",
+      "ok": "Filed under 1.60.1. Note the 'main file' label if it says Classic TBC first."
+    }
+  ],
+  "addons": [
+    {
+      "id": "lorekeepers-codex",
+      "name": "Lorekeeper's Codex",
+      "slash": "/codex",
+      "rank": 1,
+      "risk": "Creature GUIDs are secret inside Forever instances, so kills there unlock nothing. Verified on the beta, not on the live client.",
+      "checks": [
+        {
+          "id": "login",
+          "look": "Login: no Lua error, the Codex opens with /codex",
+          "ok": "The book opens, tabs draw, no red error box",
+          "todo": "Note the error text.",
+          "fix": "lorekeepers-codex session"
+        },
+        {
+          "id": "unlock",
+          "look": "Walk Zephras Isle until a page unlocks",
+          "ok": "A toast, the page appears in the book",
+          "todo": "Check /codex scan output.",
+          "fix": "lorekeepers-codex session"
+        },
+        {
+          "id": "scan",
+          "look": "/codex scan on, kill something outside an instance",
+          "ok": "The scan file grows (saved variables)",
+          "todo": "Keep the SavedVariables file and hand it to a session.",
+          "fix": "a Codex wave-2 session"
+        }
+      ]
+    },
+    {
+      "id": "yonder",
+      "name": "Yonder",
+      "slash": "/yonder",
+      "rank": 2,
+      "risk": "The in-game look on Forever was never confirmed: the Stormwind hint circles, the Zephras surveyor's note, the Mulgore haunt.",
+      "checks": [
+        {
+          "id": "tab",
+          "look": "/yonder: the Expeditions tab opens",
+          "ok": "Riddles listed, the zone's riddle readable",
+          "todo": "Screenshot the tab.",
+          "fix": "yonder session"
+        },
+        {
+          "id": "note",
+          "look": "Zephras Isle: the surveyor's note",
+          "ok": "The note is in the journal",
+          "todo": "Check the Zephras ids in wow-data: wow-data-audit skill.",
+          "fix": "yonder session + wow-data"
+        },
+        {
+          "id": "circles",
+          "look": "Stormwind: a hint circle on the map",
+          "ok": "The circle draws at the right place",
+          "todo": "Screenshot the map with the circle.",
+          "fix": "yonder session"
+        }
+      ]
+    },
+    {
+      "id": "palaver",
+      "name": "Palaver",
+      "slash": "/palaver",
+      "rank": 3,
+      "risk": "Exposed to Blizzard frame changes. Camera and popup were verified on Forever on 19 and 22 Oct.",
+      "checks": [
+        {
+          "id": "gossip",
+          "look": "Talk to the first quest-giver in Zephras Isle",
+          "ok": "Palaver's window opens in the family's look",
+          "todo": "Palaver off, DialogueUI alone: does it open?",
+          "fix": "palaver session"
+        },
+        {
+          "id": "esc",
+          "look": "Press Escape in the dialogue",
+          "ok": "It closes, the camera returns",
+          "todo": "Screenshot and note the sequence.",
+          "fix": "palaver session"
+        }
+      ]
+    },
+    {
+      "id": "hearthtale",
+      "name": "Hearthtale",
+      "slash": "/ht",
+      "rank": 4,
+      "risk": "Health is secret on Forever, so close calls can't fire. No record of a test on the live _forever_ client since the folder moved.",
+      "checks": [
+        {
+          "id": "entry",
+          "look": "Enter the world: the first diary entry starts",
+          "ok": "An entry exists after /reload",
+          "todo": "Note the Lua error.",
+          "fix": "hearthtale session"
+        },
+        {
+          "id": "start",
+          "look": "Zephras Isle start is recognised",
+          "ok": "The entry mentions Zephras Isle / the Skyborne",
+          "todo": "Check Forever.lua in hearthtale/addon.",
+          "fix": "hearthtale session"
+        },
+        {
+          "id": "upload",
+          "look": "Ravenpost uploads the diary to hearthtale.app",
+          "ok": "The entry appears on the site",
+          "todo": "Ravenpost log, then the site's API.",
+          "fix": "ravenpost or hearthtale session"
+        }
+      ]
+    },
+    {
+      "id": "goodwill",
+      "name": "Goodwill",
+      "slash": "/goodwill",
+      "rank": 5,
+      "risk": "Untested on Forever. Its launch quests end in Friendly for the Skyborne pair. Forever's own factions come after launch.",
+      "checks": [
+        {
+          "id": "tab",
+          "look": "/goodwill: the Factions tab",
+          "ok": "Classic factions listed, the Skyborne faction if you have one",
+          "todo": "Screenshot.",
+          "fix": "goodwill session"
+        },
+        {
+          "id": "chapter",
+          "look": "Open a chapter of a faction you stand with",
+          "ok": "The chapter reads, no error",
+          "todo": "Note which faction.",
+          "fix": "goodwill session"
+        }
+      ]
+    },
+    {
+      "id": "yours-truly",
+      "name": "Yours Truly",
+      "slash": "/yourstruly",
+      "rank": 6,
+      "risk": "Untested on Forever. Four Zephras letters (16 to 19) are Forever-only and need a whole chain, so maybe the next day.",
+      "checks": [
+        {
+          "id": "login",
+          "look": "Login: no error, /yourstruly opens",
+          "ok": "The panel docks, the book opens",
+          "todo": "Note the error.",
+          "fix": "yours-truly session"
+        },
+        {
+          "id": "mailbox",
+          "look": "A mailbox, once a chain has ended",
+          "ok": "A letter waits",
+          "todo": "Not a failure before a chain ends: leave it unticked.",
+          "fix": "yours-truly session"
+        }
+      ]
+    },
+    {
+      "id": "keyring",
+      "name": "Keyring",
+      "slash": "/keyring",
+      "rank": 7,
+      "risk": "No Forever record. The minimap header was reskinned (16 Oct). GetFrameStrata can return a secret: the guard must hold.",
+      "checks": [
+        {
+          "id": "drawer",
+          "look": "Click the Keyring button on the minimap",
+          "ok": "The drawer opens and holds every addon's button",
+          "todo": "Screenshot the minimap.",
+          "fix": "keyring session"
+        },
+        {
+          "id": "errors",
+          "look": "Open and close it three times, scriptErrors on",
+          "ok": "No error about a secret value or a table key",
+          "todo": "Copy the error.",
+          "fix": "keyring session"
+        }
+      ]
+    },
+    {
+      "id": "mealbook",
+      "name": "Mealbook",
+      "slash": "/mealbook",
+      "rank": 8,
+      "risk": "No Forever work planned. It only has to load.",
+      "checks": [
+        {
+          "id": "load",
+          "look": "Login: no error from Mealbook",
+          "ok": "Nothing in the error box",
+          "todo": "An error here is a fix. Note it: mealbook session.",
+          "fix": "mealbook session"
+        }
+      ]
+    },
+    {
+      "id": "second-wind",
+      "name": "Second Wind",
+      "slash": "/wind",
+      "rank": 9,
+      "risk": "Health is secret in and out of combat on Forever. Made for Era Hardcore. It only has to load.",
+      "checks": [
+        {
+          "id": "load",
+          "look": "Login: no error from Second Wind",
+          "ok": "Nothing in the error box",
+          "todo": "An error here is a fix. Note it: second-wind session.",
+          "fix": "second-wind session"
+        }
+      ]
+    }
+  ]
+}
