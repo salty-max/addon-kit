@@ -10,10 +10,11 @@ import js from "./launch-page.js" with { type: "text" };
 export function page(key: string, demo: boolean): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Forever launch night</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>${css}</style></head><body>
 <div class="stale" id="stale" hidden>Lost the server. Start it again: bun addon-kit/launch.ts</div>
 <div class="wrap">
+<h1 class="sr">Forever launch night</h1>
 <header class="panel band" id="band"><div id="clock" class="clock"><span>T−0:00:00</span></div></header>
 <div class="cols">
   <main><div class="cards" id="cards" aria-label="The nine addons"></div></main>

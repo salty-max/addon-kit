@@ -566,7 +566,10 @@ shows its age, and "Refresh all" reads everything now.
   data is red, a stale test zip or a due store page amber) and the in-game
   ticks (all ok green, any broken red). The Forever build is amber when
   wago.tools has a newer build of the same version (the pins job carries it)
-  and red when the version moved (the TOCs' 16001 is wrong). The header holds
+  and red when the version moved (the TOCs' 16001 is wrong). A reading that
+  failed after it had answered (the page still shows its old answer) makes
+  "Readings" amber, so the page is never green on stale data; the screenshots
+  are left out, a background session can't read iCloud Drive. The header holds
   the worst of all.
 - **The checklist is data**: `launch-night.json` (what to look at, what ok
   looks like, what to do, who fixes it, the risk on Forever, the timeline,

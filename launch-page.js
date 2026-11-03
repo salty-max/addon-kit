@@ -5,7 +5,7 @@ const WORD = { green: "ready", amber: "look", red: "blocked", grey: "waiting" };
 const OVERALL = { green: ["✓", "Ready for launch", "Everything the tools can check is green."], amber: ["!", "Look at the amber", ""], red: ["✕", "Fix the red first", ""], grey: ["…", "Gathering", "The first answers are still coming in."] };
 let S = null;
 let offset = 0;
-let lastOk = 0;
+let lastOk = Date.now(); // (from the page's start, so a server that never answers shows the banner too)
 let shot = null; // the screenshot attached to the note being written
 let lastShots = "";
 
@@ -32,6 +32,7 @@ const busy = (k) => S.busy.includes(k);
 
 // ── drawing ─────────────────────────────────────────────────────────────────
 function tickClock() {
+  $("#stale").hidden = Date.now() - lastOk < 60000;
   if (!S) return;
   const s = Math.round((Date.now() + offset - Date.parse(S.launch)) / 1000);
   const a = Math.abs(s);
@@ -39,12 +40,11 @@ function tickClock() {
   const days = Math.floor(a / 86400);
   const h = Math.floor((a % 86400) / 3600);
   $("#clock").firstChild.textContent = `T${s < 0 ? "−" : "+"}${days ? days + "d " : ""}${days ? p(h) : h}:${p(Math.floor((a % 3600) / 60))}:${p(a % 60)}`;
-  $("#stale").hidden = Date.now() - lastOk < 60000;
 }
 
 function band() {
   const counts = { red: 0, amber: 0 };
-  for (const l of [S.build.light, S.chain.light, S.infra.light, S.board.light, ...S.addons.map((a) => a.light)]) if (counts[l] !== undefined) counts[l]++;
+  for (const l of [S.build.light, S.chain.light, S.infra.light, S.board.light, S.sources.light, ...S.addons.map((a) => a.light)]) if (counts[l] !== undefined) counts[l]++;
   const [sym, title, sub] = OVERALL[S.overall];
   const detail = sub || [counts.red && `${counts.red} red`, counts.amber && `${counts.amber} amber`].filter(Boolean).join(", ") + " below.";
   const b = S.build;
@@ -113,6 +113,7 @@ function systems() {
     ${light(S.chain.light, "Data chain", S.chain.reasons)}
     ${light(S.infra.light, "Site and inbox", S.infra.reasons.length ? S.infra.reasons : (S.infra.probes ?? []).map((p) => `${p.name} ${p.status} · ${p.ms} ms`))}
     ${light(S.board.light, "Board", S.board.reasons)}
+    ${light(S.sources.light, "Readings", S.sources.reasons)}
   </div>
   ${cards.length ? `<div style="margin-top:12px">${cards.map((c) => `<div class="hint" style="display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:4px"><span>${esc(c.title)}</span><select class="mini" data-act="card" data-id="${esc(c.id)}" aria-label="Status of ${esc(c.title)}">${["running", "blocked", "waiting-test", "waiting-review", "ready-to-push", "done"].map((s) => `<option ${s === c.status ? "selected" : ""}>${s}</option>`).join("")}</select></div>`).join("")}</div>` : ""}`;
 }
@@ -152,7 +153,16 @@ function put(sel, html) {
   if (!typing(el)) el.innerHTML = html;
 }
 
+// (the redraw replaces the buttons, so the one the keyboard is on is found again and focused)
+function focusKey() {
+  const el = document.activeElement;
+  if (!el?.dataset?.act) return null;
+  // (every data attribute but the note's prefilled text: a button is told apart by its repo, file or addon too)
+  return [...el.attributes].filter((a) => a.name.startsWith("data-") && a.name !== "data-text").map((a) => `[${a.name}="${CSS.escape(a.value)}"]`).join("");
+}
+
 function render() {
+  const keep = focusKey();
   band();
   put("#cards", S.addons.map(card).join(""));
   put("#steps", steps());
@@ -165,6 +175,7 @@ function render() {
   const sel = $("#n-addon");
   if (!sel.options.length) sel.innerHTML = S.addons.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("") + '<option value="other">Something else</option>';
   shots();
+  if (keep) $(keep)?.focus({ preventScroll: true });
 }
 
 // ── doing ───────────────────────────────────────────────────────────────────
@@ -198,6 +209,7 @@ function modal(title, text) {
   m.innerHTML = `<div class="panel modal" role="dialog" aria-modal="true"><div class="mh"><h2>${esc(title)}</h2><button class="btn ghost sm" data-close aria-label="Close">✕</button></div><pre>${esc(text)}</pre></div>`;
 }
 
+document.addEventListener("keydown", (e) => e.key === "Escape" && $("#veil")?.remove());
 document.addEventListener("click", async (e) => {
   const t = e.target.closest("[data-act]");
   if (!t || t.tagName === "SELECT" || t.tagName === "INPUT") return;
@@ -258,8 +270,13 @@ $("#nform").addEventListener("submit", async (e) => {
   lastShots = "";
 });
 $("#copy-notes").addEventListener("click", () => {
-  navigator.clipboard?.writeText("bun addon-kit/launch.ts notes").then(() => ($("#copy-notes").textContent = "Copied"));
-  setTimeout(() => ($("#copy-notes").textContent = "Copy the notes command"), 1500);
+  const b = $("#copy-notes");
+  const said = (t, ms) => {
+    clearTimeout(b.timer);
+    b.textContent = t;
+    b.timer = setTimeout(() => (b.textContent = "Copy the notes command"), ms);
+  };
+  navigator.clipboard.writeText("bun addon-kit/launch.ts notes").then(() => said("Copied", 1500), () => said("Not copied: bun addon-kit/launch.ts notes", 8000));
 });
 
 load();

@@ -241,7 +241,11 @@ export function view(content: Content, cells: Record<string, Cell>, state: rules
   const cards = ((cells.board?.data as rules.Card[] | undefined) ?? []).filter((c) => c.status !== "done");
   const boardV = rules.board(cards, launchRepos);
 
-  const lights = [buildV.light, chain.light, infra.light, boardV.light, ...addons.map((a) => a.light)];
+  // (a source that failed keeps its last answer: a green on old data is not a green, so a failure after an answer is amber. One that never answered is already grey where it feeds a light. The screenshots are left out: a background session can't read iCloud Drive, and that must not stop a launch)
+  const failing = Object.entries(cells).filter(([k, c]) => c.error && c.data !== undefined && k !== "shots");
+  const sourcesV: rules.Verdict = { light: failing.length ? "amber" : "green", reasons: failing.map(([k, c]) => `${k} failed: ${c.error}`) };
+
+  const lights = [buildV.light, chain.light, infra.light, boardV.light, sourcesV.light, ...addons.map((a) => a.light)];
   const overall = rules.worst(...lights);
 
   let next = true;
@@ -265,6 +269,7 @@ export function view(content: Content, cells: Record<string, Cell>, state: rules
     data: { ...(cells.data?.data as object | undefined), error: cells.data?.error },
     chain,
     infra: { ...infra, probes: cells.infra?.data as rules.Probe[] | undefined },
+    sources: sourcesV,
     board: { ...boardV, cards: cards.map((c) => ({ id: c.id, title: c.title, status: c.status, repos: c.repos })) },
     notes: state.notes,
     shots: { list: (cells.shots?.data as { name: string; mtime: number }[] | undefined) ?? [], error: cells.shots?.error },

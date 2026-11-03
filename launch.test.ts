@@ -141,6 +141,22 @@ describe("the content and the view", () => {
     expect(v.build.light).toBe("amber");
     expect(v.overall).not.toBe("green");
   });
+  test("a failed reading is amber on old data, never a green that hides it, and the screenshots don't count", () => {
+    const green = demoCells(content);
+    green.remote = { at: 0, ms: 0, data: content.addons.map((a) => ({ name: a.id, ahead: 0, behind: 0, dirty: 0, head: "x", runs: [], prs: [] })) };
+    green.preflight = { at: 0, ms: 0, data: [] };
+    expect(view(content, green, r.emptyState(), []).sources.light).toBe("green");
+    green.shots = { ...green.shots, error: "EPERM: iCloud Drive's root can't be read from here" };
+    expect(view(content, green, r.emptyState(), []).sources.light).toBe("green");
+    green.remote = { ...green.remote, error: "gave up after 150 s" };
+    const v = view(content, green, r.emptyState(), []);
+    expect(v.sources.light).toBe("amber");
+    expect(v.sources.reasons).toEqual(["remote failed: gave up after 150 s"]);
+    expect(v.overall).not.toBe("green");
+    // (a reading that never answered is grey where it feeds a light, not a second amber)
+    green.data = { at: 0, ms: 0, error: "forever.db not built" };
+    expect(view(content, { ...green, remote: demoCells(content).remote }, r.emptyState(), []).sources.light).toBe("green");
+  });
   test("a status answer with no runs or pull requests (gh failed) draws, it does not throw", () => {
     const cells = demoCells(content);
     cells.remote = { at: 0, ms: 0, data: content.addons.map((a) => ({ name: a.id, ahead: 0, behind: 0, dirty: 0, head: "x" })) };
