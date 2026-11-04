@@ -2883,9 +2883,9 @@ function K.collect(o)
   local function where()
     local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
     local pos = map and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(map, "player")
-    if not pos then return map end
+    if (issecretvalue and issecretvalue(pos)) or not pos then return map end
     local x, y = pos:GetXY()
-    if not x or (issecretvalue and issecretvalue(x)) then return map end
+    if (issecretvalue and issecretvalue(x)) or not x then return map end
     return map, math.floor(x * 1000 + 0.5) / 10, math.floor(y * 1000 + 0.5) / 10
   end
   local function shelf(kind)
@@ -3434,6 +3434,8 @@ function K.minimapButton(o)
     local mx, my = Minimap:GetCenter()
     local cx, cy = GetCursorPosition()
     local scale = Minimap:GetEffectiveScale()
+    local secret = issecretvalue
+    if (secret and (secret(mx) or secret(my) or secret(scale))) or not (mx and my and scale) then return end
     o.set("minimapAngle", math.deg(math.atan2(cy / scale - my, cx / scale - mx)))
     place()
   end

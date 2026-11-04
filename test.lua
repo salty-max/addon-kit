@@ -749,6 +749,19 @@ do
       and q.x == 46.1,
     "collect: a quest's texts, its giver and where, the player as the game's tokens"
   )
+  -- (a map position the game keeps secret: the place is kept, the coordinates left out)
+  local hidden = {}
+  issecretvalue = function(v) return v == hidden end
+  local pos0 = C_Map.GetPlayerMapPosition
+  C_Map.GetPlayerMapPosition = function() return hidden end
+  quest.id = 34
+  fire("QUEST_DETAIL")
+  local h = saved.facts.enUS.quest[34]
+  check(h and h.map == 1426 and h.x == nil, "collect: a secret map position raises nothing, keeps no coordinates")
+  C_Map.GetPlayerMapPosition = pos0
+  issecretvalue = nil
+  saved.facts.enUS.quest[34] = nil
+  quest.id = 33
   quest.reward = "Thanks, Maxou."
   fire("QUEST_COMPLETE")
   check(q.reward == "Thanks, $N." and q.ender == "npc:197", "collect: its reward text and ender")
@@ -1148,6 +1161,26 @@ do
   })
   local _, _, _, x, y = M.button:GetPoint()
   check(math.abs(x) < 0.001 and math.abs(y - 80) < 0.001 and M.button.shown, "minimap: placed by its angle, shown")
+  -- (dragging with a centre the game keeps secret: the angle stays, nothing raises)
+  local secret = {}
+  local centre0 = function() return 350, 300 end
+  Minimap.GetCenter, Minimap.GetEffectiveScale = centre0, function() return 1 end
+  local cursor0 = GetCursorPosition
+  GetCursorPosition = function() return 400, 300 end
+  M.button.scripts.OnDragStart(M.button)
+  M.button.scripts.OnUpdate(M.button)
+  local plain = opts.minimapAngle
+  check(plain ~= 90, "minimap: a plain centre moves the angle")
+  issecretvalue = function(v) return v == secret end
+  Minimap.GetCenter = function() return secret, 300 end
+  check(
+    pcall(M.button.scripts.OnUpdate, M.button) and opts.minimapAngle == plain,
+    "minimap: a secret centre leaves the angle"
+  )
+  issecretvalue = nil
+  Minimap.GetCenter = centre0
+  M.button.scripts.OnUpdate = nil
+  GetCursorPosition = cursor0
   opts.minimapHidden = true
   M:update()
   check(not M.button.shown, "minimap: hidden by its setting")
