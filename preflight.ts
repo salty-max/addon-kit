@@ -31,7 +31,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 import { HIDDEN_LOCALES } from "./locales-lib";
 import { authoredChanged, coldBase, coldReadOf, isAuthored, languages, sourcePaths } from "./coldread";
-import { reviewOf } from "./review";
+import { pushProblem, reviewOf } from "./review";
 import { familyRoot } from "./root";
 import { read as readRepo, type Repo as StatusRepo } from "./status";
 import { ships as shipsPaths, type Build } from "./status-extras";
@@ -444,7 +444,14 @@ async function gather(name: string, family: Sibling[], fetch: boolean): Promise<
   // the harness's records
   add(repo.checked ? "✓" : "·", "check", repo.checked ? "passed on HEAD's tree" : "no stamp on HEAD's tree (release.sh runs the whole check on the bumped tree anyway)");
   const review = reviewOf(dir, head);
-  add(review ? "✓" : "!", "review", review ? `"${review.verdict}" on HEAD` : "none recorded on HEAD: packet.ts, then the reviewer");
+  if (review) add("✓", "review", `"${review.verdict}" on HEAD`);
+  else {
+    // (no review on HEAD's tree: fine when everything since the last tag is waived files, a release bump or a kit sync)
+    const tagSha = tag ? await git(dir, "rev-parse", `${tag}^{commit}`) : undefined;
+    const problem = pushProblem(dir, head, tagSha ?? "0".repeat(40));
+    if (problem) add("!", "review", `${problem}: packet.ts, then the reviewer`);
+    else add("·", "review", "none needed: what changed since the last tag is waived files only");
+  }
   const b = repo.build;
   if (!b) add("!", "test zip", "none in iCloud: bun run package, the zip alone");
   else if (b.state === "current") add("✓", "test zip", `${b.file} is what ships at HEAD (the test in the game is yours to say)`);
