@@ -121,6 +121,14 @@ game folder.
 Conventions: Conventional Commits, lowercase subjects, no AI co-author
 trailers; commit locally, ask before any push.
 
+## The test battery
+
+The mock (`wowmock.lua`) plus a strict layer that refuses what Blizzard's documentation says the client refuses
+(`strict.lua`), Forever's secret values (`secrets.lua`), the harness a matrix is made of (`battery.lua`), the
+generator of the documentation's tables (`apidocs.ts`) and the runner (`battery-lib.ts`). Primer's (5 November
+2026) moved into the kit. `kit:sync` copies the test files beside a `game.lua` that names `strict.lua`. How an
+addon joins, the matrix template and what it cannot see: `docs/battery.md`.
+
 ## Packaging and releasing
 
 Every addon packages and releases the same way. `scripts/package.ts` names

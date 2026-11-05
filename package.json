@@ -2,6 +2,6 @@
   "name": "addon-kit",
   "private": true,
   "scripts": {
-    "check": "stylua --check Kit.lua && luajit test.lua && bun test && (test ! -f ../harness/harness-sync.ts || bun ../harness/harness-sync.ts --check ..)"
+    "check": "stylua --check Kit.lua wowmock.lua strict.lua secrets.lua battery.lua strict_test.lua secrets_test.lua apidocs-dump.lua && luajit test.lua && luajit secrets_test.lua && bun test && (test ! -f ../harness/harness-sync.ts || bun ../harness/harness-sync.ts --check ..)"
   }
 }

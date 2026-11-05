@@ -23,7 +23,8 @@
  * Python script is there; the languages' core (locales-lib.ts) beside the
  * addon's scripts/locales.ts, the package's (package-lib.ts) beside its
  * scripts/package.ts, the tests' game (wowmock.lua) beside an addon/test/game.lua
- * that loads it. The kit's words, translated once
+ * that loads it, and the battery (strict.lua, secrets.lua, battery.lua, strict_test.lua in addon/test/, battery-lib.ts
+ * beside a scripts/battery.ts) where game.lua turns the strict game on (addon-kit/docs/battery.md). The kit's words, translated once
  * (addon-kit/i18n/<locale>.json), go into the addon's i18n/kit/. At the
  * repository's root: wow.yml, the game's globals for selene (beside a
  * selene.toml, whose std is "wow+<addon>": the addon's own globals its
@@ -36,7 +37,7 @@
  *
  * The stamp is the last commit of the kit's that touched what is copied
  * (Kit.lua, Media/, root.ts, root.py, locales-lib.ts, package-lib.ts,
- * wowmock.lua, i18n/, wow.yml, stylua.toml): a commit of the harness alone moves
+ * wowmock.lua, the battery's files, i18n/, wow.yml, stylua.toml): a commit of the harness alone moves
  * no stamp. The sync refuses uncommitted kit code (--dirty: a trial, its
  * stamp "+", which the check and preflight refuse). The check compares each
  * copy with the kit at its stamp (a hand edit, a stamp made up, fail), then
@@ -54,7 +55,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { join } from "node:path";
 
 const KIT = new URL(".", import.meta.url).pathname;
-const COPIED = ["Kit.lua", "Media", "root.ts", "root.py", "locales-lib.ts", "package-lib.ts", "wowmock.lua", "i18n", "wow.yml", "stylua.toml"];
+const COPIED = ["Kit.lua", "Media", "root.ts", "root.py", "locales-lib.ts", "package-lib.ts", "wowmock.lua", "strict.lua", "secrets.lua", "battery.lua", "strict_test.lua", "battery-lib.ts", "i18n", "wow.yml", "stylua.toml"];
 
 function git(...args: string[]): string | undefined {
   const p = Bun.spawnSync(["git", ...args], { cwd: KIT, stderr: "ignore" });
@@ -235,6 +236,11 @@ if (import.meta.main) {
   // (the tests' game, beside an addon/test/game.lua that loads it)
   const mock = join("addon", "test", "game.lua");
   if (existsSync(mock) && readFileSync(mock, "utf8").includes("wowmock.lua")) copies.push(["wowmock.lua", "--", join("addon", "test", "wowmock.lua")]);
+  // (the battery, beside a game.lua that turns the strict game on: the strict layer, the secret values, the harness
+  // a matrix is made of and the strict game's own test; its runner beside a scripts/battery.ts)
+  if (existsSync(mock) && readFileSync(mock, "utf8").includes("strict.lua"))
+    for (const name of ["strict.lua", "secrets.lua", "battery.lua", "strict_test.lua"]) copies.push([name, "--", join("addon", "test", name)]);
+  if (existsSync(join(scripts, "battery.ts"))) copies.push(["battery-lib.ts", "//", join(scripts, "battery-lib.ts")]);
   // (at the root: the linters' configs, where the addon has them)
   if (existsSync("selene.toml")) copies.push(["wow.yml", "#", "wow.yml"]);
   if (existsSync("stylua.toml")) copies.push(["stylua.toml", "#", "stylua.toml"]);

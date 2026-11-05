@@ -12,6 +12,7 @@ packet, task board, the desktop panel). Read the family's CLAUDE.md
 |---|---|
 | The Lua kit (books' look, list, page, board, banners, settings, welcome) | `Kit.lua` (its header lists what it holds), `Media/` |
 | How the kit reaches the addons (copies, stamps, kit:sync) | `README.md`, `sync.ts` |
+| The test battery (the strict mock, secret values, the matrix harness, the API tables generator, the runner) | `docs/battery.md`; `strict.lua`, `secrets.lua`, `battery.lua`, `strict_test.lua`, `battery-lib.ts`, `apidocs.ts` |
 | Every repository at once: status, one command each, secrets | `README.md` "Every repository at once"; `status.ts`, `each.ts`, `secret.ts` |
 | The harness: q, hooks, packet, review (before the commit), board, sessions opened by sessions, the event log. **Stamped copies of the standalone `../harness/` repository** (its tools and `githooks/`): edit them there, never here, then `bun harness/harness-sync.ts .` from the family folder. On a new machine the family root needs its one-line `harness.toml`: `include = "addon-kit/harness.family.toml"` | `harness/CLAUDE.md`, `harness/docs/design.md`; the config `harness.family.toml` (the family root's `harness.toml` includes it); the family's own extensions `packet-extras.ts` (riddle cards), `status-extras.ts` (iCloud builds); the plan and what was built: `docs/harness.md` |
 | The desktop panel and status line (piece D, a Claude Code mod) | `../harness/pane/README.md` (moved to the harness repository, 1 November 2026) |
