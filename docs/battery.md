@@ -41,7 +41,9 @@ to any makes every addon's copy stale until `kit:sync`.
    (`if PRIMER_BEFORE_LOAD then PRIMER_BEFORE_LOAD(G) end`), because an addon keeps a copy of the globals it uses.
 2. `bun scripts/root.ts --run addon-kit/apidocs.ts` writes the four tables (in `package.json`: `apidocs`,
    `apidocs:check`, the latter in `check`). It reads every Lua file under `addon/` except `test/`, `Text_*` and
-   anything that says GENERATED in its first lines. Rerun after a new Blizzard call, and after a pin moves.
+   anything that says GENERATED in its first lines. Rerun after a new Blizzard call, and after a pin moves. The tables carry a key of what they were made from (the
+   pin, what the addon calls, the two generator files): `--check` that finds the same key returns at once, and any
+   other change takes about 25 seconds, Blizzard's whole documentation read again.
 3. `scripts/battery.ts` lists the jobs for `runBattery` (see `battery-lib.ts`), and `check` runs it.
 4. `addon/test/matrix.lua`, from the template below.
 5. `bun run kit:sync`, `bun run apidocs`, `bun scripts/battery.ts`. The first run shows every call the mock lets
@@ -124,6 +126,23 @@ matrix names, with a version that answers with secret values: whole (one secret 
 plain table, every value in it secret). `each(label, name, whole)` plays the addon while it is so, and the failures
 go to `b.fail`. A guard that only checks `issecretvalue(x)` on the top value passes the whole run and fails the
 fields run, which is why both are played. Era has no secret values: `X.drive` says so and ends (the addon's own steps before it still run).
+
+## Options worth knowing
+
+- `B.new{ rules = { ascii = false, allow = { "\194\183" } } }`: what a word shown must not hold. `allow` takes out
+  signs the interface uses on purpose (Hearthtale's middle dot between an entry's title and its line).
+- `unanchored = function(window)`: windows the game places (a banner in the alert stack) are not audited for
+  their anchor.
+- `X.drive(G, { strict = G.strict, flaggedOnly = true, ... })`: only the calls Blizzard's documentation itself flags
+  as secret (`SecretReturns`, `SecretWhen*`), the ones the client really hides. The default goes further than the
+  flags, every call of the game, which is what Primer runs: a guard for a call nobody documents as secret is a
+  guess, and a matrix with `SECRETS=all` (Hearthtale's) shows what the guess would cost.
+- `TRACE=2000` keeps that many characters of a failure's traceback. A secret value used by the addon names the
+  first Lua line outside `secrets.lua` that did it, even from `tostring` or a format (when the mock does the
+  using, the mock's line: the longer trace shows the rest).
+- `kindOf`: how failures are grouped in the report. The default drops the case, so one cause in a hundred cases
+  prints once. A secrets run keeps the call in the key.
+- The battery lets its own `GetScale` through the strict game while it audits a window, and only then.
 
 ## What it cannot cover
 

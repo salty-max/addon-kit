@@ -39,7 +39,19 @@ for _, m in ipairs({
   "__le",
   "__tostring",
 }) do
-  boom[m] = function() error("attempt to use a secret value", 2) end
+  boom[m] = function()
+    -- (said where the addon did it: from C code, tostring or a format, the error has no place of its own)
+    local at = ""
+    for level = 2, 12 do
+      local info = debug.getinfo(level, "Sl")
+      if not info then break end
+      if info.what == "Lua" and not info.short_src:find("secrets.lua", 1, true) then
+        at = (" (%s:%d)"):format(info.short_src, info.currentline)
+        break
+      end
+    end
+    error("attempt to use a secret value" .. at, 2)
+  end
 end
 
 function X.install(G, known)
@@ -101,15 +113,33 @@ function X.targets(opts)
       end
     end
   end
+  local flagged = opts.strict and opts.strict.flagged or {}
+  local listed = {}
   for _, name in ipairs(opts.globals or {}) do
+    listed[name] = true
+  end
+  for name in pairs(opts.flaggedOnly and flagged or {}) do
+    if not name:find(".", 1, true) then listed[name] = true end
+  end
+  for name in pairs(listed) do
     if rawtype(_G[name]) == "function" then targets[#targets + 1] = { name, _G, name } end
   end
   table.sort(targets, function(a, b) return a[1] < b[1] end)
+  if opts.flaggedOnly then
+    local only = {}
+    for _, t in ipairs(targets) do
+      if flagged[t[1]] then only[#only + 1] = t end
+    end
+    targets = only
+  end
   return targets
 end
 
 -- opts.globals   the global functions to hide too, by name
 -- opts.skip      { C_Namespace = true } left alone
+-- opts.flaggedOnly  only the calls Blizzard's documentation itself flags as secret (strict.lua's flagged, which
+--                is why opts.strict, the strict game, is wanted with it): the calls the client really hides. The default
+--                goes further on purpose (Primer's), every call of the game, flagged or not
 -- opts.original  function(name, fn) -> a function to wrap instead of fn (for a call the test plays through
 --                itself, like UnitClass answering as the character being played), or nil
 -- opts.each      function(label, name, whole) called with the call replaced, to play the addon (open its
@@ -121,6 +151,8 @@ function X.drive(G, opts)
     io.write("✓ secrets: Classic Era has no secret values, nothing to run\n")
     return { targets = 0, flagged = 0, skipped = true }
   end
+  opts.strict = opts.strict or G.strict
+  assert(not opts.flaggedOnly or opts.strict, "flaggedOnly needs the strict game (opts.strict)")
   local targets = X.targets(opts)
   for _, target in ipairs(targets) do
     local name, tbl, key = target[1], target[2], target[3]
@@ -133,7 +165,7 @@ function X.drive(G, opts)
     tbl[key] = real
   end
   local n = 0
-  for _ in pairs(G.strict and G.strict.flagged or {}) do
+  for _ in pairs(opts.strict and opts.strict.flagged or {}) do
     n = n + 1
   end
   return { targets = #targets, flagged = n }

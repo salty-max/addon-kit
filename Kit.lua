@@ -2688,7 +2688,11 @@ function K.profiles(o)
     return t
   end
   function P:load(seed)
-    key = ("%s - %s"):format(UnitName("player") or "?", GetRealmName() or "?")
+    -- (a name the game hides is no name: "?", as when it has none)
+    local name, realm = UnitName("player"), GetRealmName()
+    if not name or K.secret(name) then name = "?" end
+    if not realm or K.secret(realm) then realm = "?" end
+    key = ("%s - %s"):format(name, realm)
     local t = saved()
     profile = t.profiles[key]
     if profile then return end
