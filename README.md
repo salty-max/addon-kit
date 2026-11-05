@@ -199,7 +199,7 @@ Databases, each addon's Game data), handled by the `wow-data-prs` skill:
 ```bash
 bun addon-kit/data-prs.ts                    # each job's last run, every data pull request open
 bun addon-kit/data-prs.ts --json             # the same as data (jobs, prs, errors), for Watchtower
-bun addon-kit/data-prs.ts facts [<pr>] [--out <file>]   # a players' facts pull request, line by line against the databases
+bun addon-kit/data-prs.ts facts [<pr>] [--out <file>]   # a players' facts pull request (left open), line by line against the databases; the job's own review is wow-data/bin/players-review.ts
 bun addon-kit/data-prs.ts db-diff <before.db> <after.db>  # two builds of a database: rows, ids lost, English names
 ```
 

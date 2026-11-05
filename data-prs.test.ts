@@ -75,6 +75,9 @@ describe("shapes and texts", () => {
     expect(textProblem("buy gold at goldshop.com now")).toBe("a link");
     expect(textProblem("|cffff0000red|r")).toContain("escape");
     expect(textProblem("<script>")).toBe("markup");
+    // (5 November 2026, #19: 19 false flags: a quest text's carriage returns, an NPC's emote)
+    expect(textProblem("Go.\r\n\r\nNow.")).toBeUndefined();
+    expect(textProblem("<The gaze of the ranger is fixed on the pylon.>")).toBeUndefined();
     expect(textProblem("a‮b")).toContain("hidden");
     expect(textProblem("x".repeat(4001))).toContain("characters");
   });
@@ -138,7 +141,7 @@ describe("a fact against the database", () => {
     expect(v(L("quest", "171", "title", "A Quest Nobody Has")).verdict).toBe("new");
     expect(v(L("loot", "npc:713", "item", "2652")).verdict).toBe("known");
     expect(v(L("loot", "npc:658", "item", "2652")).verdict).toBe("fills");
-    expect(v(L("loot", "npc:713", "item", "9")).verdict).toBe("flag");
+    expect(v(L("loot", "npc:713", "item", "9")).verdict).toBe("new");
     expect(v(L("gossip", "658", "text", "Ah, well.")).verdict).toBe("fills");
     expect(v(L("gossip", "713", "text", "Well met,\nfriend.")).verdict).toBe("known");
     expect(v(L("gossip", "713", "text", "Well met, friend")).why).toContain("a variant of a known line");
@@ -146,7 +149,7 @@ describe("a fact against the database", () => {
   });
   test("sightings: bounds, and how far from the known spawns (on the zone's map)", () => {
     expect(v(L("npc", "713", "where", "[1426,29.8,71.4]")).why).toContain("near its spawns");
-    expect(v(L("npc", "713", "where", "[1426,70,20]")).verdict).toBe("flag");
+    expect(v(L("npc", "713", "where", "[1426,70,20]")).verdict).toBe("far");
     expect(v(L("npc", "713", "where", "[1411,50,50]")).verdict).toBe("fills");
     expect(v(L("npc", "713", "where", "[1426,101,5]")).verdict).toBe("flag");
     expect(v(L("npc", "713", "where", "[0,5,5]")).verdict).toBe("flag");
@@ -158,7 +161,7 @@ describe("a fact against the database", () => {
   test("the report: counts by file, every line but the known ones", () => {
     const judged = [v(L("npc", "713", "name", "Balir Frosthammer")), v(L("npc", "713", "name", "Balir Hammer")), v(L("npc", "658", "level", "[3,4]"))];
     const r = report(judged, { classic: "70003" });
-    expect(r[0]).toBe("classic/enUS: 3 lines (0 one more player of a known fact), 1 known, 1 fill a gap, 0 new ids, 1 differ, 0 flagged");
+    expect(r[0]).toBe("classic/enUS: 3 lines (0 one more player of a known fact), 1 known, 1 fill a gap, 0 new ids, 0 far sightings, 1 differ, 0 flagged");
     expect(r[1]).toContain("70576 ahead of the pin");
     expect(r.join("\n")).toContain("Differs from the database (1):");
     expect(r.filter((l) => l.includes("npc 713 name"))).toHaveLength(1); // (the known line not listed)
@@ -233,7 +236,7 @@ describe("the pull requests and runs as data (--json)", () => {
     expect(lines[0]).toBe("Runs (each job's last):");
     expect(lines[1]).toBe("  ✓ wow-data           Pins (the builds)  success, today");
     expect(lines).toContain("\nOpen pull requests:");
-    expect(lines.find((l) => l.startsWith("  wow-data #8"))).toBe("  wow-data #8 t8 (players, opened 1 day ago, its checks ✗ failure, today)\n      strangers' facts: data-prs.ts facts, then the user's go  https://pr/8");
+    expect(lines.find((l) => l.startsWith("  wow-data #8"))).toBe("  wow-data #8 t8 (players, opened 1 day ago, its checks ✗ failure, today)\n      strangers' facts left open (the review stopped, or PLAYERS_AUTOMERGE is off): data-prs.ts facts, then the user's go  https://pr/8");
   });
   test("a repository that fails is said on its row, a red job prints its run's address, nothing open says none", () => {
     const boom = (): never => {
