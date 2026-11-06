@@ -58,7 +58,7 @@ every round picture. `kit:sync` copies it into each addon's `Media/`.
   (`luajit test.lua`: the select, the banners, the board and its rings, the
   slot, a page's list of cards, the figures; the rest is tested by each
   addon's simulation), commit.
-- `bun run check` runs them all (stylua's check, `luajit test.lua`, `bun
+- `bun run check` runs them all (stylua's check, `selene Kit.lua` with the addons' lint rules and `wow.yml`'s globals, `luajit test.lua`, `bun
   test`, the harness copies' `harness-sync --check`); through q.ts it stamps the tree,
   which a push asks for.
 - In each addon: `bun run kit:sync`, then its own checks. The copy's stamp

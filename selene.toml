@@ -1,0 +1,8 @@
+# Kit.lua, linted by selene in `bun run check`: Lua 5.1 and the game's globals in
+# wow.yml (std "wow", no addon's own globals), so a kit change that would fail an
+# addon's `lint:lua` after kit:sync fails here first.
+std = "wow"
+
+[lints]
+# layout is StyLua's: a guard or a callback on one line is as it writes them
+multiple_statements = "allow"

@@ -552,11 +552,15 @@ globals:
     any: true
   Settings:
     any: true
+  SettingsCallbackRegistry:
+    any: true
   SetUIVisibility:
     any: true
   should:
     any: true
   SlashCmdList:
+    any: true
+  SmartNavigation:
     any: true
   SOUNDKIT:
     any: true
