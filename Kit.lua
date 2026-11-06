@@ -3866,6 +3866,57 @@ function K.commands(o)
   end
 end
 
+-- ── the key binding ──────────────────────────────────────────────────────────
+-- The addon's window opened by one key or one pad button (the user's call of 6
+-- November 2026, for the controller: a pad has no keyboard for the slash
+-- command and a cursor must be steered to the 31 pixel minimap button). A
+-- binding with no key set does nothing at all: the player chooses the key in
+-- the game's Key Bindings, under the addon's own heading. The binding screen
+-- listens to pad buttons as well as keys (Blizzard_Keybindings.lua, both games:
+-- bun wow-data/bin/ui.ts find OnGamePadButtonDown).
+--   Bindings.xml (addon/<Name>/, loaded by the game on its own, no TOC line):
+--     <Bindings>
+--       <Binding name="YONDER_OPEN" category="BINDING_HEADER_YONDER">
+--         YonderBinding();
+--       </Binding>
+--     </Bindings>
+--   K.binding({ key = "YONDER", name = "Yonder", global = "YonderBinding",
+--     toggle = function() ns.toggle() end,   -- what the minimap button's click does
+--     outOfCombat = true, prefix = ns.PREFIX })
+-- key: the action is <key>_OPEN and the heading BINDING_HEADER_<key> (the
+-- category the screen groups by, a global it reads by name: the Bindings.xml's
+-- category must name it); global: the function the file's body calls. Both
+-- are set here, and so are the labels the screen shows (BINDING_NAME_<key>_OPEN
+-- is L["Open %s"], BINDING_HEADER_<key> the addon's name), through L, so run it
+-- after the addon's language file. bun addon-kit/bindings.ts checks the file.
+-- outOfCombat: a fight says one line (at most every five seconds) and opens
+-- nothing, for a window that reads nothing in combat (Primer). Without it the
+-- window opens as the minimap button's click does, fight or not: it is plain
+-- frames, which the game lets any addon show in combat. A toggle that raises
+-- is handed to the game's error handler, never swallowed.
+function K.binding(o)
+  -- (the game reads a binding's labels and its function by these global names)
+  -- selene: allow(global_usage)
+  _G["BINDING_HEADER_" .. o.key] = o.name
+  -- selene: allow(global_usage)
+  _G["BINDING_NAME_" .. o.key .. "_OPEN"] = L["Open %s"]:format(o.name)
+  local told
+  -- selene: allow(global_usage)
+  _G[o.global] = function()
+    if o.outOfCombat and InCombatLockdown and InCombatLockdown() then
+      local now = GetTime and GetTime() or 0
+      if not told or now - told >= 5 then
+        told = now
+        print((o.prefix or "") .. L["%s opens once the fight is over."]:format(o.name))
+      end
+      return
+    end
+    local ok, err = pcall(o.toggle)
+    if not ok then geterrorhandler()(err) end
+  end
+  return { action = o.key .. "_OPEN", global = o.global }
+end
+
 -- ── the Options page ─────────────────────────────────────────────────────────
 -- The addon's page in the game's Options (AddOns), where the client has the
 -- Settings panel: boxes, a slider, a choice, the opt-in, another character's

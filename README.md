@@ -155,6 +155,16 @@ generator of the documentation's tables (`apidocs.ts`) and the runner (`battery-
 2026) moved into the kit. `kit:sync` copies the test files beside a `game.lua` that names `strict.lua`. How an
 addon joins, the matrix template and what it cannot see: `docs/battery.md`.
 
+## Opening by a key or a pad button
+
+Each addon gets one key binding (the rollout is under way), "Open <the addon>", under its own heading in the game's Key Bindings, so a
+controller player (no keyboard for a slash command, a cursor to steer to a 31 pixel button) opens a window with one
+pad button. The addon carries `addon/<Name>/Bindings.xml` (four lines, calling one global function) and one
+`ns.kit.binding({...})` (`K.binding`: the labels through `L`, the function, a window that reads nothing in combat
+saying so); `bun addon-kit/bindings.ts check <repository…>` checks the file, the function, the labels and the
+package. Why the family now has a binding file, what the game does with one in each game and what is not verified:
+`docs/controller.md`, "Opening by a pad button".
+
 ## Packaging and releasing
 
 Every addon packages and releases the same way. `scripts/package.ts` names

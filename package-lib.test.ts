@@ -61,6 +61,18 @@ describe("the package", () => {
     expect(r.code).toBe(1);
     expect(r.out).toContain("Data_Forever.lua: a TOC loads it, but git doesn't carry it");
   });
+  test("a Bindings.xml git carries goes into the folder, one a TOC lists is refused", () => {
+    const s = scratch();
+    writeFileSync(join(s.src, "Bindings.xml"), "<Bindings></Bindings>\n");
+    s.git("add", "-A");
+    const ok = s.go("--no-zip");
+    expect(ok.code).toBe(0);
+    expect(existsSync(join(s.root, "dist", "X", "Bindings.xml"))).toBe(true);
+    writeFileSync(join(s.src, "X_Vanilla.toc"), toc("11509", "Data_Classic.lua") + "Bindings.xml\n");
+    const r = s.go("--check");
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("X_Vanilla.toc lists Bindings.xml");
+  });
   test("a Notes line in a language held back: refused", () => {
     if (!HIDDEN_LOCALES.includes("deDE")) return;
     const s = scratch();

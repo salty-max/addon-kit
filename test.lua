@@ -1258,6 +1258,71 @@ do
   SlashCmdList, SLASH_KITTEST1, SLASH_KITTEST2 = nil, nil, nil
 end
 
+-- The key binding: the labels the Key Bindings screen reads, and the function
+-- the Bindings.xml calls, which opens the window as the minimap button does,
+-- fight or not, unless the window reads nothing in combat (then one quiet line).
+do
+  local K = load()
+  local opened, said = 0, {}
+  local print0, getTime, inCombat = print, GetTime, InCombatLockdown
+  local now = 1000
+  GetTime = function() return now end
+  -- (what the function says in chat is caught, the checks print as ever)
+  local function press(name)
+    print = function(line) table.insert(said, line) end
+    local ok, err = pcall(_G[name])
+    print = print0
+    return ok, err
+  end
+  local made = K.binding({
+    key = "KITBIND",
+    name = "Kit Bind",
+    global = "KitBindOpen",
+    toggle = function() opened = opened + 1 end,
+    outOfCombat = true,
+    prefix = "Kit: ",
+  })
+  check(made.action == "KITBIND_OPEN" and made.global == "KitBindOpen", "binding: the action and the function named")
+  check(BINDING_HEADER_KITBIND == "Kit Bind", "binding: the heading is the addon's name")
+  check(BINDING_NAME_KITBIND_OPEN == "Open Kit Bind", "binding: the action's label says what it does")
+  press("KitBindOpen")
+  check(opened == 1, "binding: the function toggles the window")
+  InCombatLockdown = function() return true end -- (a fight)
+  press("KitBindOpen")
+  press("KitBindOpen")
+  check(opened == 1, "binding: a window that reads nothing in combat stays shut in a fight")
+  check(
+    #said == 1 and said[1] == "Kit: Kit Bind opens once the fight is over.",
+    "binding: one quiet line, not one a press"
+  )
+  now = now + 6
+  press("KitBindOpen")
+  check(#said == 2, "binding: the line again after five seconds")
+  InCombatLockdown = function() return false end
+  press("KitBindOpen")
+  check(opened == 2, "binding: after the fight it opens again")
+
+  -- without outOfCombat, a fight does not stop it, and a raising toggle reaches the error handler
+  InCombatLockdown = function() return true end
+  local plain = 0
+  K.binding({ key = "KITPLAIN", name = "Plain", global = "KitPlainOpen", toggle = function() plain = plain + 1 end })
+  press("KitPlainOpen")
+  check(plain == 1 and #said == 2, "binding: without the flag it opens in a fight too, as the minimap button does")
+  K.binding({ key = "KITBAD", name = "Bad", global = "KitBadOpen", toggle = function() error("boom", 0) end })
+  local handler, handled = geterrorhandler, nil
+  geterrorhandler = function()
+    return function(e) handled = e end
+  end
+  local ok = press("KitBadOpen")
+  geterrorhandler = handler
+  check(ok and handled == "boom", "binding: a toggle that raises is handed to the error handler")
+  GetTime, InCombatLockdown = getTime, inCombat
+  KitBindOpen, KitPlainOpen, KitBadOpen = nil, nil, nil
+  BINDING_HEADER_KITBIND, BINDING_NAME_KITBIND_OPEN = nil, nil
+  BINDING_HEADER_KITPLAIN, BINDING_NAME_KITPLAIN_OPEN = nil, nil
+  BINDING_HEADER_KITBAD, BINDING_NAME_KITBAD_OPEN = nil, nil
+end
+
 -- A book's achievements: kept quietly at the login, earned with a line and
 -- the fanfare, the alert behind the addon's switch.
 do
