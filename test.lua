@@ -1423,9 +1423,7 @@ do
   check(#timers == 0, "book: nothing before it's made")
   B:open(1)
   local f = B.frame
-  for _, fn in ipairs(f.hooks.OnShow) do
-    fn(f)
-  end -- (the book's own OnShow is a hook, so the Gamepad UI's stays)
+  f.scripts.OnShow(f)
   check(
     log[1] == "build 1" and log[#log] == "refresh 1 scroll",
     "book: a tab built on first showing, refreshed to its row"
@@ -1824,30 +1822,58 @@ do
   print = realPrint
   check(said[1] and said[1]:find("^%[P%] Controller: Gamepad UI") ~= nil, "pad: /<addon> pad prints the trace")
 
-  -- the book's window: its own OnShow must not replace the Gamepad UI's hook (the game's SetScript does, the mock now too)
+  -- the book's window: its own OnShow is a script, the Gamepad UI's hook comes after it (the game's SetScript
+  -- drops every hook, the mock too), so the first tab is built when the manager is told
   do
     local before = #calls
+    local order = {}
     local Bk = Kf.book({ name = "PadBook", title = "Pad", titles = { "One" } })
-    Bk:add(1, { build = function() end, show = function() end, refresh = function() end })
+    Bk:add(1, { build = function() end, show = function() table.insert(order, "B:show") end, refresh = function() end })
     local bw = Bk:window()
+    local shown = manager.FrameShown
+    function manager.FrameShown(...)
+      table.insert(order, "FrameShown")
+      return shown(...)
+    end
+    local own = bw.scripts.OnShow
+    check(own ~= nil, "pad: the book keeps its own OnShow as a script")
+    order = {}
+    if own then own(bw) end -- (what the game runs on showing: the script, then the hooks; fire runs the hooks)
     fire(bw, "OnShow")
+    check(
+      order[1] == "B:show" and order[#order] == "FrameShown",
+      "pad: the Gamepad UI's hook survived the book's SetScript and runs after B:show"
+    )
+    manager.FrameShown = shown
     local told = calls[#calls]
     check(
-      #calls == before + 1 and told[1] == "FrameShown" and told[3] == bw,
+      told[1] == "FrameShown" and told[3] == bw and #calls > before,
       "pad: a book window tells the Gamepad UI it was shown"
     )
     fire(bw, "OnHide")
     check(calls[#calls][1] == "FrameHidden" and calls[#calls][3] == bw, "pad: and that it was hidden")
+    check(#rawget(bw, "hooks").OnShow == 1, "pad: one hook on show, however often it is set")
+    Kf.padHook(bw)
+    check(#rawget(bw, "hooks").OnShow == 1, "pad: K.padHook is idempotent")
   end
-  -- the welcome's OnHide is also a hook (read from the source: its window is built only with real art): only K.welcome's own body is searched
+  -- the welcome's window is built only with real art: its body is searched, in order. Its own OnHide is set
+  -- before K.padHook (SetScript drops hooks), and K.movable leaves the hook to it (kitPadLate).
   do
     local src = io.open("Kit.lua"):read("*a")
     local from = src:find("\nfunction K.welcome(", 1, true)
     local to = from and src:find("\nfunction K%.", from + 1)
     local body = from and src:sub(from, (to or #src + 1) - 1) or ""
+    local set = body:find('frame:SetScript%("OnHide"')
+    local hook = body:find("K.padHook(frame)", 1, true)
+    local late = body:find("frame.kitPadLate = true", 1, true)
+    local movable = body:find("K.movable(frame", 1, true)
     check(
-      from ~= nil and body:find("K.movable(", 1, true) ~= nil and body:find(":SetScript%(%s*[\"']OnHide") == nil,
-      "pad: the welcome window sets no SetScript OnHide after K.movable (it would drop the Gamepad UI hook)"
+      set and hook and set < hook and late and movable and late < movable,
+      "pad: the welcome sets its own OnHide before K.padHook(frame), and says kitPadLate before K.movable"
+    )
+    check(
+      body:find('frame:HookScript%("OnHide"%s*,%s*function%(%) P:set') == nil,
+      "pad: the welcome's own OnHide is not a hook"
     )
   end
 

@@ -4,8 +4,8 @@ The user's call of 6 November 2026: controller support is for WoW Forever only, 
 controller support. The research is `ideas/controller-support.md` (family folder). What the kit does:
 
 - **Tells the Gamepad UI the windows exist.** Forever's Gamepad UI walks the D-pad across the buttons of the
-  windows its `GamepadMode.FrameControlsManager` knows. `K.movable` (every kit window: the book, the welcome
-  dialog) hooks OnShow and OnHide and calls `FrameShown(window)` and `FrameHidden(window)` as Blizzard's own
+  windows its `GamepadMode.FrameControlsManager` knows. `K.movable` (every kit window; the book and the welcome
+  dialog do it themselves, right after their own `SetScript`, see the end) hooks, through `K.padHook`, OnShow and OnHide and calls `FrameShown(window)` and `FrameHidden(window)` as Blizzard's own
   windows do (`FloatingChatFrame.lua`, `ReportFrameShared.lua`, `Blizzard_SecureTransferUIOutbound.lua`). The
   manager does nothing while the Gamepad UI is off, and on Era there is no `GamepadMode`, so `padCall` returns
   before any call (nothing is created either). The call goes through `securecallfunction` (as Blizzard's popup code
@@ -147,8 +147,10 @@ Tests: `test.lua`, the block "The controller".
 
 ## Not verified in the game
 
-- `K.movable` registers its hook first, so for a book `FrameShown` runs before the first tab is built on the
-  very first showing (the book's own OnShow hook runs after it). If Blizzard's `FrameShown` collects the window's
-  buttons at that moment, the first tab's rows would be missing from the D-pad ring on the first open only. A
-  person with the Gamepad UI on settles it: open a book for the first time after a reload and see whether the ring
-  reaches the rows (the `/<addon> pad` line says the call ran, not what it saw).
+- The book's first tab is built before the manager is told. The book and the welcome set their own OnShow and
+  OnHide with `SetScript` (as before), which in the game drops every hook on the window, so they say `kitPadLate`
+  before `K.movable` (which then leaves the hooks) and call `K.padHook(window)` right after their own `SetScript`:
+  the Gamepad UI's hooks are the last, and `FrameShown` runs after `B:show` has built the first tab. Whether
+  Blizzard's `FrameShown` then sees the rows is still for a person with the Gamepad UI on: open a book for the first
+  time after a reload and see whether the ring reaches the rows (the `/<addon> pad` line says the call ran, not
+  what it saw). Tests: `test.lua`, "pad: the book's own OnShow runs before FrameShown", and the welcome's order.

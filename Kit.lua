@@ -3520,6 +3520,21 @@ function K.padReport()
   )
 end
 
+-- The Gamepad UI told when a window shows and hides: two hooks, once. The game's
+-- SetScript on OnShow or OnHide drops every hook on it, so a window that sets
+-- its own (the book's OnShow, the welcome's OnHide) sets kitPadLate before
+-- K.movable (which then leaves it) and calls this right after its own
+-- SetScript: the hook is last, and runs after the window's own handler (the
+-- book has built its first tab when the manager looks for buttons). After it,
+-- only HookScript on the window, never SetScript (it would drop the hooks, and
+-- a second K.padHook would not put them back).
+function K.padHook(window)
+  if rawget(window, "kitPadHooked") then return end
+  window.kitPadHooked = true
+  window:HookScript("OnShow", function(self) padCall("FrameShown", self) end)
+  window:HookScript("OnHide", function(self) padCall("FrameHidden", self) end)
+end
+
 -- A window that can be moved, kept on screen, above the game's panels, and
 -- closed by Escape (by its name: a window of K.gameWindow or K.dialog); left
 -- hidden, as a new frame is shown: its first Show is then a showing (OnShow).
@@ -3551,9 +3566,8 @@ function K.movable(window, width, height, place)
   end)
   table.insert(UISpecialFrames, window.kitName)
   window:Hide()
-  -- (hooks, not scripts: an addon's own OnShow on the window stays its own)
-  window:HookScript("OnShow", function(self) padCall("FrameShown", self) end)
-  window:HookScript("OnHide", function(self) padCall("FrameHidden", self) end)
+  -- (a window that sets its own OnShow or OnHide says kitPadLate before this, and calls K.padHook after them)
+  if not rawget(window, "kitPadLate") then K.padHook(window) end
 end
 
 -- ── the book ─────────────────────────────────────────────────────────────────
@@ -3633,6 +3647,7 @@ function K.book(o)
     local window = K.gameWindow(o.name, o.title, o.art)
     local f = window or K.dialog(o.name, o.title)
     B.frame = f
+    f.kitPadLate = true -- (the book sets its own OnShow below: K.padHook comes after it)
     K.movable(f, K.BOOK_W, K.BOOK_H, o.place and o.place())
     local edge = window and 8 or 14
     f.count = K.label(f, K.BODY_FONT, 11, T.gold)
@@ -3660,8 +3675,8 @@ function K.book(o)
       f.filter:Hide()
     end
     f.selectedTab = o.first or 1
-    -- (a hook, not a script: SetScript would replace the handler and the Gamepad UI hook K.movable put on it)
-    f:HookScript("OnShow", function() B:show(f.selectedTab) end)
+    f:SetScript("OnShow", function() B:show(f.selectedTab) end)
+    K.padHook(f) -- (after it: SetScript drops hooks, and the manager looks at the tab built above)
     K.tabs(f, o.titles, function(n)
       local chosen = B.tabs[n].chosen
       if chosen then chosen() end
@@ -4238,6 +4253,7 @@ function K.welcome(o)
   local function build()
     local choices = o.choices()
     frame = K.gameWindow(o.name, o.title, o.art) or K.dialog(o.name, o.title)
+    frame.kitPadLate = true -- (the welcome sets its own OnHide below: K.padHook comes after it)
     K.movable(frame, WELCOME_W, WELCOME_H + math.max(0, #choices - 3) * WELCOME_ROW)
     frame:SetFrameStrata("DIALOG")
 
@@ -4322,7 +4338,8 @@ function K.welcome(o)
     -- (built hidden: a new frame is shown, and its first Show would be no
     -- showing at all; W:Show refreshes it itself)
     frame:Hide()
-    frame:HookScript("OnHide", function() P:set("welcomed", true) end) -- (a hook: K.movable's Gamepad UI hook stays)
+    frame:SetScript("OnHide", function() P:set("welcomed", true) end)
+    K.padHook(frame) -- (after it: SetScript drops hooks)
     W.frame, W.rows, W.picker, W.code = frame, rows, picker, code -- (for the tests)
   end
 
