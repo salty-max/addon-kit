@@ -27,7 +27,7 @@
  *   - an addon by hand declares its function in the repository's selene
  *     globals file (<addon>.yml) when it has one.
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -65,14 +65,23 @@ const globTest = (glob: string, path: string) =>
 /** The addon folders of a path: the folder itself when it holds a TOC, else each addon/<Name> of the repository. */
 export function addonFolders(path: string): string[] {
   const p = resolve(path);
-  const hasToc = (d: string) => existsSync(d) && readdirSync(d).some((f) => f.endsWith(".toc"));
+  const isDir = (d: string) => existsSync(d) && statSync(d).isDirectory();
+  const hasToc = (d: string) => isDir(d) && readdirSync(d).some((f) => f.endsWith(".toc"));
   if (hasToc(p)) return [p];
   const dir = join(p, "addon");
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
+  if (!isDir(dir)) return [];
+  // (the addon is the one scripts/package.ts names: Hearthtale ships a French data addon beside it)
+  const pkg = join(p, "scripts", "package.ts");
+  const named = existsSync(pkg) ? readFileSync(pkg, "utf8").match(/\bname:\s*"([^"]+)"/)?.[1] : undefined;
+  if (named && hasToc(join(dir, named))) return [join(dir, named)];
+  const all = readdirSync(dir)
     .map((n) => join(dir, n))
     .filter(hasToc)
     .sort();
+  // (a folder shipped beside the addon for one game, Yonder's old-name handover, is no addon of its own:
+  // the addon is the one with a TOC for each game)
+  const both = all.filter((d) => ["Vanilla", "Camelot"].every((g) => existsSync(join(d, `${basename(d)}_${g}.toc`))));
+  return both.length ? both : all;
 }
 
 const tocsOf = (dir: string) => readdirSync(dir).filter((f) => f.endsWith(".toc"));

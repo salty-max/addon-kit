@@ -49,6 +49,21 @@ describe("the binding check", () => {
     expect(addonFolders(dir)).toEqual([dir]);
   });
 
+  test("a folder for one game beside the addon (a handover) is no addon, a file in addon/ is no folder", () => {
+    const { root, dir } = scratch({ "Bindings.xml": xml(), "Core.lua": kitCall(), "X_Camelot.toc": toc });
+    const other = join(root, "addon", "Old");
+    mkdirSync(other);
+    writeFileSync(join(other, "Old_Vanilla.toc"), "## Interface: 11509\n");
+    writeFileSync(join(root, "addon", "STORE.md"), "x\n");
+    expect(addonFolders(root)).toEqual([dir]);
+    // (and the one package.ts names, whatever else has both TOCs)
+    mkdirSync(join(root, "scripts"));
+    writeFileSync(join(other, "Old_Camelot.toc"), "## Interface: 16001\n");
+    expect(addonFolders(root).length).toBe(2);
+    writeFileSync(join(root, "scripts", "package.ts"), 'run({ root, name: "X", games: {} });\n');
+    expect(addonFolders(root)).toEqual([dir]);
+  });
+
   test("no file, two bindings, a wrong name, a wrong category, a header, a body that isn't one call", () => {
     expect(checkAddon(scratch({ "Core.lua": kitCall() }).dir).problems.join()).toContain("Bindings.xml: none");
     const two = xml().replace("</Bindings>", "\t<Binding name=\"Y_OPEN\">YBinding();</Binding>\n</Bindings>");
