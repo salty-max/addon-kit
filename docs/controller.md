@@ -37,3 +37,11 @@ controller support. The research is `ideas/controller-support.md` (family folder
 - The line is English, a diagnosis for us.
 
 Tests: `test.lua`, the block "The controller".
+
+## Not verified in the game
+
+- `K.movable` registers its hook first, so for a book `FrameShown` runs before the first tab is built on the
+  very first showing (the book's own OnShow hook runs after it). If Blizzard's `FrameShown` collects the window's
+  buttons at that moment, the first tab's rows would be missing from the D-pad ring on the first open only. A
+  person with the Gamepad UI on settles it: open a book for the first time after a reload and see whether the ring
+  reaches the rows (the `/<addon> pad` line says the call ran, not what it saw).

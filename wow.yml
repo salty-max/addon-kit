@@ -19,8 +19,6 @@ globals:
     any: true
   AlertFrame_OnClick:
     any: true
-  be:
-    any: true
   bit:
     any: true
   ButtonFrameTemplate_HideButtonBar:

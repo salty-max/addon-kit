@@ -19,7 +19,12 @@ local function frame()
   return setmetatable(f, {
     __index = function(_, k)
       if k == "SetScript" then
-        return function(self, n, fn) self.scripts[n] = fn end
+        -- (as the game does: a script replaces the handler AND every hook on it)
+        return function(self, n, fn)
+          self.scripts[n] = fn
+          local hooks = rawget(self, "hooks")
+          if hooks then hooks[n] = nil end
+        end
       end
       -- (hooks and hit rectangles, remembered: the controller's tests read them)
       if k == "HookScript" then
@@ -1353,7 +1358,9 @@ do
   check(#timers == 0, "book: nothing before it's made")
   B:open(1)
   local f = B.frame
-  f.scripts.OnShow(f)
+  for _, fn in ipairs(f.hooks.OnShow) do
+    fn(f)
+  end -- (the book's own OnShow is a hook, so the Gamepad UI's stays)
   check(
     log[1] == "build 1" and log[#log] == "refresh 1 scroll",
     "book: a tab built on first showing, refreshed to its row"
@@ -1698,6 +1705,7 @@ do
   )
   check(secure == 2, "pad: both calls through securecallfunction")
   check(Kf.pad.shown == 1 and Kf.pad.hidden == 1 and Kf.pad.failed == 0, "pad: counted")
+
   check(Kf.padReport():find("told shown 1, hidden 1, raised 0", 1, true) ~= nil, "pad: the trace reports the counts")
 
   -- (an older client without securecallfunction: the plain call)
@@ -1750,6 +1758,33 @@ do
   SlashCmdList.PADTEST("pad")
   print = realPrint
   check(said[1] and said[1]:find("^%[P%] Controller: Gamepad UI") ~= nil, "pad: /<addon> pad prints the trace")
+
+  -- the book's window: its own OnShow must not replace the Gamepad UI's hook (the game's SetScript does, the mock now too)
+  do
+    local before = #calls
+    local Bk = Kf.book({ name = "PadBook", title = "Pad", titles = { "One" } })
+    Bk:add(1, { build = function() end, show = function() end, refresh = function() end })
+    local bw = Bk:window()
+    fire(bw, "OnShow")
+    local told = calls[#calls]
+    check(
+      #calls == before + 1 and told[1] == "FrameShown" and told[3] == bw,
+      "pad: a book window tells the Gamepad UI it was shown"
+    )
+    fire(bw, "OnHide")
+    check(calls[#calls][1] == "FrameHidden" and calls[#calls][3] == bw, "pad: and that it was hidden")
+  end
+  -- the welcome's OnHide is also a hook (read from the source: its window is built only with real art): only K.welcome's own body is searched
+  do
+    local src = io.open("Kit.lua"):read("*a")
+    local from = src:find("\nfunction K.welcome(", 1, true)
+    local to = from and src:find("\nfunction K%.", from + 1)
+    local body = from and src:sub(from, (to or #src + 1) - 1) or ""
+    check(
+      from ~= nil and body:find("K.movable(", 1, true) ~= nil and body:find(":SetScript%(%s*[\"']OnHide") == nil,
+      "pad: the welcome window sets no SetScript OnHide after K.movable (it would drop the Gamepad UI hook)"
+    )
+  end
 
   -- the dialog: its close button is the field the Gamepad UI closes by
   local made = {}

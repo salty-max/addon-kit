@@ -3660,7 +3660,8 @@ function K.book(o)
       f.filter:Hide()
     end
     f.selectedTab = o.first or 1
-    f:SetScript("OnShow", function() B:show(f.selectedTab) end)
+    -- (a hook, not a script: SetScript would replace the handler and the Gamepad UI hook K.movable put on it)
+    f:HookScript("OnShow", function() B:show(f.selectedTab) end)
     K.tabs(f, o.titles, function(n)
       local chosen = B.tabs[n].chosen
       if chosen then chosen() end
@@ -4270,7 +4271,7 @@ function K.welcome(o)
     -- (built hidden: a new frame is shown, and its first Show would be no
     -- showing at all; W:Show refreshes it itself)
     frame:Hide()
-    frame:SetScript("OnHide", function() P:set("welcomed", true) end)
+    frame:HookScript("OnHide", function() P:set("welcomed", true) end) -- (a hook: K.movable's Gamepad UI hook stays)
     W.frame, W.rows, W.picker, W.code = frame, rows, picker, code -- (for the tests)
   end
 
