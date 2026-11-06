@@ -1285,6 +1285,7 @@ function K.page(parent, name, o)
   o = o or {}
   local width = o.width or K.PAGE_WIDTH
   local p = extend(K.scrollArea(parent, width, name), Page)
+  p.kitText = true -- (the stick scrolls it: K.padText)
   p.width, p.labelWidth, p.pairs, p.headings = width, o.labelWidth or 110, o.pairs or {}, {}
   p.cards, p.paragraphs, p.tiles, p.itemPool, p.chipPool = {}, {}, {}, {}, {}
   p.texts, p.asides, p.voices, p.boxes, p.buttonPool = {}, {}, {}, {}, {}
@@ -1936,6 +1937,7 @@ function K.board(o)
   local width = o.width or 700
   local B = { rows = o.rows or {}, headers = {} }
   local scroll = K.scrollArea(o.parent, width, o.name)
+  scroll.kitText = true -- (the stick scrolls it: K.padText)
   scroll:SetPoint("TOPLEFT", 22, -18)
   scroll:SetPoint("BOTTOMRIGHT", -22, 14)
   B.scroll = scroll
@@ -3440,8 +3442,10 @@ end
 -- it is behind pcall: a window's own showing never depends on it. ("raised" is
 -- a lower bound: securecallfunction may hand an error to the game's handler.)
 K.pad = { shown = 0, hidden = 0, failed = 0, blocked = 0, waiting = 0 }
+K.padOn = true -- (a switch for a session: /<addon> pad off stops telling the manager, pad on starts again)
 local padWatch
 local padTold, padWait = {}, {} -- (windows the manager was told of; windows to settle after a fight)
+local padWindows = setmetatable({}, { __mode = "k" }) -- (every window K.padHook hooked)
 local function padManager()
   local mode = GamepadMode
   local manager = type(mode) == "table" and mode.FrameControlsManager
@@ -3452,7 +3456,7 @@ local function padSettle()
   for window in pairs(padWait) do
     padWait[window] = nil
     K.pad.waiting = K.pad.waiting - 1
-    local shown = window:IsShown() and true or false
+    local shown = window:IsShown() and K.padOn and true or false
     if shown and not padTold[window] then
       padCall("FrameShown", window)
     elseif not shown and padTold[window] then
@@ -3462,6 +3466,7 @@ local function padSettle()
 end
 K.padSettle = padSettle -- (the fight's end; the tests call it)
 function padCall(method, window)
+  if method == "FrameShown" and not K.padOn then return end
   local manager = padManager()
   local fn = manager and manager[method]
   if type(fn) ~= "function" then return end
@@ -3491,6 +3496,7 @@ function padCall(method, window)
   if ok then
     pad[key] = pad[key] + 1
     padTold[window] = method == "FrameShown" or nil
+    if method == "FrameShown" then K.padText(window) end
   else
     pad.failed = pad.failed + 1
     pad.last = tostring(err)
@@ -3508,7 +3514,7 @@ function K.padReport()
     local ok, on = pcall(InputUtil.IsGamepadUIEnabled)
     if ok then ui = on and "on" or "off" end
   end
-  return ("Controller: Gamepad UI %s, manager %s, told shown %d, hidden %d, raised %d%s, blocked %d, waiting %d"):format(
+  return ("Controller: Gamepad UI %s, manager %s, told shown %d, hidden %d, raised %d%s, blocked %d, waiting %d, stick set %d, no panel %d, registration %s"):format(
     ui,
     padManager() and "found" or "absent",
     pad.shown,
@@ -3516,8 +3522,140 @@ function K.padReport()
     pad.failed,
     pad.last and (" (" .. pad.last .. ")") or "",
     pad.blocked,
-    pad.waiting
+    pad.waiting,
+    pad.scrolled or 0,
+    pad.nopanel or 0,
+    K.padOn and "on" or "off"
   )
+end
+
+-- The stick. Forever's Smart Navigation scrolls, with the right stick, the one
+-- scroll frame it has on record for the window it is on (its panel info's
+-- currentScrollFrame, SmartNavigation.lua OnGamepadRightStick): the frame
+-- around the button the cursor stands on, found by FindButtons (a ScrollFrame
+-- with buttons inside it), or the one a window sets itself with
+-- SmartNavigation:SetScrollFrameForFrame(window, scrollFrame), as the mail
+-- window and the quest map do for text that holds no button. A page of text
+-- has none, so the stick scrolled nothing. K.page, K.board and the welcome's
+-- intro are marked kitText; this sets the visible one (the first with
+-- something to scroll) for its window once the manager has the window, and
+-- again when a book changes tab. The call finds the panel info only if the
+-- window already has one (it is made by the focus, inside FrameShown), and
+-- writes panelInfo.currentScrollFrame and, if the window is the active one,
+-- Smart Navigation's stick flags (SmartNavigation.lua:908-916, 242-256): writes by
+-- our execution into Blizzard's tables, so taintReport looks at them too (and
+-- /<addon> pad off stops it). Through securecallfunction, behind pcall, as the
+-- other calls are. Not verified in the game: whether the focus has made the
+-- panel info by then (the trace counts "stick set" and "no panel" apart).
+local function padFindText(frame, depth)
+  if rawget(frame, "kitText") and frame:IsVisible() then return frame end
+  if depth > 6 or not frame.GetChildren then return nil end
+  local first
+  for _, child in ipairs({ frame:GetChildren() }) do
+    local found = padFindText(child, depth + 1)
+    if found then
+      if found.Range and found:Range() > 0 then return found end
+      first = first or found
+    end
+  end
+  return first
+end
+function K.padText(window)
+  if not K.padOn or not padTold[window] then return end
+  local nav = SmartNavigation
+  if type(nav) ~= "table" or type(nav.SetScrollFrameForFrame) ~= "function" then return end
+  local scroll = padFindText(window, 0)
+  if not scroll then return end
+  local run = securecallfunction or function(f, ...) return f(...) end
+  -- (the call does nothing without a panel info for the window: counted apart)
+  local has = type(nav.GetPanelInfo) ~= "function" or select(2, pcall(run, nav.GetPanelInfo, nav, window, true))
+  if not has then
+    K.pad.nopanel = (K.pad.nopanel or 0) + 1
+    return
+  end
+  if pcall(run, nav.SetScrollFrameForFrame, nav, window, scroll) then K.pad.scrolled = (K.pad.scrolled or 0) + 1 end
+end
+
+-- Turns the registration off or on for the session (not saved): off tells the
+-- manager every window of ours is hidden and stops telling it, on tells it
+-- about the ones shown. A way to settle, in the game, whether it is what
+-- taints Blizzard's own code: the same action, once with it on, once off.
+function K.padSet(on)
+  K.padOn = on and true or false
+  for window in pairs(padWindows) do
+    if K.padOn then
+      if window:IsShown() then padCall("FrameShown", window) end
+    elseif padTold[window] then
+      padCall("FrameHidden", window)
+    end
+  end
+end
+
+-- Who tainted what the game's own code reads. Taint is how a value written by
+-- an addon's execution reads for every later reader (issecurevariable(table,
+-- key) gives the name of the addon that wrote the slot): a Blizzard function
+-- that reads one runs tainted from then on, and in Forever a tainted
+-- execution cannot compare a secret value (the error "attempt to compare a
+-- secret number value (execution tainted by X)"). This looks at the slots our
+-- two entries into Blizzard's code could have written: the Gamepad UI's
+-- manager and Smart Navigation (what FrameShown writes), the settings'
+-- callback registry (what runs when a setting changes), and the Escape list.
+-- It lists every slot in them tainted by anyone, with the name. (Not
+-- translated, a diagnosis for us.)
+local function taintOf(tbl, key)
+  if type(tbl) ~= "table" or type(issecurevariable) ~= "function" then return nil end
+  local ok, secure, who = pcall(issecurevariable, tbl, key)
+  if ok and secure == false then return who or "?" end
+end
+function K.taintReport()
+  if type(issecurevariable) ~= "function" then return "Taint: not checkable here (no issecurevariable)" end
+  local found = {}
+  local function look(label, tbl, keys)
+    for _, key in ipairs(keys) do
+      local who = taintOf(tbl, key)
+      if who then table.insert(found, ("%s.%s by %s"):format(label, tostring(key), who)) end
+    end
+  end
+  local manager = padManager()
+  if manager then
+    look(
+      "manager",
+      manager,
+      { "shownFrames", "focusedFrame", "isUIFocused", "topSuspendedFrame", "isPopupFrame", "prevFrame", "nextFrame" }
+    )
+    if type(manager.shownFrames) == "table" then
+      for i = 1, #manager.shownFrames do
+        look("manager.shownFrames", manager.shownFrames, { i })
+      end
+    end
+  end
+  if type(SmartNavigation) == "table" then
+    look(
+      "SmartNavigation",
+      SmartNavigation,
+      { "activePanels", "activeInfo", "currentButton", "hookedFrames", "rightStickScrolling", "enabled" }
+    )
+    if type(SmartNavigation.activeInfo) == "table" then
+      look("SmartNavigation.activeInfo", SmartNavigation.activeInfo, { "frame", "currentScrollFrame", "buttonGroups" })
+    end
+    if type(SmartNavigation.activePanels) == "table" then
+      for i, info in ipairs(SmartNavigation.activePanels) do
+        look("SmartNavigation.activePanels[" .. i .. "]", info, { "frame", "currentScrollFrame", "buttonGroups" })
+      end
+    end
+  end
+  if type(SettingsCallbackRegistry) == "table" and type(SettingsCallbackRegistry.executingEvents) == "table" then
+    look("SettingsCallbackRegistry", SettingsCallbackRegistry, { "executingEvents" })
+    look("SettingsCallbackRegistry.executingEvents", SettingsCallbackRegistry.executingEvents, { "PROXY_STATUS_TEXT" })
+  end
+  local escapes = 0
+  if type(UISpecialFrames) == "table" then
+    for i = 1, #UISpecialFrames do
+      if taintOf(UISpecialFrames, i) == addonName then escapes = escapes + 1 end
+    end
+  end
+  local out = #found == 0 and "clean" or table.concat(found, "; ")
+  return ("Taint: %s (Escape list slots by us: %d)"):format(out, escapes)
 end
 
 -- The Gamepad UI told when a window shows and hides: two hooks, once. The game's
@@ -3531,6 +3669,7 @@ end
 function K.padHook(window)
   if rawget(window, "kitPadHooked") then return end
   window.kitPadHooked = true
+  padWindows[window] = true
   window:HookScript("OnShow", function(self) padCall("FrameShown", self) end)
   window:HookScript("OnHide", function(self) padCall("FrameHidden", self) end)
 end
@@ -3642,6 +3781,7 @@ function K.book(o)
       end
     end
     self:refresh(true)
+    K.padText(f) -- (the tab's own page or board for the stick)
   end
   local function build()
     local window = K.gameWindow(o.name, o.title, o.art)
@@ -3873,8 +4013,11 @@ function K.commands(o)
       )
     elseif msg ~= "help" and o.commands and o.commands[msg] then
       o.commands[msg](raw)
-    elseif msg == "pad" then
-      say(K.padReport()) -- (the controller's trace: not in the usage, not a player's word)
+    elseif msg == "pad" or msg == "pad on" or msg == "pad off" then
+      -- (the controller's trace: not in the usage, not a player's word)
+      if msg ~= "pad" then K.padSet(msg == "pad on") end
+      say(K.padReport())
+      say(K.taintReport())
     elseif msg == "help" or not (o.match and o.match(msg, raw)) then
       usage()
     end
@@ -4282,6 +4425,7 @@ function K.welcome(o)
     -- the screen allows, and what it still can't hold scrolls (a translation
     -- runs longer than the English).
     local scroll = K.scrollArea(left, WELCOME_LEFT - 40, o.name .. "Intro")
+    scroll.kitText = true -- (the stick scrolls it: K.padText)
     scroll:SetPoint("TOPLEFT", line, "BOTTOMLEFT", 0, -12)
     scroll:SetPoint("BOTTOMRIGHT", left, "BOTTOMRIGHT", -20, 12)
     local intro = K.label(scroll.child, K.BODY_FONT, 12, T.text)

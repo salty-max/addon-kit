@@ -113,11 +113,29 @@ the file, git carries it, `.pkgmeta` does not ignore it. Tests: `bindings.test.t
 
 ### What a player does
 
-1. Game menu, Options, Key Bindings (on Forever: Options, Keybindings).
-2. Find the addon's heading ("Yonder"), the line "Open Yonder".
+Read in Forever's source (`Blizzard_SettingsDefinitions_Frame/Keybindings.lua`, `CreateKeybindingInitializers`), 6 November
+2026: the bindings are **not** under the Options window's "AddOns" tab (that tab holds the addons' option pages, the
+Settings categories). They are on the **Game** tab, under **Keybindings** (the last line of its list, below Gameplay's
+others).
+
+1. Game menu, Options, the **Game** tab, **Keybindings** in the list on the left (or the search box at the top of the window:
+   typing "Open" finds the line by its name, "Open Lorekeeper's Codex": the screen indexes every binding's name).
+2. The right side is a list of **collapsed** headings: Blizzard's own (Movement, Interface, Action Bar…), then
+   ours at the very end, after "Other" (a heading is added in the order the bindings are listed, and only Blizzard's own
+   are expanded by default: `AddBindingCategory(cat)` with no `expanded`). Scroll down and click the heading
+   ("Lorekeeper's Codex") to open it: one line, "Open Lorekeeper's Codex".
 3. Click the line's box (with a pad on Forever, the Gamepad UI's focus ring and its face button should do it: not
    verified), then press the key or pad button wanted. The screen listens to both.
 4. Press it in the game: the window opens, press it again: it closes.
+
+Why a player may not find it, in order of likelihood: the AddOns tab (wrong place), the collapsed heading at the bottom
+of a long list (the game gives an addon's heading no mark), and the search not being used. What would be wrong on our
+side: a category that is not `BINDING_HEADER_<KEY>` with that global a string (the heading would read
+"BINDING_HEADER_<KEY>" literally, `GetBindingCategoryName`), or `Bindings.xml` missing from the zip (the 6 November test
+zip has it: `LorekeepersCodex/Bindings.xml`, 147 bytes). `bindings.ts check` already asserts the first (the file's category
+and the Lua's header) and the packager the second; the heading's global must exist before the game lists the bindings,
+which `K.binding` at the top of a file (before `ADDON_LOADED`) guarantees: the check says "after the language file",
+and Blizzard rebuilds the list on `ADDON_LOADED` of an addon with bindings.
 
 ### Not verified in the game
 
@@ -130,11 +148,85 @@ the file, git carries it, `.pkgmeta` does not ignore it. Tests: `bindings.test.t
   buttons). Probe: with the window open, press the bound button: it should close it.
 - That `Bindings.xml` needs no TOC line (the engine's rule; Blizzard's TOCs agree, the game decides).
 
+## The taint error (6 November 2026) and the trace
+
+Forever's secret values: a number the game hides from addons (a unit's health) can only be compared by code that
+is not tainted, and taint is how the game remembers that an addon's code wrote or ran something: a function that reads a
+slot an addon wrote, or runs an addon's function, is tainted from then on, up to the end of that execution.
+The tester's error, `TextStatusBar.lua:110: attempt to compare a secret number value (execution tainted by
+'LorekeepersCodex')`, came while changing Options > Game > Interface > Status Text (the call chain:
+`Blizzard_Setting.lua` `ApplyValue` → `TriggerValueChanged` → `SettingsCallbackRegistry:TriggerEvent` →
+`TextStatusBar` `OnStatusTextSettingChanged` → `UpdateTextStringWithValues`, line 110 is `valueMax > 0`).
+
+What the pinned source (1.60.1.70532) says of our entries into it:
+
+- **Our settings' getters, setters and callbacks are isolated by Blizzard.** `Settings.RegisterProxySetting` goes through
+  `SettingsInbound` (`Blizzard_SettingsInbound.lua`): the call is a `SetAttribute` on a secure frame, the function
+  arguments are wrapped in a closure (`SecureWrapFunctionArgs`, "so that taint is properly restored"), the setting is built
+  from a secure copy of the mixin, and `ProxySettingMixin` calls our `get` and `set` through `securecallfunction`
+  (`Blizzard_Setting.lua`, `SecureGetValueDerived`, `SecureSetValueDerived`). The callback registry runs every callback
+  through `securecallfunction` (`CallbackRegistry.lua:210-213`). Our usage matches Blizzard's own readme
+  (`Blizzard_ImplementationReadme.lua`). So the proxy settings are the least likely cause: it would take a slot
+  they wrote, not their running.
+- **Where Blizzard does run our code without that isolation** (all unproven as causes): (1) the slider's label formatter
+  (`SetLabelFormatter`, our `O:bannerSeconds` and the book size choice use it) is called bare by `MinimalSlider.lua`,
+  on our page only; (2) a dropdown's options function is isolated on the menu path (`Blizzard_Settings.lua:526` runs
+  inside `securecallfunction(PopulateDescription…)`, `Blizzard_Menu/DropdownButton.lua:262`), but is bare in the hover
+  tooltip (`Blizzard_Settings.lua:424`), and once `optionsFunc()` returns, the rest of the inserter runs tainted, so the
+  `IsSelected` and `SetSelected` closures it makes are ours-tainted; the menu is built from module-wide pools
+  (`Compositor.lua`, `Menu.lua`) that Status Text's dropdown shares. Not changed: nothing says a table in place of the
+  function, or another formatter, is better.
+- **The Gamepad UI's manager is the entry the research flagged and Blizzard has no precedent for.** Every Blizzard window
+  that calls `FrameShown` is Blizzard's own (secure) frame; ours is a table full of slots we wrote. `FrameShown` reads
+  fields of the frame (`GetScaledCenter`, `skipGamepadAutoFocus`, `FocusGamepad`…), stores it in `shownFrames` and
+  `focusedFrame`, and Smart Navigation walks its children (`FindButtons`). The manager's state is read by every menu
+  (a dropdown, Status Text's among them: `MenuProxy.OnShow` and `OnClose` call `SuspendFrame`, `FrameShown`,
+  `FrameHidden`) and by every mouse click anywhere (`OnGlobalRegionMouseDown`). The test build was the first to call it,
+  and the tester used the controller (a pad press reaches the manager through Smart Navigation's select, so the error's
+  call chain below `securecallfunction` may well pass it: the **full stack** would say, its lowest lines: a menu
+  button's OnClick points at the menu, Smart Navigation's select at the Gamepad UI).
+- **Our stick call (`K.padText`) writes into Smart Navigation** (`currentScrollFrame` on a panel info, the stick flags:
+  `SmartNavigation.lua:908-916`, `242-256`) from our execution, `securecallfunction` or not (it keeps taint out of the
+  caller, it does not wash what goes in). `taintReport` looks at those slots and `pad off` stops the call.
+
+None is proved. The order of suspicion: the manager, then the menu and pool vector from our dropdowns, then the formatter.
+
+So this is a diagnosis to settle in the game, with three tools (all work on the player's own client):
+
+1. `/<addon> pad` now prints a second line, `K.taintReport()`: for the slots above (the manager's, Smart Navigation's, the
+   callback registry's `executingEvents` entry for Status Text, the Escape list) the name of the addon that wrote any that
+   `issecurevariable(table, key)` says is not secure, `Taint: clean` otherwise. Run it before and after the error.
+2. `/<addon> pad off` stops telling the manager (it is told every window of ours is hidden, after the fight in a fight)
+   and stops the stick call, `/<addon> pad on` starts again, for the session (not saved, a reload turns it on): the same
+   action once each way says whether the registration is the cause. Also: after a reload, change Status Text **without
+   ever opening the addon's options page** (the menu and formatter vector), once with the pad on, once off.
+3. Blizzard's own log, if both are not enough: `/console taintLog 1` in the game, `/reload`, repeat the action, log out
+   (a reload clears the file), then the game folder's `Logs/taint.log`: send the lines that name `LorekeepersCodex` (the
+   first one is the one that matters). `taintLog 2` logs every taint event (it can reach hundreds of megabytes in
+   minutes: use it only for the one action). Levels 1 and 2 from the addon community's notes (WoWInterface threads),
+   not in Blizzard's UI source: not verified on Forever.
+
+## The stick
+
+Read in `Blizzard_GamepadSmartNavigation/SmartNavigation.lua` and `Utility.lua`: the right stick scrolls **one scroll
+frame per window**, the panel info's `currentScrollFrame` (`OnGamepadRightStick`, the update loop at line ~410:
+`SetVerticalScroll` for a `ScrollFrame`, `SetScrollPercentage` for a scroll box). It is set when the cursor selects a
+button that sits inside a scroll frame (`FindButtons`: a `ScrollFrame` object or a frame with a `.ScrollTarget`, and the
+buttons found inside it), or by the window itself with `SmartNavigation:SetScrollFrameForFrame(window, scrollFrame)`
+(`MailFrame.lua:628`, `QuestMapFrame.lua:2570`, `FloatingChatFrame.lua:161`, `CommunitiesAvatarPickerDialog.lua:42`).
+A page of text holds no button, so the stick had nothing to scroll: it had never been told. `K.padText(window)` now makes
+that call (through `securecallfunction`, behind `pcall`) for the window's visible text area (`K.page`, `K.board` and
+the welcome's intro carry `kitText`): once the manager has the window, and when a book changes tab. It finds the panel
+info only if the window already has one (`GetPanelInfo(window, true)` does not create it: the focus does, inside
+`FrameShown`). The trace says `stick set N, no panel M` (the call is made only when Smart Navigation has a panel info for the window: it does nothing without one). Not verified in the game: whether the panel info exists by then, and
+that the cursor standing on a row of the list (whose scroll frame the cursor sets by itself) takes the stick
+from the text, as Blizzard's own windows behave.
+
 ## The trace
 
 `/<addon> pad` (any addon using `K.commands`, not in the usage) prints one line, from `K.padReport()`:
 
-`Controller: Gamepad UI on, manager found, told shown 1, hidden 1, raised 0, blocked 0, waiting 0`
+`Controller: Gamepad UI on, manager found, told shown 1, hidden 1, raised 0, blocked 0, waiting 0, stick set 1, registration on`
 
 - `Gamepad UI`: `InputUtil.IsGamepadUIEnabled()` (on, off, unknown), `manager`: found or absent (Era: absent).
 - `told shown/hidden`: calls that returned without raising. `raised N (words)`: calls that raised, the last

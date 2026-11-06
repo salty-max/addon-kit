@@ -1822,6 +1822,155 @@ do
   print = realPrint
   check(said[1] and said[1]:find("^%[P%] Controller: Gamepad UI") ~= nil, "pad: /<addon> pad prints the trace")
 
+  -- the stick: Smart Navigation scrolls the one scroll frame it has on record for a window, and a page of text
+  -- holds no button to put it there: the kit sets the visible text area itself, once the manager has the window
+  do
+    local navCalls, navSecure = {}, 0
+    SmartNavigation = {}
+    function SmartNavigation.SetScrollFrameForFrame(...) table.insert(navCalls, { ... }) end
+    local base = securecallfunction
+    securecallfunction = function(fn, ...)
+      if fn == SmartNavigation.SetScrollFrameForFrame then navSecure = navSecure + 1 end
+      return base(fn, ...)
+    end
+    local ws = window(Kf, "PadStick")
+    local hidden, text = frame(), frame()
+    hidden.kitText, hidden.IsVisible, hidden.Range = true, function() return false end, function() return 500 end
+    text.kitText, text.IsVisible, text.Range = true, function() return true end, function() return 500 end
+    ws.GetChildren = function() return hidden, text end
+    fire(ws, "OnShow")
+    check(
+      #navCalls == 1 and navCalls[1][1] == SmartNavigation and navCalls[1][2] == ws and navCalls[1][3] == text,
+      "pad: the stick's scroll frame is the window's visible text area"
+    )
+    check(navSecure == 1, "pad: the stick's call goes through securecallfunction")
+    check(Kf.padReport():find("stick set 1, no panel 0", 1, true) ~= nil, "pad: the trace counts the stick")
+    -- (a window with no panel info: Blizzard's call would do nothing, so it is not made and not counted as set)
+    local panels = { [ws] = false }
+    function SmartNavigation.GetPanelInfo(_, w) return panels[w] end
+    local wp = window(Kf, "PadStickNoPanel")
+    wp.GetChildren = function() return text end
+    panels[wp] = false
+    fire(wp, "OnShow")
+    check(
+      #navCalls == 1 and Kf.padReport():find("no panel 1", 1, true) ~= nil,
+      "pad: no panel info, no call, counted apart"
+    )
+    panels[wp] = {}
+    Kf.padText(wp)
+    check(#navCalls == 2 and navCalls[2][2] == wp, "pad: with a panel info the call is made")
+    -- (a window the manager was not told of: the panel info does not exist, nothing is set)
+    local wn = window(Kf, "PadStickNot")
+    wn.GetChildren = function() return text end
+    Kf.padText(wn)
+    check(#navCalls == 2, "pad: a window the manager was not told of gets no stick call")
+    -- (no text area shown: nothing to set)
+    text.IsVisible = function() return false end
+    Kf.padText(ws)
+    check(#navCalls == 2, "pad: no visible text area, no stick call")
+    -- (Era has no SmartNavigation: no call, no error)
+    text.IsVisible = function() return true end
+    SmartNavigation = nil
+    check(pcall(Kf.padText, ws), "pad: without SmartNavigation the stick is left alone")
+    securecallfunction = base
+  end
+
+  -- the switch: off tells the manager our windows are hidden and stops telling it, on tells it again
+  do
+    local wsw = window(Kf, "PadSwitch")
+    wsw.shown = true
+    fire(wsw, "OnShow")
+    local n = #calls
+    Kf.padSet(false)
+    local hid = false
+    for k = n + 1, #calls do
+      if calls[k][1] == "FrameHidden" and calls[k][3] == wsw then hid = true end
+    end
+    check(hid, "pad: off tells the manager the window is hidden")
+    local after = #calls
+    fire(wsw, "OnShow")
+    check(#calls == after, "pad: off, a window's showing is not told")
+    check(Kf.padReport():find("registration off", 1, true) ~= nil, "pad: the trace says it is off")
+    Kf.padSet(true)
+    local told = false
+    for i = after + 1, #calls do
+      if calls[i][1] == "FrameShown" and calls[i][3] == wsw then told = true end
+    end
+    check(told, "pad: on tells the manager of the windows still shown")
+    check(Kf.padReport():find("registration on", 1, true) ~= nil, "pad: the trace says it is on")
+    local said2 = {}
+    local realPrint2 = print
+    print = function(...) table.insert(said2, table.concat({ ... }, " ")) end
+    SlashCmdList.PADTEST("pad off")
+    print = realPrint2
+    check(
+      Kf.padOn == false and said2[1] and said2[1]:find("registration off", 1, true),
+      "pad: /<addon> pad off switches it off"
+    )
+    Kf.padSet(true)
+  end
+
+  -- off in a fight: the hide waits for the fight's end and is made then (the window shown, the switch off)
+  do
+    local wo = window(Kf, "PadOffCombat")
+    wo.shown = true
+    fire(wo, "OnShow")
+    InCombatLockdown = function() return true end
+    Kf.padSet(false)
+    InCombatLockdown = function() return false end
+    local hiddenAfter = false
+    local mark = #calls
+    Kf.padSettle()
+    for k = mark + 1, #calls do
+      if calls[k][1] == "FrameHidden" and calls[k][3] == wo then hiddenAfter = true end
+    end
+    check(hiddenAfter, "pad: off in a fight, the manager is told hidden when it ends")
+    Kf.padSet(true)
+    InCombatLockdown = saved.InCombatLockdown
+  end
+
+  -- the taint scan: names who wrote the slots Blizzard's own code reads
+  do
+    local scanned = {}
+    local savedIssecure = issecurevariable
+    issecurevariable = nil
+    check(Kf.taintReport():find("not checkable", 1, true) ~= nil, "taint: no issecurevariable, said so")
+    issecurevariable = function(tbl, key)
+      table.insert(scanned, key)
+      if tbl == manager and key == "focusedFrame" then return false, "SomeAddon" end
+      if tbl == UISpecialFrames and key == 1 then return false, "Kit" end
+      return true
+    end
+    UISpecialFrames[1] = "x"
+    local r = Kf.taintReport()
+    check(
+      r:find("manager.focusedFrame by SomeAddon", 1, true) ~= nil,
+      "taint: a tainted manager slot is named with its addon"
+    )
+    check(r:find("slots by us: 0", 1, true) ~= nil, "taint: another addon's Escape slot is not counted as ours")
+    issecurevariable = function(tbl, key)
+      if tbl == UISpecialFrames and key == 1 then return false, "Test" end
+      return true
+    end
+    check(Kf.taintReport():find("slots by us: 1", 1, true) ~= nil, "taint: our own Escape slot is counted")
+    SmartNavigation = { activePanels = { {} } }
+    local info = SmartNavigation.activePanels[1]
+    issecurevariable = function(tbl, key)
+      if tbl == info and key == "currentScrollFrame" then return false, "Test" end
+      return true
+    end
+    check(
+      Kf.taintReport():find("activePanels[1].currentScrollFrame by Test", 1, true) ~= nil,
+      "taint: the scroll frame we set on a panel info is looked at"
+    )
+    SmartNavigation = nil
+    issecurevariable = function() return true end
+    check(Kf.taintReport():find("Taint: clean", 1, true) ~= nil, "taint: nothing tainted, clean")
+    issecurevariable = function() error("no") end
+    check(Kf.taintReport():find("Taint: clean", 1, true) ~= nil, "taint: a raising check is left out, not raised")
+    issecurevariable = savedIssecure
+  end
+
   -- the book's window: its own OnShow is a script, the Gamepad UI's hook comes after it (the game's SetScript
   -- drops every hook, the mock too), so the first tab is built when the manager is told
   do
