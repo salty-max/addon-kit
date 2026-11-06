@@ -598,6 +598,8 @@ function K.scrollArea(parent, width, name)
   s:EnableMouseWheel(true)
   s:SetScript("OnMouseWheel", function(self, delta) self:ScrollTo(self:GetVerticalScroll() - delta * 40) end)
   s:SetScript("OnScrollRangeChanged", function(self) self:UpdateThumb() end)
+  -- (any scroll, not only ours: the Gamepad UI's stick calls SetVerticalScroll itself)
+  s:SetScript("OnVerticalScroll", function(self) self:UpdateThumb() end)
   return s
 end
 
@@ -648,6 +650,11 @@ end
 -- highlight, in the theme's colour. Returns the picked-out mark (shown by the
 -- caller).
 K.HIGHLIGHT = "Interface\\QuestFrame\\UI-QuestTitleHighlight"
+-- How far a row's, a chip's or a button's click reaches past its edge: a
+-- cursor moved by a stick is slow and a thumb is wide. Sideways freely,
+-- up and down not at all for rows and chips (they stand against each other:
+-- a reach would take the neighbour's edge), by 2 for what has a gap. The picture does not change.
+K.HIT_X = 4
 -- On paper a light glow shows nothing: the row is washed in the ink instead.
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 function K.hover(button, alpha, untinted)
@@ -1173,6 +1180,7 @@ function List:row(i)
   if r then return r end
   r = CreateFrame("Button", nil, self.child)
   r:SetSize(K.ROW_WIDTH, 18)
+  r:SetHitRectInsets(-K.HIT_X, -K.HIT_X, 0, 0)
   r.text = K.label(r, K.BODY_FONT, 12, T.text)
   r.text:SetWordWrap(false)
   r.count = K.label(r, K.BODY_FONT, 10, T.soft)
@@ -1768,7 +1776,8 @@ function Page:items(list)
     local b = self.itemPool[self.ii]
     if not b then
       b = K.slot(self.child, ITEM)
-      b:SetScript("OnEnter", function(bb)
+      b:SetHitRectInsets(-2, -2, -2, -2) -- (they stand 6 apart)
+      local function tip(bb)
         GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
         if bb.faded then
           GameTooltip:AddLine(bb.name or "?", T.soft[1], T.soft[2], T.soft[3])
@@ -1778,8 +1787,11 @@ function Page:items(list)
           if bb.extra then bb.extra(GameTooltip) end
         end
         GameTooltip:Show()
-      end)
+      end
+      b:SetScript("OnEnter", tip)
       b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      -- (the name is only in the tooltip: a cursor or a pad's focus does not hover, a click shows it)
+      b:SetScript("OnClick", tip)
       self.itemPool[self.ii] = b
     end
     local col, row = (i - 1) % per, math.floor((i - 1) / per)
@@ -1810,16 +1822,20 @@ function Page:chips(list)
       b.text:SetPoint("RIGHT", -4, 0)
       b.text:SetWordWrap(false)
       K.highlight(b):Hide()
-      b:SetScript("OnClick", function(bb)
-        if bb.click then bb.click() end
-      end)
-      b:SetScript("OnEnter", function(bb)
+      b:SetHitRectInsets(-K.HIT_X, -K.HIT_X, 0, 0)
+      local function tip(bb)
         if not bb.tip then return end
         GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
         GameTooltip:AddLine(bb.text:GetText(), T.accent[1], T.accent[2], T.accent[3])
         GameTooltip:AddLine(bb.tip, 1, 1, 1, true)
         GameTooltip:Show()
+      end
+      -- (the line is only in the tooltip: a click shows it too, for a pad's focus does not hover)
+      b:SetScript("OnClick", function(bb)
+        if bb.click then bb.click() end
+        if bb:IsVisible() then tip(bb) end
       end)
+      b:SetScript("OnEnter", tip)
       b:SetScript("OnLeave", function() GameTooltip:Hide() end)
       self.chipPool[self.chi] = b
     end
@@ -1850,6 +1866,7 @@ end
 function K.button(parent, text, width)
   local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   b:SetHeight(K.BUTTON_H)
+  b:SetHitRectInsets(-3, -3, -2, -2) -- (they stand 10 apart, 6 above one another)
   return K.setButton(b, text, width)
 end
 
@@ -3261,6 +3278,8 @@ function K.gameWindow(name, title, art)
   local ok, frame = pcall(CreateFrame, "Frame", name, UIParent, "ButtonFrameTemplate")
   if not ok or not frame then return nil end
   frame.kitName = name
+  -- (the template's parentKey in both games; the Gamepad UI closes a window by it)
+  if not frame.CloseButton and name then frame.CloseButton = _G[name .. "CloseButton"] end
   if ButtonFrameTemplate_HideButtonBar then ButtonFrameTemplate_HideButtonBar(frame) end
   if type(frame.Inset) == "table" then frame.Inset:Hide() end
   -- Its body the dialog box's dark (black at 87%, tiled), not the game's grey
@@ -3308,6 +3327,7 @@ function K.dialog(name, title)
   label:SetText(title)
   local close = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", -6, -6)
+  frame.CloseButton = close -- (the Gamepad UI closes a window by this field)
   return frame
 end
 
@@ -3399,6 +3419,108 @@ function K.applyLook()
   K.look(K.lookGet("paper"))
 end
 
+-- ── the controller (Forever's Gamepad UI) ────────────────────────────────────
+-- Forever has Blizzard's whole Gamepad UI: a focus ring that walks the D-pad
+-- across the buttons of the windows it knows, a click on the face button, a
+-- close on the other, the stick scrolling. It knows a window only if told
+-- (GamepadMode.FrameControlsManager:FrameShown(window) when it shows, :FrameHidden(window)
+-- when it hides: Blizzard's own windows do exactly that, in their OnShow and
+-- OnHide, and the manager does nothing at all while the Gamepad UI is off). Classic Era has
+-- no such thing (no GamepadMode): there this is a no-op, never a call.
+-- Read in Blizzard's source, build 1.60.1.70532 (a few builds behind the
+-- client, bun wow-data/bin/ui.ts find FrameControlsManager). The manager
+-- itself checks no combat, but FrameShown and FrameHidden end in
+-- SetOverrideBinding (InputActionBinding.lua), which the game refuses in
+-- combat, and the refusal would leave the manager's own flags wrong for every
+-- window: so in combat the call waits (K.pad.waiting) and is made when the
+-- fight ends, for what is then still shown or hidden. securecallfunction does
+-- NOT make the call secure (our hook is what runs it, so the manager's tables
+-- take our taint): it keeps the taint from flowing back. Not verified in the
+-- game: what that taint does ("action blocked" in chat). K.pad counts what the
+-- game blamed on this addon, /<addon> pad prints it. Whatever the call does,
+-- it is behind pcall: a window's own showing never depends on it. ("raised" is
+-- a lower bound: securecallfunction may hand an error to the game's handler.)
+K.pad = { shown = 0, hidden = 0, failed = 0, blocked = 0, waiting = 0 }
+local padWatch
+local padTold, padWait = {}, {} -- (windows the manager was told of; windows to settle after a fight)
+local function padManager()
+  local mode = GamepadMode
+  local manager = type(mode) == "table" and mode.FrameControlsManager
+  return type(manager) == "table" and manager or nil
+end
+local padCall
+local function padSettle()
+  for window in pairs(padWait) do
+    padWait[window] = nil
+    K.pad.waiting = K.pad.waiting - 1
+    local shown = window:IsShown() and true or false
+    if shown and not padTold[window] then
+      padCall("FrameShown", window)
+    elseif not shown and padTold[window] then
+      padCall("FrameHidden", window)
+    end
+  end
+end
+K.padSettle = padSettle -- (the fight's end; the tests call it)
+function padCall(method, window)
+  local manager = padManager()
+  local fn = manager and manager[method]
+  if type(fn) ~= "function" then return end
+  local pad = K.pad
+  if not padWatch then
+    -- (the game's refusals blamed on this addon, counted: only here, only on Forever)
+    padWatch = CreateFrame("Frame")
+    for _, event in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "PLAYER_REGEN_ENABLED" }) do
+      if K.knows(event) then padWatch:RegisterEvent(event) end
+    end
+    padWatch:SetScript("OnEvent", function(_, event, who)
+      if event == "PLAYER_REGEN_ENABLED" then
+        padSettle()
+      elseif who == addonName then
+        pad.blocked = pad.blocked + 1
+      end
+    end)
+  end
+  if InCombatLockdown and InCombatLockdown() then
+    if not padWait[window] then pad.waiting = pad.waiting + 1 end
+    padWait[window] = true
+    return
+  end
+  local run = securecallfunction or function(f, ...) return f(...) end
+  local ok, err = pcall(run, fn, manager, window)
+  local key = method == "FrameShown" and "shown" or "hidden"
+  if ok then
+    pad[key] = pad[key] + 1
+    padTold[window] = method == "FrameShown" or nil
+  else
+    pad.failed = pad.failed + 1
+    pad.last = tostring(err)
+  end
+end
+
+-- What the trace says, one line (a diagnosis for us, not a player's page, so
+-- not translated): whether the Gamepad UI is on, whether the manager is
+-- there, how many windows were told shown and hidden, how many calls raised
+-- (and the last one's words), how many refusals the game blamed on this addon.
+function K.padReport()
+  local pad = K.pad
+  local ui = "unknown"
+  if InputUtil and InputUtil.IsGamepadUIEnabled then
+    local ok, on = pcall(InputUtil.IsGamepadUIEnabled)
+    if ok then ui = on and "on" or "off" end
+  end
+  return ("Controller: Gamepad UI %s, manager %s, told shown %d, hidden %d, raised %d%s, blocked %d, waiting %d"):format(
+    ui,
+    padManager() and "found" or "absent",
+    pad.shown,
+    pad.hidden,
+    pad.failed,
+    pad.last and (" (" .. pad.last .. ")") or "",
+    pad.blocked,
+    pad.waiting
+  )
+end
+
 -- A window that can be moved, kept on screen, above the game's panels, and
 -- closed by Escape (by its name: a window of K.gameWindow or K.dialog); left
 -- hidden, as a new frame is shown: its first Show is then a showing (OnShow).
@@ -3430,6 +3552,9 @@ function K.movable(window, width, height, place)
   end)
   table.insert(UISpecialFrames, window.kitName)
   window:Hide()
+  -- (hooks, not scripts: an addon's own OnShow on the window stays its own)
+  window:HookScript("OnShow", function(self) padCall("FrameShown", self) end)
+  window:HookScript("OnHide", function(self) padCall("FrameHidden", self) end)
 end
 
 -- ── the book ─────────────────────────────────────────────────────────────────
@@ -3733,6 +3858,8 @@ function K.commands(o)
       )
     elseif msg ~= "help" and o.commands and o.commands[msg] then
       o.commands[msg](raw)
+    elseif msg == "pad" then
+      say(K.padReport()) -- (the controller's trace: not in the usage, not a player's word)
     elseif msg == "help" or not (o.match and o.match(msg, raw)) then
       usage()
     end

@@ -21,6 +21,18 @@ local function frame()
       if k == "SetScript" then
         return function(self, n, fn) self.scripts[n] = fn end
       end
+      -- (hooks and hit rectangles, remembered: the controller's tests read them)
+      if k == "HookScript" then
+        return function(self, n, fn)
+          local hooks = rawget(self, "hooks") or {}
+          self.hooks = hooks
+          hooks[n] = hooks[n] or {}
+          table.insert(hooks[n], fn)
+        end
+      end
+      if k == "SetHitRectInsets" then
+        return function(self, l, r, t, b) self.hit = { l, r, t, b } end
+      end
       if k == "SetEnabled" then
         return function(self, v) self.enabled = v end
       end
@@ -1612,6 +1624,184 @@ do
   CreateFrame, Settings, UISpecialFrames = saved.CreateFrame, saved.Settings, saved.UISpecialFrames
   rawset(UIParent, "GetWidth", saved.GetWidth)
   rawset(UIParent, "GetHeight", saved.GetHeight)
+end
+
+-- The controller: Forever's Gamepad UI is told of a window when it shows and
+-- hides (its manager, called through securecallfunction, behind pcall), Era's
+-- never is, a manager that raises leaves the window working and is counted;
+-- the click reaches past a row's edge, the scroll thumb follows any scroll,
+-- a dialog has its CloseButton, a name only in a tooltip shows on a click too.
+do
+  local saved = {
+    GamepadMode = GamepadMode,
+    securecallfunction = securecallfunction,
+    CreateFrame = CreateFrame,
+    UISpecialFrames = UISpecialFrames,
+    InputUtil = InputUtil,
+    GameTooltip = GameTooltip,
+    InCombatLockdown = InCombatLockdown,
+  }
+  UISpecialFrames = {}
+  local function fire(w, which)
+    local hooks = rawget(w, "hooks")
+    for _, fn in ipairs(hooks and hooks[which] or {}) do
+      fn(w)
+    end
+  end
+  local function window(Kit, name)
+    local w = frame()
+    w.kitName = name
+    Kit.movable(w, 100, 100)
+    return w
+  end
+
+  -- Era: no GamepadMode at all, then one without the manager: nothing is called
+  GamepadMode, securecallfunction = nil, nil
+  local Ke = load()
+  local we = window(Ke, "PadEra")
+  fire(we, "OnShow")
+  fire(we, "OnHide")
+  check(Ke.pad.shown == 0 and Ke.pad.hidden == 0 and Ke.pad.failed == 0, "pad: Era calls nothing")
+  GamepadMode = {}
+  fire(we, "OnShow")
+  check(Ke.pad.shown == 0 and Ke.pad.failed == 0, "pad: no manager (Gamepad UI not loaded), nothing called")
+  check(Ke.padReport():find("manager absent", 1, true) ~= nil, "pad: the trace says the manager is absent")
+
+  -- Forever: told with the window alone, through securecallfunction
+  local calls, secure = {}, 0
+  local manager = {}
+  function manager.FrameShown(...) table.insert(calls, { "FrameShown", ... }) end
+  function manager.FrameHidden(...) table.insert(calls, { "FrameHidden", ... }) end
+  GamepadMode = { FrameControlsManager = manager }
+  securecallfunction = function(fn, ...)
+    secure = secure + 1
+    return fn(...)
+  end
+  local Kf = load()
+  local wf = window(Kf, "PadForever")
+  local hooks = rawget(wf, "hooks")
+  check(hooks and #hooks.OnShow == 1 and #hooks.OnHide == 1, "pad: hooks on show and hide, not scripts")
+  check(wf.scripts.OnShow == nil and wf.scripts.OnHide == nil, "pad: the window's own OnShow and OnHide left alone")
+  fire(wf, "OnShow")
+  fire(wf, "OnHide")
+  check(
+    #calls == 2
+      and calls[1][1] == "FrameShown"
+      and calls[1][2] == manager
+      and calls[1][3] == wf
+      and calls[1][4] == nil
+      and calls[2][1] == "FrameHidden"
+      and calls[2][2] == manager
+      and calls[2][3] == wf
+      and calls[2][4] == nil,
+    "pad: FrameShown(window) on show, FrameHidden(window) on hide, the manager as self, nothing else"
+  )
+  check(secure == 2, "pad: both calls through securecallfunction")
+  check(Kf.pad.shown == 1 and Kf.pad.hidden == 1 and Kf.pad.failed == 0, "pad: counted")
+  check(Kf.padReport():find("told shown 1, hidden 1, raised 0", 1, true) ~= nil, "pad: the trace reports the counts")
+
+  -- (an older client without securecallfunction: the plain call)
+  securecallfunction = nil
+  fire(wf, "OnShow")
+  check(#calls == 3 and Kf.pad.shown == 2, "pad: without securecallfunction, the plain call")
+  securecallfunction = function(fn, ...) return fn(...) end
+
+  -- a manager that raises: the window's hook never raises, the trace says so
+  function manager.FrameShown() error("action blocked") end
+  local okShow = pcall(fire, wf, "OnShow")
+  check(okShow, "pad: a manager that raises does not raise through the window's hook")
+  check(
+    Kf.pad.failed == 1 and Kf.pad.last:find("action blocked", 1, true) ~= nil,
+    "pad: the failure is counted and its words kept"
+  )
+  check(Kf.padReport():find("raised 1 (", 1, true) ~= nil, "pad: the trace shows the failure")
+  fire(wf, "OnHide")
+  check(Kf.pad.hidden == 2, "pad: after a failure the next call is still made")
+
+  -- in combat nothing is called (the game refuses the bindings), the fight's end settles it
+  function manager.FrameShown(...) table.insert(calls, { "FrameShown", ... }) end
+  local inCombat = true
+  InCombatLockdown = function() return inCombat end
+  local before = #calls
+  local wc = window(Kf, "PadCombat")
+  wc.shown = true
+  fire(wc, "OnShow")
+  check(#calls == before and Kf.pad.waiting == 1, "pad: in combat nothing is called, the window waits")
+  inCombat = false
+  Kf.padSettle()
+  check(
+    #calls == before + 1 and calls[#calls][1] == "FrameShown" and calls[#calls][3] == wc and Kf.pad.waiting == 0,
+    "pad: when the fight ends a window still shown is told"
+  )
+  inCombat = true
+  wc.shown = false
+  fire(wc, "OnHide")
+  inCombat = false
+  Kf.padSettle()
+  check(calls[#calls][1] == "FrameHidden" and calls[#calls][3] == wc, "pad: and one hidden meanwhile is told hidden")
+  InCombatLockdown = saved.InCombatLockdown
+
+  -- the trace as a command: not in the usage, said after the prefix
+  local said = {}
+  local realPrint = print
+  print = function(...) table.insert(said, table.concat({ ... }, " ")) end
+  SlashCmdList = SlashCmdList or {}
+  Kf.commands({ names = { "/padtest" }, key = "PADTEST", name = "Pad", prefix = "[P] ", usage = "usage" })
+  SlashCmdList.PADTEST("pad")
+  print = realPrint
+  check(said[1] and said[1]:find("^%[P%] Controller: Gamepad UI") ~= nil, "pad: /<addon> pad prints the trace")
+
+  -- the dialog: its close button is the field the Gamepad UI closes by
+  local made = {}
+  CreateFrame = function(_, _, _, template)
+    local f = frame()
+    f.template = template
+    table.insert(made, f)
+    return f
+  end
+  local d = Kf.dialog("PadDialog", "Title")
+  check(
+    rawget(d, "CloseButton") and d.CloseButton.template == "UIPanelCloseButton",
+    "dialog: CloseButton is its close button"
+  )
+
+  -- a row, a chip, a button and an item reach past their edge; a name in a tooltip shows on a click
+  CreateFrame = function() return frame() end
+  local l = Kf.list(frame(), nil, {})
+  local r = l:row(1)
+  check(
+    r.hit and r.hit[1] == -4 and r.hit[2] == -4 and r.hit[3] == 0 and r.hit[4] == 0,
+    "hit: a row's click reaches 4 aside, not up or down (they touch)"
+  )
+  local b = Kf.button(frame(), "Go", 100)
+  check(rawget(b, "hit") and b.hit[1] == -3 and b.hit[3] == -2, "hit: a button's click reaches past its edge")
+  GameTooltip = frame()
+  GameTooltip.shown = false
+  local pg = Kf.page(frame(), "PadPage", {})
+  pg:start("T", "")
+  local clicked
+  pg:chips({ { "Name", function() clicked = true end, false, "A line only in the tip." } })
+  local chip = pg.chipPool[1]
+  check(rawget(chip, "hit") and chip.hit[1] == -4 and chip.hit[3] == 0, "hit: a chip's click reaches past its edge")
+  chip.scripts.OnClick(chip)
+  check(clicked and GameTooltip.shown, "tip: a chip's line shows on a click, and the click still does its work")
+  GameTooltip.shown = false
+  pg:items({ { 769, "Bread", true, 1 } })
+  local item = pg.itemPool[1]
+  check(rawget(item, "hit") and item.hit[1] == -2 and item.hit[3] == -2, "hit: an item's click reaches past its edge")
+  item.scripts.OnClick(item)
+  check(GameTooltip.shown, "tip: an item's tooltip shows on a click")
+
+  -- the scroll thumb follows a scroll the area did not make
+  local area = Kf.scrollArea(frame(), 100)
+  local updates = 0
+  area.UpdateThumb = function() updates = updates + 1 end
+  area.scripts.OnVerticalScroll(area, 40)
+  check(updates == 1, "scroll: the thumb follows any scroll (OnVerticalScroll)")
+
+  GamepadMode, securecallfunction, CreateFrame, UISpecialFrames =
+    saved.GamepadMode, saved.securecallfunction, saved.CreateFrame, saved.UISpecialFrames
+  InputUtil, GameTooltip = saved.InputUtil, saved.GameTooltip
 end
 
 print(failures == 0 and "all good" or (failures .. " failed"))
