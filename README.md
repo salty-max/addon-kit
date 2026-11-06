@@ -121,6 +121,32 @@ game folder.
 Conventions: Conventional Commits, lowercase subjects, no AI co-author
 trailers; commit locally, ask before any push.
 
+## The book's size and the paper look
+
+Two choices on every addon's options page, asked for by Codex players (6 November
+2026). The addon adds one line to its page, `O:look()` in `Settings.lua` (before
+`O:copy()`), and nothing else: the settings `bookSize` (1 to 4) and `paper`
+are created in the addon's defaults and kept per character like its others.
+
+- **Book size** (Normal, Large, Larger, Largest: 1, 1.15, 1.3, 1.5): the whole
+  window is scaled (`K.movable` registers it, `K.resize` applies a change at once,
+  holding its place), not the text alone, because a list's row is one line wide, a page
+  a set width and a heading a set height: bigger text alone has nowhere to go. A window
+  is kept to 95% of the screen (`K.scaleFor`).
+- **Paper colours**: dark ink on tan paper. Every colour is in `K.PAPER`, the accent,
+  the aside and the progress colours of each addon's theme darkened until they read
+  (`K.ink`, never under 4.5 to 1 for text: `test.lua` asserts it for several themes). Colours are
+  read when a piece is built, so the choice is read once before the first window
+  (`K.applyLook`) and a change needs `/reload` (the option's own text says so). The
+  dark look is untouched when it is off (the test holds every dark colour).
+- **An addon's own colours** are its to sweep before it adds `O:look()`: a colour kept in a
+  file-level table (`T.link = K.hex(T.accent)`, a `|cffffd100` link, a hardcoded white or
+  grey) is read at load, before the look is known, and stays the dark look's. Read `K.T`
+  when a piece is built, and use `K.linkColour()` for a link.
+- Not looked at in the game yet: the search box and any edit box (the game's own art and light font on paper).
+- Rendered before shipping in `.cache/renders/` (HTML drawn with the book's real geometry and
+  palette, Chrome headless: `r_<dark|paper>_<1-4>.png`).
+
 ## The test battery
 
 The mock (`wowmock.lua`) plus a strict layer that refuses what Blizzard's documentation says the client refuses

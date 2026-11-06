@@ -1412,5 +1412,207 @@ do
     saved.CreateFrame, saved.C_Timer, saved.Settings, saved.UISpecialFrames
 end
 
+-- ── the book's size and the paper look ───────────────────────────────────────
+do
+  local saved = {
+    CreateFrame = CreateFrame,
+    Settings = Settings,
+    UISpecialFrames = UISpecialFrames,
+    GetWidth = rawget(UIParent, "GetWidth"),
+    GetHeight = rawget(UIParent, "GetHeight"),
+  }
+  CreateFrame = function() return frame() end
+  UISpecialFrames = {}
+  local function ratio(a, b) return math.floor(100 * select(1, load().contrast(a, b)) + 0.5) / 100 end
+  local K = load()
+
+  -- The dark look, as it was before the paper look came (every colour, byte for byte)
+  local DARK = {
+    accent = { 0.85, 0.70, 0.42 },
+    text = { 0.93, 0.88, 0.76 },
+    soft = { 0.62, 0.57, 0.49 },
+    aside = { 0.70, 0.75, 0.80 },
+    ring = { 0.72, 0.56, 0.24 },
+    bar = { 0.85, 0.65, 0.13 },
+    dim = { 0.55, 0.53, 0.50 },
+    tint = { 1, 1, 1 },
+    shade = { 0.03, 0.025, 0.02, 0.55 },
+    highlight = { 1, 1, 1 },
+  }
+  local function same(a, b)
+    if #a ~= #b then return false end
+    for i = 1, #a do
+      if a[i] ~= b[i] then return false end
+    end
+    return true
+  end
+  local function darkIsDark()
+    for k, v in pairs(DARK) do
+      if not same(K.T[k], v) then return false, k end
+    end
+    return K.T.gold == K.T.accent
+  end
+  check(K.paper == nil and darkIsDark(), "look: dark by default, every colour as it was")
+  check(
+    same(K.T.field, { 0, 0, 0, 0.45 })
+      and same(K.T.menu, { 0.05, 0.04, 0.03, 0.97 })
+      and same(K.T.trough, { 0, 0, 0, 0.5 })
+      and same(K.T.wash, { 1, 1, 1, 0.03 })
+      and same(K.T.picked, { 1, 1, 1 }),
+    "look: dark's new tokens are the colours the pieces had"
+  )
+
+  -- Paper: contrast. Text on both of the paper's grounds, for the default accent
+  -- and for the addons' themes; the figures are printed.
+  local themes = {
+    default = {},
+    primer = { accent = { 0.62, 0.78, 0.90 }, ring = { 0.35, 0.50, 0.62 }, bar = { 0.40, 0.62, 0.78 } },
+    codex = { aside = { 0.68, 0.78, 0.62 } },
+    bright = { accent = { 1, 0.82, 0 }, aside = { 0.9, 0.9, 0.5 } },
+  }
+  local worst, figures = 99, {}
+  local MIN = K.PAPER_CONTRAST
+  for name, theme in pairs(themes) do
+    K.theme(theme)
+    K.look(true)
+    local grounds = { K.T.ground, K.T.back }
+    for _, g in ipairs(grounds) do
+      for _, key in ipairs({ "text", "soft", "accent", "aside", "dim" }) do
+        local r = K.contrast(K.T[key], g)
+        worst = math.min(worst, r)
+        if name == "default" or key == "accent" then table.insert(figures, ("%s %s %.2f"):format(name, key, r)) end
+        check(r >= MIN, ("paper: %s's %s reads on paper (%.2f to 1)"):format(name, key, r))
+      end
+      check(
+        K.contrast(K.T.bar, g) >= 3 and K.contrast(K.T.ring, g) >= 3,
+        "paper: " .. name .. "'s bar and ring show (3 to 1)"
+      )
+    end
+    K.look(false)
+  end
+  print("  paper contrast, worst text " .. string.format("%.2f", worst) .. " to 1: " .. table.concat(figures, ", "))
+  check(worst >= MIN, "paper: no text under 4.5 to 1 on either ground")
+  K.theme()
+  K.look(true)
+  check(K.T.accent[1] < DARK.accent[1] and K.T.gold == K.T.accent, "paper: the gold is darkened, hue kept")
+  K.look(false)
+  check(darkIsDark(), "look: back to dark, every colour as it was")
+
+  -- Window sizes
+  check(
+    #K.SIZES == 4 and K.SIZES[1] == 1 and K.SIZES[2] == 1.15 and K.SIZES[3] == 1.3 and K.SIZES[4] == 1.5,
+    "size: four steps, Normal first"
+  )
+  rawset(UIParent, "GetWidth", function() return 2000 end)
+  rawset(UIParent, "GetHeight", function() return 1200 end)
+  check(
+    K.scaleFor(1, 780, 560) == 1 and K.scaleFor(4, 780, 560) == 1.5,
+    "size: Normal is 1, Largest 1.5 where the screen holds it"
+  )
+  rawset(UIParent, "GetWidth", function() return 1000 end)
+  rawset(UIParent, "GetHeight", function() return 700 end)
+  local fit = K.scaleFor(4, 780, 560)
+  check(
+    math.abs(fit - 700 * K.SCREEN_SHARE / 560) < 1e-9,
+    "size: kept to the screen (the height here), " .. string.format("%.4f", fit)
+  )
+  rawset(UIParent, "GetWidth", function() return 600 end)
+  check(K.scaleFor(4, 780, 560) == 1, "size: never under 1")
+  rawset(UIParent, "GetWidth", function() return 2000 end)
+  rawset(UIParent, "GetHeight", function() return 1200 end)
+  local w = frame()
+  rawset(w, "SetScale", function(self, v) self.scale = v end)
+  rawset(w, "GetScale", function(self) return self.scale or 1 end)
+  w.kitName = "KitSized"
+  local place = { point = "TOPLEFT", x = 300, y = -200 }
+  K.lookGet = function(k) return k == "bookSize" and 2 or nil end
+  K.movable(w, 780, 560, place)
+  check(w.scale == 1.15, "size: a window made at the saved step")
+  K.resize(3)
+  check(w.scale == 1.3 and place.x == math.floor(300 * 1.15 / 1.3 + 0.5), "size: resized at once, held where it stood")
+  K.resize(1)
+  check(
+    w.scale == 1 and math.abs(place.x - 345) <= 1,
+    "size: back to Normal, the same spot on the screen (300 at 1.15 is 345)"
+  )
+
+  -- The options: two choices, their defaults, the look read before windows
+  local registered, choices = {}, {}
+  Settings = {
+    VarType = { Boolean = "b", Number = "n", String = "s" },
+    RegisterVerticalLayoutCategory = function()
+      return { GetID = function() return 1 end }
+    end,
+    RegisterProxySetting = function(_, v, kind, _, default, get, set)
+      registered[v] = { kind = kind, default = default, get = get, set = set }
+      return registered[v]
+    end,
+    CreateCheckbox = function() end,
+    CreateDropdown = function(_, setting, gen) choices[setting] = gen end,
+    CreateControlTextContainer = function()
+      local c = { data = {} }
+      function c:Add(v, t) table.insert(self.data, { v, t }) end
+      function c:GetData() return self.data end
+      return c
+    end,
+  }
+  local values, defaults = {}, { minimapHidden = false }
+  local O = K.options({
+    title = "Kit",
+    key = "KIT",
+    defaults = defaults,
+    slash = "/kit",
+    get = function(k)
+      if values[k] == nil then return defaults[k] end
+      return values[k]
+    end,
+    set = function(k, v) values[k] = v end,
+  })
+  O:look()
+  check(defaults.bookSize == 1 and defaults.paper == false, "options: Normal and dark by default")
+  check(
+    registered.KIT_BOOKSIZE.kind == "n" and registered.KIT_PAPER.kind == "b",
+    "options: a number for the size, a box for the paper"
+  )
+  local list = choices[registered.KIT_BOOKSIZE]()
+  check(
+    #list == 4 and list[1][2] == "Normal" and list[4][2] == "Largest" and list[3][1] == 3,
+    "options: the four sizes, in plain words"
+  )
+  registered.KIT_PAPER.set(true)
+  check(values.paper == true and K.lookGet("paper") == true, "options: the paper box is kept and read back")
+
+  K.look(false)
+  check(K.linkColour() == "ffd100", "look: dark's links stay the game's yellow")
+  K.look(true)
+  check(K.linkColour() ~= "ffd100" and K.contrast(K.T.accent, K.T.ground) >= MIN, "paper: links take the darkened gold")
+  local refusedOk = K.contrast(K.ink({ 0.85, 0.32, 0.25 }, { K.T.ground, K.T.back }), K.T.back) >= MIN
+  check(refusedOk, "paper: the welcome's red is darkened to read")
+  K.look(false)
+
+  -- A book built on paper, at the largest size, makes every piece
+  K.theme({ accent = { 0.85, 0.70, 0.42 } })
+  K.look(true)
+  local B = K.book({ name = "KitPaper", title = "Kit", titles = { "One" }, search = "KitPaperSearch", filter = true })
+  B:add(1, { build = function() end, show = function() end, refresh = function() end })
+  B:open(1)
+  check(B.frame ~= nil and K.paper, "paper: a book builds")
+  local pg = K.page(B.frame.sheet, "KitPaperPage", {})
+  pg:start("A title", "A line")
+  pg:text({ "One paragraph.", { "A voice.", voice = true, sign = "Someone" } })
+  pg:finish()
+  local list2 = K.list(B.frame.left, nil, nil, false, "KitPaperList")
+  list2:begin()
+  local row = list2:add("entry", "A row", 3, "under")
+  list2:pick(row)
+  check(row ~= nil and K.T.picked[1] < 0.2, "paper: a page and a list draw, the picked row's ink dark")
+  K.look(false)
+
+  K.lookGet = nil
+  CreateFrame, Settings, UISpecialFrames = saved.CreateFrame, saved.Settings, saved.UISpecialFrames
+  rawset(UIParent, "GetWidth", saved.GetWidth)
+  rawset(UIParent, "GetHeight", saved.GetHeight)
+end
+
 print(failures == 0 and "all good" or (failures .. " failed"))
 os.exit(failures == 0 and 0 or 1)

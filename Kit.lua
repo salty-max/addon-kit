@@ -128,6 +128,10 @@ end
 --   dim: something not yet reached (an achievement unearned)
 --   tint: multiplied over the panels' art; shade: darkening behind the text
 --   highlight: multiplied over the game's row highlight
+--   field, menu: behind a select's closed box and its open list; trough: behind
+--   a progress bar; wash: a board row's wash; picked: the picked row's text
+--   ground, back, edge: the paper look's panel, window body and edge (set in
+--   the paper look only: see K.look)
 local T = {}
 K.T = T
 local DEFAULT = {
@@ -141,15 +145,93 @@ local DEFAULT = {
   tint = { 1, 1, 1 },
   shade = { 0.03, 0.025, 0.02, 0.55 },
   highlight = { 1, 1, 1 },
+  field = { 0, 0, 0, 0.45 },
+  menu = { 0.05, 0.04, 0.03, 0.97 },
+  trough = { 0, 0, 0, 0.5 },
+  wash = { 1, 1, 1, 0.03 },
+  picked = { 1, 1, 1 },
 }
+
+-- The paper look: dark ink on tan paper, for readers whom light text on a dark
+-- ground tires (two players on CurseForge, 6 November 2026). Every colour is
+-- here and nowhere else. Each addon's own accent, aside and bar are kept in
+-- their hue and darkened until they read on the paper (K.ink), the rest is the
+-- paper's: set by K.look before anything is built (a colour is read when a
+-- piece is made, so the choice is kept from one login to the next).
+K.PAPER = {
+  ground = { 0.89, 0.81, 0.64 }, -- (the panels: the page and the list)
+  back = { 0.80, 0.71, 0.53 }, -- (the window's body, behind the panels)
+  edge = { 0.42, 0.30, 0.13 },
+  text = { 0.09, 0.06, 0.03 },
+  soft = { 0.27, 0.20, 0.11 },
+  dim = { 0.33, 0.27, 0.19 },
+  tint = { 1, 1, 1 },
+  shade = { 0.89, 0.81, 0.64, 0.55 },
+  highlight = { 0.42, 0.28, 0.08 },
+  field = { 0.96, 0.92, 0.80, 0.9 },
+  menu = { 0.93, 0.87, 0.72, 0.99 },
+  trough = { 0.30, 0.20, 0.08, 0.30 },
+  wash = { 0.25, 0.16, 0.05, 0.06 },
+  picked = { 0.09, 0.06, 0.03 },
+}
+-- The least contrast ratio a text keeps on the paper (WCAG's AA for text).
+K.PAPER_CONTRAST = 4.5
+
+-- A colour's relative luminance, and the contrast of two colours (1 to 21).
+local function luminance(c)
+  local function lin(v) return v <= 0.03928 and v / 12.92 or ((v + 0.055) / 1.055) ^ 2.4 end
+  return 0.2126 * lin(c[1]) + 0.7152 * lin(c[2]) + 0.0722 * lin(c[3])
+end
+function K.contrast(a, b)
+  local la, lb = luminance(a), luminance(b)
+  if la < lb then
+    la, lb = lb, la
+  end
+  return (la + 0.05) / (lb + 0.05)
+end
+-- A colour darkened, its hue kept, until it reads on every ground given.
+function K.ink(c, grounds, least)
+  least = least or K.PAPER_CONTRAST + 0.3
+  local out = { c[1], c[2], c[3] }
+  for _ = 1, 40 do
+    local worst = 99
+    for _, g in ipairs(grounds) do
+      worst = math.min(worst, K.contrast(out, g))
+    end
+    if worst >= least then break end
+    out = { out[1] * 0.93, out[2] * 0.93, out[3] * 0.93 }
+  end
+  return out
+end
+
+local lastTheme
 function K.theme(theme)
+  lastTheme = theme
   for k, v in pairs(DEFAULT) do
     T[k] = (theme and theme[k]) or v
+  end
+  if K.paper then
+    local P = K.PAPER
+    local grounds = { P.ground, P.back }
+    for k, v in pairs(P) do
+      T[k] = v
+    end
+    T.accent = K.ink((theme and theme.accent) or DEFAULT.accent, grounds)
+    T.aside = K.ink((theme and theme.aside) or DEFAULT.aside, grounds)
+    T.bar = K.ink((theme and theme.bar) or DEFAULT.bar, grounds, 3)
+    T.ring = K.ink((theme and theme.ring) or DEFAULT.ring, grounds, 3)
   end
   T.gold = T.accent
   T.rule = { T.accent[1], T.accent[2], T.accent[3], 0.25 }
 end
 K.theme()
+
+-- The paper look on or off: the colours made again for what is built next.
+-- (The look cannot change under windows already drawn: the options say so.)
+function K.look(paper)
+  K.paper = paper and true or false
+  K.theme(lastTheme)
+end
 
 -- A colour as a text code: "|cffd8b26b".
 function K.hex(c) return ("|cff%02x%02x%02x"):format(c[1] * 255, c[2] * 255, c[3] * 255) end
@@ -332,7 +414,8 @@ function K.label(parent, font, size, color)
   local fs = parent:CreateFontString(nil, "OVERLAY")
   fs:SetFont(font, size, "")
   fs:SetTextColor(unpack(color))
-  fs:SetShadowOffset(1, -1)
+  -- (no drop shadow on paper: a dark one under dark ink smudges it)
+  fs:SetShadowOffset(K.paper and 0 or 1, K.paper and 0 or -1)
   fs:SetJustifyH("LEFT")
   return fs
 end
@@ -352,8 +435,24 @@ function K.bar(parent)
   b:SetStatusBarColor(unpack(T.bar))
   local bg = b:CreateTexture(nil, "BACKGROUND")
   bg:SetAllPoints()
-  bg:SetColorTexture(0, 0, 0, 0.5)
+  bg:SetColorTexture(unpack(T.trough))
   return b
+end
+
+local function border(f, color)
+  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+    local t = f:CreateTexture(nil, "BORDER")
+    t:SetColorTexture(unpack(color))
+    if side == "TOP" or side == "BOTTOM" then
+      t:SetHeight(1)
+      t:SetPoint(side .. "LEFT")
+      t:SetPoint(side .. "RIGHT")
+    else
+      t:SetWidth(1)
+      t:SetPoint("TOP" .. side)
+      t:SetPoint("BOTTOM" .. side)
+    end
+  end
 end
 
 -- ── panels ───────────────────────────────────────────────────────────────────
@@ -415,8 +514,19 @@ function K.inset(parent, book)
   return f
 end
 
+-- The paper look's panel: flat paper in a thin brown edge, on both clients.
+function K.paperPanel(parent)
+  local f = CreateFrame("Frame", nil, parent)
+  local back = f:CreateTexture(nil, "BACKGROUND")
+  back:SetAllPoints()
+  back:SetColorTexture(unpack(T.ground))
+  border(f, T.edge)
+  return f
+end
+
 -- The panel of this client: Forever's card, else Classic's inset.
 function K.panel(parent, book)
+  if K.paper then return K.paperPanel(parent) end
   if ns.forever then return K.card(parent) end
   return K.inset(parent, book)
 end
@@ -425,6 +535,11 @@ end
 -- the game's tooltip edge on the theme's shade, or a colour of its own (f
 -- made with BackdropTemplate).
 function K.backing(f, alpha, colour)
+  if K.paper then
+    f.art = K.paperPanel(f)
+    f.art:SetAllPoints()
+    return f.art
+  end
   if ns.forever then
     f.art = K.card(f)
     f.art:SetAllPoints()
@@ -533,16 +648,36 @@ end
 -- highlight, in the theme's colour. Returns the picked-out mark (shown by the
 -- caller).
 K.HIGHLIGHT = "Interface\\QuestFrame\\UI-QuestTitleHighlight"
+-- On paper a light glow shows nothing: the row is washed in the ink instead.
+local WHITE = "Interface\\Buttons\\WHITE8X8"
+function K.hover(button, alpha, untinted)
+  if K.paper then
+    button:SetHighlightTexture(WHITE, "BLEND")
+  else
+    button:SetHighlightTexture(K.HIGHLIGHT, "ADD")
+  end
+  local hover = button:GetHighlightTexture()
+  if hover and hover.SetVertexColor then
+    if K.paper then
+      hover:SetVertexColor(T.highlight[1], T.highlight[2], T.highlight[3], 0.16)
+    else
+      if not untinted then hover:SetVertexColor(unpack(T.highlight)) end
+      if alpha then hover:SetAlpha(alpha) end
+    end
+  end
+end
 function K.highlight(row)
-  row:SetHighlightTexture(K.HIGHLIGHT, "ADD")
-  local hover = row:GetHighlightTexture()
-  if hover and hover.SetVertexColor then hover:SetVertexColor(unpack(T.highlight)) end
+  K.hover(row)
   local mark = row:CreateTexture(nil, "BACKGROUND")
   mark:SetAllPoints()
-  mark:SetTexture(K.HIGHLIGHT)
-  mark:SetBlendMode("ADD")
-  mark:SetAlpha(0.7)
-  mark:SetVertexColor(unpack(T.highlight))
+  if K.paper then
+    mark:SetColorTexture(T.highlight[1], T.highlight[2], T.highlight[3], 0.28)
+  else
+    mark:SetTexture(K.HIGHLIGHT)
+    mark:SetBlendMode("ADD")
+    mark:SetAlpha(0.7)
+    mark:SetVertexColor(unpack(T.highlight))
+  end
   return mark
 end
 
@@ -878,9 +1013,12 @@ function K.links(scheme, follow, colour)
     hooksecurefunc("SetItemRef", heard)
   end
   return function(target, text, c)
-    return ("|cff%s|H%s:%s|h[%s]|h|r"):format(c or colour or "ffd100", scheme, target, text)
+    return ("|cff%s|H%s:%s|h[%s]|h|r"):format(c or colour or K.linkColour(), scheme, target, text)
   end
 end
+
+-- The game's link yellow, and on paper the page's darkened gold (yellow on tan is 1 to 1).
+function K.linkColour() return K.paper and K.hex(T.accent):sub(5) or "ffd100" end
 
 -- Methods set on a frame (a frame's own metatable must stay as the game made it).
 local function extend(frame, methods)
@@ -1092,7 +1230,7 @@ function List:gap(by) self.y = self.y + by end
 
 function List:pick(r)
   r.selected:Show()
-  r.text:SetTextColor(1, 1, 1)
+  r.text:SetTextColor(unpack(T.picked))
   self.selectedY = self.y
 end
 
@@ -1516,7 +1654,7 @@ function Page:card(name, facts, setPicture, click, seal, ring)
   local c = self.cards[self.ci]
   if not c then
     c = K.cardRow(self.child, self.width)
-    c:SetHighlightTexture(K.HIGHLIGHT, "ADD")
+    K.hover(c, nil, true)
     c:SetScript("OnClick", function(cc)
       if cc.click then cc.click() end
     end)
@@ -1886,7 +2024,7 @@ function K.board(o)
     elseif earned then
       r.bg:SetColorTexture(T.bar[1], T.bar[2], T.bar[3], 0.10)
     else
-      r.bg:SetColorTexture(1, 1, 1, 0.03)
+      r.bg:SetColorTexture(unpack(T.wash))
     end
     return height
   end
@@ -1984,6 +2122,7 @@ K.BANNER_SECONDS = 10
 -- lays under it (f.body): a riddle pinned to the screen (Yonder's).
 K.BANNER_H = BANNER_H
 function K.bannerCard(name, width, height)
+  K.applyLook()
   local f = CreateFrame("Button", name, UIParent, "BackdropTemplate")
   f:SetSize(width or BANNER_W, height or BANNER_H)
   f:SetClampedToScreen(true)
@@ -2010,9 +2149,7 @@ function K.bannerCard(name, width, height)
   f.close:SetSize(24, 24)
   f.close:SetPoint("TOPRIGHT", -3, -3)
   f.close:SetScript("OnClick", function() f:Hide() end) -- (the card, not its body)
-  f:SetHighlightTexture(K.HIGHLIGHT, "ADD")
-  local hover = f:GetHighlightTexture()
-  if hover and hover.SetAlpha then hover:SetAlpha(0.25) end
+  K.hover(f, 0.25, true)
   return f
 end
 function K.banners(o)
@@ -2300,7 +2437,7 @@ function K.deeds(o)
     return n, shown
   end
   local function announce(d)
-    local link = o.link and o.link(d) or ("|cffffd100[%s]|r"):format(d.title)
+    local link = o.link and o.link(d) or ("|cff%s[%s]|r"):format(K.linkColour(), d.title)
     print((o.prefix or "") .. L["Achievement earned: %s."]:format(link))
     K.achievementSound(o.sound and o.sound())
     if o.show then return o.show(d) end
@@ -2412,21 +2549,6 @@ end
 --   s.onChange = function(value) end   (a choice made by the player)
 local SELECT_ROWS, SELECT_ROW = 8, 22
 local catcher -- shared by every select: a click outside the open list closes it
-local function border(f, color)
-  for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
-    local t = f:CreateTexture(nil, "BORDER")
-    t:SetColorTexture(unpack(color))
-    if side == "TOP" or side == "BOTTOM" then
-      t:SetHeight(1)
-      t:SetPoint(side .. "LEFT")
-      t:SetPoint(side .. "RIGHT")
-    else
-      t:SetWidth(1)
-      t:SetPoint("TOP" .. side)
-      t:SetPoint("BOTTOM" .. side)
-    end
-  end
-end
 -- (a select's words: on the game's own font object first, so they always have
 -- a font, then in the kit's)
 local function selectLabel(parent, color)
@@ -2443,7 +2565,7 @@ local function kitSelect(parent, width, placeholder)
   s.placeholder = placeholder
   local back = s:CreateTexture(nil, "BACKGROUND")
   back:SetAllPoints()
-  back:SetColorTexture(0, 0, 0, 0.45)
+  back:SetColorTexture(unpack(T.field))
   border(s, { T.ring[1], T.ring[2], T.ring[3], 0.7 })
   s.text = selectLabel(s, T.soft)
   s.text:SetPoint("LEFT", 8, 0)
@@ -2454,12 +2576,7 @@ local function kitSelect(parent, width, placeholder)
   arrow:SetSize(14, 14)
   arrow:SetPoint("RIGHT", -6, -3)
   arrow:SetVertexColor(unpack(T.accent))
-  s:SetHighlightTexture(K.HIGHLIGHT, "ADD")
-  local hover = s:GetHighlightTexture()
-  if hover and hover.SetVertexColor then
-    hover:SetVertexColor(unpack(T.highlight))
-    hover:SetAlpha(0.5)
-  end
+  K.hover(s, 0.5)
 
   local value -- (the choice: kept here, not on the frame)
   local list = CreateFrame("Frame", nil, s)
@@ -2469,7 +2586,7 @@ local function kitSelect(parent, width, placeholder)
   list:EnableMouse(true)
   local shade = list:CreateTexture(nil, "BACKGROUND")
   shade:SetAllPoints()
-  shade:SetColorTexture(0.05, 0.04, 0.03, 0.97)
+  shade:SetColorTexture(unpack(T.menu))
   border(list, { T.ring[1], T.ring[2], T.ring[3], 0.9 })
   local area = K.scrollArea(list, width - 14)
   area:SetPoint("TOPLEFT", 4, -4)
@@ -3140,6 +3257,7 @@ end
 -- sets its own).
 -- Nil where the client has no such template.
 function K.gameWindow(name, title, art)
+  K.applyLook()
   local ok, frame = pcall(CreateFrame, "Frame", name, UIParent, "ButtonFrameTemplate")
   if not ok or not frame then return nil end
   frame.kitName = name
@@ -3149,7 +3267,11 @@ function K.gameWindow(name, title, art)
   -- stone (UI-Background-Rock, Bg in both games' template): the user's call,
   -- 18 October 2026. The title bar, the frame and the panels inside as they were.
   if type(frame.Bg) == "table" and frame.Bg.SetTexture then
-    frame.Bg:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Background-Dark", "REPEAT", "REPEAT")
+    if K.paper then
+      frame.Bg:SetColorTexture(unpack(T.back))
+    else
+      frame.Bg:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Background-Dark", "REPEAT", "REPEAT")
+    end
   end
   if art then
     if frame.SetPortraitToAsset then
@@ -3169,16 +3291,18 @@ end
 -- No standard window on this client: a plain dialog frame, its title and a
 -- close button.
 function K.dialog(name, title)
+  K.applyLook()
   local frame = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
   frame.kitName = name
   frame:SetBackdrop({
-    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+    bgFile = K.paper and "Interface\\Buttons\\WHITE8X8" or "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
     edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Gold-Border",
     tile = true,
     tileSize = 32,
     edgeSize = 32,
     insets = { left = 11, right = 12, top = 12, bottom = 11 },
   })
+  if K.paper then frame:SetBackdropColor(unpack(T.back)) end
   local label = K.label(frame, K.TITLE_FONT, 16, T.accent)
   label:SetPoint("TOP", 0, -16)
   label:SetText(title)
@@ -3225,6 +3349,56 @@ function K.selectTab(window, n)
   if PanelTemplates_SetTab then PanelTemplates_SetTab(window, n) end
 end
 
+-- ── the book's size and look (options) ───────────────────────────────────────
+-- Two choices every addon's options page offers (O:look), kept per character
+-- like the rest. Book size: the whole window grows (text, pictures and the
+-- room they stand in together, one scale), because the text alone has nowhere
+-- to grow: a list's row is one line wide, a page a set width, a heading a set
+-- height. A book too big for the screen is kept to what the screen holds.
+-- The paper look is K.look's (above). The size takes effect at once, the look
+-- once the interface is reloaded.
+K.SIZES = { 1, 1.15, 1.3, 1.5 }
+K.SCREEN_SHARE = 0.95 -- (of the screen a window may fill)
+local sized = {} -- (the windows that grow, with their size at 1)
+
+-- The scale the window gets for a step (1 to 4): never past the screen.
+function K.scaleFor(step, width, height)
+  local scale = K.SIZES[step] or 1
+  local sw, sh =
+    UIParent and UIParent.GetWidth and UIParent:GetWidth(), UIParent and UIParent.GetHeight and UIParent:GetHeight()
+  if type(sw) == "number" and sw > 0 and width then scale = math.min(scale, sw * K.SCREEN_SHARE / width) end
+  if type(sh) == "number" and sh > 0 and height then scale = math.min(scale, sh * K.SCREEN_SHARE / height) end
+  return math.max(1, scale)
+end
+
+-- Every window at the step; one held where it stood on the screen (its place
+-- is kept in the new scale's units).
+function K.resize(step)
+  for _, w in ipairs(sized) do
+    local f = w.frame
+    local was = f:GetScale()
+    was = type(was) == "number" and was > 0 and was or 1
+    local now = K.scaleFor(step, w.width, w.height)
+    f:SetScale(now)
+    local place = w.place
+    if place and place.point and was ~= now then
+      place.x = place.x and math.floor(place.x * was / now + 0.5)
+      place.y = place.y and math.floor(place.y * was / now + 0.5)
+      f:ClearAllPoints()
+      f:SetPoint(place.point, UIParent, place.point, place.x or 0, place.y or 0)
+    end
+  end
+end
+
+-- The look the options chose, applied once before the first window is built
+-- (K.lookGet: the options page's getter; none, the dark look at size Normal).
+local looked = false
+function K.applyLook()
+  if looked or not K.lookGet then return end
+  looked = true
+  K.look(K.lookGet("paper"))
+end
+
 -- A window that can be moved, kept on screen, above the game's panels, and
 -- closed by Escape (by its name: a window of K.gameWindow or K.dialog); left
 -- hidden, as a new frame is shown: its first Show is then a showing (OnShow).
@@ -3232,6 +3406,9 @@ end
 -- screen's centre each time.
 function K.movable(window, width, height, place)
   window:SetSize(width, height)
+  -- (the scale first: a saved place is in the units of the scale it was left at)
+  table.insert(sized, { frame = window, width = width, height = height, place = place })
+  window:SetScale(K.scaleFor(K.lookGet and K.lookGet("bookSize") or 1, width, height))
   if place and place.point then
     window:SetPoint(place.point, UIParent, place.point, place.x or 0, place.y or 0)
   else
@@ -3656,6 +3833,26 @@ function K.options(o)
       return out
     end, K.achievementSound)
   end
+  -- The book's size and the paper look, the same two choices in every addon
+  -- (the settings bookSize, 1 to 4, and paper). The size is applied at once to
+  -- the windows already built, the look from the next reload.
+  function O:look()
+    if o.defaults.bookSize == nil then o.defaults.bookSize = 1 end
+    if o.defaults.paper == nil then o.defaults.paper = false end
+    K.lookGet = o.get
+    self:choice(
+      "bookSize",
+      L["Book size"],
+      L["Makes the whole book bigger, its text and pictures together. A book is never made bigger than your screen."],
+      function() return { { 1, L["Normal"] }, { 2, L["Large"] }, { 3, L["Larger"] }, { 4, L["Largest"] } } end,
+      K.resize
+    )
+    self:check(
+      "paper",
+      L["Paper colours"],
+      L["Dark ink on tan paper, easier on the eyes than light text on a dark ground. Takes effect when you reload the interface (/reload)."]
+    )
+  end
   function O:collect(C)
     if category then K.collectSetting(category, o.key .. "_SHARE", C) end
   end
@@ -3712,6 +3909,7 @@ end
 local WELCOME_W, WELCOME_H, WELCOME_ROW = 780, 500, 44 -- (H with three choices; ROW: each more)
 local WELCOME_LEFT, WELCOME_TEXT = 300, 412
 local REFUSED = { 0.85, 0.32, 0.25 }
+local function refusedInk() return K.paper and K.ink(REFUSED, { T.ground, T.back }) or REFUSED end
 
 local welcomeButton = K.button
 
@@ -3852,7 +4050,7 @@ function K.welcome(o)
         refresh()
         say(L["The code's choices are this character's now."], T.accent)
       else
-        say(o.refused, REFUSED)
+        say(o.refused, refusedInk())
       end
     end)
     code.box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
