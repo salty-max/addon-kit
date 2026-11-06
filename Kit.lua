@@ -3278,8 +3278,7 @@ function K.gameWindow(name, title, art)
   local ok, frame = pcall(CreateFrame, "Frame", name, UIParent, "ButtonFrameTemplate")
   if not ok or not frame then return nil end
   frame.kitName = name
-  -- (the template's parentKey in both games; the Gamepad UI closes a window by it)
-  if not frame.CloseButton and name then frame.CloseButton = _G[name .. "CloseButton"] end
+  -- (the template's parentKey in both games sets frame.CloseButton, which the Gamepad UI closes a window by)
   if ButtonFrameTemplate_HideButtonBar then ButtonFrameTemplate_HideButtonBar(frame) end
   if type(frame.Inset) == "table" then frame.Inset:Hide() end
   -- Its body the dialog box's dark (black at 87%, tiled), not the game's grey
