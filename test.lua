@@ -1783,6 +1783,166 @@ do
   rawset(UIParent, "GetHeight", saved.GetHeight)
 end
 
+-- ── Forever's options page: a canvas of plain frames ─────────────────────────
+-- The rule: on Forever we hand Blizzard no function. No Settings control is
+-- registered (each would have the game call our getters and setters inside
+-- its own code), the page is frames with script handlers, and the selects
+-- are the kit's own list.
+do
+  local saved = { CreateFrame = CreateFrame, Settings = Settings, GamepadMode = GamepadMode, ReloadUI = ReloadUI }
+  local arrows, buttons, checks = {}, {}, {}
+  local plain = function() return frame() end
+  CreateFrame = function(kind, _, parent, template)
+    local f = plain()
+    f.parentFrame = parent
+    if kind == "Button" and not template then
+      function f:SetNormalTexture(path) self.normal = path end
+      table.insert(arrows, f)
+    elseif kind == "Button" then
+      table.insert(buttons, f)
+    elseif kind == "CheckButton" then
+      function f:GetChecked() return rawget(self, "ticked") end
+      function f:SetChecked(v) self.ticked = v end
+      table.insert(checks, f)
+    end
+    return f
+  end
+  local function blocked() error("a Blizzard Settings control was used on Forever") end
+  local opened
+  Settings = {
+    VarType = { Boolean = "b", Number = "n", String = "s" },
+    RegisterCanvasLayoutCategory = function(page, name)
+      return { page = page, name = name, GetID = function() return 77 end }
+    end,
+    RegisterAddOnCategory = function(c) Settings.registered = c end,
+    OpenToCategory = function(id) opened = id end,
+    RegisterVerticalLayoutCategory = blocked,
+    RegisterProxySetting = blocked,
+    CreateCheckbox = blocked,
+    CreateDropdown = blocked,
+    CreateSlider = blocked,
+    CreateSliderOptions = blocked,
+  }
+  GamepadMode = {}
+  local reloads = 0
+  ReloadUI = function() reloads = reloads + 1 end
+  local K = load()
+  local values, copied = {}, nil
+  local defaults = { bookSize = 1, paper = false, bannerSeconds = 10 }
+  local profiles = {
+    others = function() return { "Ann - Realm", "Bob - Realm" } end,
+    copy = function(_, other)
+      copied = other
+      return true
+    end,
+  }
+  local O = K.options({
+    title = "Kit",
+    key = "KIT",
+    defaults = defaults,
+    slash = "/kit",
+    profiles = profiles,
+    get = function(k)
+      if values[k] == nil then return defaults[k] end
+      return values[k]
+    end,
+    set = function(k, v) values[k] = v end,
+  })
+  O:look()
+  O:bannerSeconds("bannerSeconds")
+  O:copy()
+  O:done()
+  check(
+    O.canvas and O.category == nil and Settings.registered and Settings.registered.page == O.page,
+    "canvas: a canvas category, no vertical one"
+  )
+  check(O:open() == true and opened == 77, "canvas: the page opens through its category")
+  check(
+    rawget(O.page, "OnRefresh") == nil and rawget(O.page, "OnCommit") == nil and rawget(O.page, "OnDefault") == nil,
+    "canvas: none of the three functions the panel would call"
+  )
+  check(#arrows == 0, "canvas: nothing built before the page is shown")
+  O.page.scripts.OnShow()
+  -- (the select's own buttons are among the Buttons made: the arrows are the ones with a picture)
+  do
+    local only = {}
+    for _, f in ipairs(arrows) do
+      if rawget(f, "normal") then table.insert(only, f) end
+    end
+    arrows = only
+  end
+  -- (rows in order: the size, the paper, [the controller: GamepadMode is set], the banner, the copy, the reload)
+  check(#arrows >= 6 and #checks >= 1, "canvas: the steppers' arrows and the boxes are plain frames")
+  local sizeLeft, sizeRight = arrows[1], arrows[2]
+  check(sizeLeft.enabled == false and sizeRight.enabled == true, "canvas: at the first step the left arrow rests")
+  sizeRight.scripts.OnClick()
+  check(values.bookSize == 2, "canvas: an arrow steps the saved value (1 to 2)")
+  sizeRight.scripts.OnClick()
+  sizeLeft.scripts.OnClick()
+  check(values.bookSize == 2, "canvas: and back")
+  values.bookSize = 7
+  O.page.scripts.OnShow()
+  check(values.bookSize == 7, "canvas: a saved value not in the list is shown as a step and never written")
+  check(
+    sizeRight.enabled == false and sizeLeft.enabled == true,
+    "canvas: 7 is shown as the last step (4), its right arrow resting"
+  )
+  values.bookSize = 1
+  -- the paper box
+  -- (the boxes: the controller's, then the paper's)
+  checks[1].ticked = true
+  checks[1].scripts.OnClick(checks[1])
+  check(
+    K.padOn == true and values.controller == true,
+    "canvas: a box writes its value and runs its after from its own click"
+  )
+  checks[2].ticked = true
+  checks[2].scripts.OnClick(checks[2])
+  check(values.paper == true, "canvas: the paper box is kept")
+  -- numbers: the banner stepper
+  local bannerRight = arrows[#arrows - 2] -- (before the copy's two)
+  bannerRight.scripts.OnClick()
+  check(values.bannerSeconds == 15, "canvas: a number steps by its step (10 to 15)")
+  -- copy: the stepper alone copies nothing, the button does
+  local copyRight = arrows[#arrows]
+  copyRight.scripts.OnClick()
+  check(copied == nil, "canvas: moving the stepper copies nothing")
+  local copyButton, reloadButton
+  for _, b in ipairs(buttons) do
+    if b.text == "Copy their choices" then copyButton = b end
+    if b.text == "Reload" then reloadButton = b end
+  end
+  check(copyButton ~= nil and reloadButton ~= nil, "canvas: a Copy and a Reload button")
+  copyButton.scripts.OnClick()
+  check(copied == "Ann - Realm", "canvas: Copy takes the chosen character")
+  check(reloads == 0, "canvas: nothing reloads when the page is built")
+  reloadButton.scripts.OnClick()
+  check(reloads == 1, "canvas: one click, one ReloadUI")
+  -- (a stepper's list hangs from UIParent, so a scroll area cannot cut it, and goes with its select)
+  do
+    local pick = O.rows[1].pick
+    check(pick and pick.list.parentFrame == UIParent, "canvas: the stepper's list hangs from UIParent")
+    pick.scripts.OnClick()
+    check(pick.list.shown == true, "canvas: a click on the word opens the list")
+    local hooks = rawget(pick, "hooks")
+    check(hooks and hooks.OnHide and #hooks.OnHide == 1, "canvas: the list is told when its select hides")
+    hooks.OnHide[1]()
+    check(pick.list.shown == false, "canvas: the list closes with its select")
+    local plainSelect = K.select(UIParent, 170, "Choose")
+    check(
+      plainSelect.list.parentFrame == plainSelect,
+      "canvas: a select outside a scroll area keeps its list as a child"
+    )
+  end
+  -- the selects: the kit's own list, no Blizzard menu
+  local menuWas, xmlWas = MenuUtil, C_XMLUtil
+  MenuUtil, C_XMLUtil = {}, { GetTemplateInfo = function() return {} end }
+  local sel = K.select(UIParent, 170, "Choose")
+  check(sel.list ~= nil and sel.rows ~= nil, "canvas: K.select is the kit's own list on Forever")
+  MenuUtil, C_XMLUtil = menuWas, xmlWas
+  CreateFrame, Settings, GamepadMode, ReloadUI = saved.CreateFrame, saved.Settings, saved.GamepadMode, saved.ReloadUI
+end
+
 -- The controller: Forever's Gamepad UI is told of a window when it shows and
 -- hides (its manager, called through securecallfunction, behind pcall), Era's
 -- never is, a manager that raises leaves the window working and is counted;

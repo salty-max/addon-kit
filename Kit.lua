@@ -2622,12 +2622,12 @@ function K.deedsTab(A, o)
 end
 
 -- ── choosing ─────────────────────────────────────────────────────────────────
--- A select: the game's own dropdown, in a box the caller places: the menu
--- system's (WowStyle1DropdownTemplate), which every client the family ships
--- for has (Classic Era 1.15.9 and Forever alike); the older UIDropDownMenu
--- kept for a client without it, the kit's own where there's neither (the
--- test games).
---   s = K.select(parent, width, placeholder)   (s.placeholder: shown without a choice)
+-- A select: on Forever the kit's own list of plain buttons (no Blizzard menu:
+-- see canvasPage); elsewhere the game's own dropdown, in a box the caller
+-- places: the menu system's (WowStyle1DropdownTemplate, Classic Era 1.15.9
+-- has it), the older UIDropDownMenu kept for a client without it, the kit's
+-- own where there's neither (the test games).
+--   s = K.select(parent, width, placeholder[, float])   (s.placeholder: shown without a choice; float: the list hangs from UIParent, for a select inside a scroll area, which would cut it)
 --   s:SetOptions({ { value = v, text = "..." }, ... }), s:SetValue(v), s:GetValue()
 --   s.onChange = function(value) end   (a choice made by the player)
 local SELECT_ROWS, SELECT_ROW = 8, 22
@@ -2642,7 +2642,7 @@ local function selectLabel(parent, color)
   fs:SetWordWrap(false)
   return fs
 end
-local function kitSelect(parent, width, placeholder)
+local function kitSelect(parent, width, placeholder, float)
   local s = CreateFrame("Button", nil, parent)
   s:SetSize(width, 24)
   s.placeholder = placeholder
@@ -2662,7 +2662,9 @@ local function kitSelect(parent, width, placeholder)
   K.hover(s, 0.5)
 
   local value -- (the choice: kept here, not on the frame)
-  local list = CreateFrame("Frame", nil, s)
+  -- (float: the list hangs from UIParent, not from the select, for a select
+  -- inside a scroll area, which would cut the list at its edge)
+  local list = CreateFrame("Frame", nil, float and UIParent or s)
   list:SetPoint("TOPLEFT", s, "BOTTOMLEFT", 0, -2)
   list:SetWidth(width)
   list:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -2691,12 +2693,19 @@ local function kitSelect(parent, width, placeholder)
         self:Hide()
         if self.list then self.list:Hide() end
       end)
+      -- (the wheel closes the list too: a floating one would stay put while the page scrolls under it)
+      catcher:EnableMouseWheel(true)
+      catcher:SetScript("OnMouseWheel", function(self)
+        self:Hide()
+        if self.list then self.list:Hide() end
+      end)
     end
     catcher.list = list
     catcher:Show()
     list:Show()
   end
   s.Close = close
+  if float then s:HookScript("OnHide", close) end
   s:SetScript("OnClick", function()
     if list:IsShown() then
       close()
@@ -2885,7 +2894,11 @@ local function dropDownSelect(parent, width, placeholder)
   return s
 end
 
-function K.select(parent, width, placeholder)
+function K.select(parent, width, placeholder, float)
+  -- (Forever: no Blizzard menu. Its menu-open chain runs the select's
+  -- isSelected closures, our functions, just before the Gamepad UI's own
+  -- unwrapped SuspendFrame: see canvasPage. The plain list instead.)
+  if GamepadMode ~= nil then return kitSelect(parent, width, placeholder, float) end
   local templates = C_XMLUtil and C_XMLUtil.GetTemplateInfo
   if MenuUtil and templates and templates("WowStyle1DropdownTemplate") then
     return menuSelect(parent, width, placeholder)
@@ -4254,6 +4267,179 @@ function K.binding(o)
   return { action = o.key .. "_OPEN", global = o.global }
 end
 
+-- ── the Options page as a canvas (Forever) ───────────────────────────────────
+-- THE RULE: on Forever we hand Blizzard no function. Blizzard's Settings
+-- controls (checkbox, slider, dropdown) call the addon's getter, setter and
+-- option lists from inside Blizzard's own code, and what runs in that chain
+-- is tainted, the Gamepad UI's calls among it (FrameControlsManager,
+-- SmartNavigation, UpdateInteractIcons: the game then blocks
+-- SetPreferredGamepadInteractTarget, and only /reload clears it). A script
+-- handler on our own frame is insulated, so the page is a canvas of plain
+-- frames and every bit of logic sits in OnShow, OnClick and the like. The
+-- page defines none of the three functions the panel would call (OnRefresh,
+-- OnCommit, OnDefault). Rows are described by the O methods, built when the
+-- page is first shown, redrawn on every show.
+local CANVAS_W, CANVAS_X, CANVAS_TEXT = 560, 330, 310
+local CANVAS_INK = {
+  title = { 1, 0.82, 0 },
+  label = { 0.95, 0.92, 0.84 },
+  tip = { 0.62, 0.58, 0.5 },
+}
+local function canvasArrow(parent, name)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(24, 24)
+  local base = "Interface\\Buttons\\UI-SpellbookIcon-" .. name .. "-"
+  b:SetNormalTexture(base .. "Up")
+  b:SetPushedTexture(base .. "Down")
+  b:SetDisabledTexture(base .. "Disabled")
+  b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+  return b
+end
+
+-- The index of a value among the options: its own, else (numbers) the nearest,
+-- else the first. Only for what is shown: nothing is written by it.
+local function canvasIndex(options, value)
+  for i, opt in ipairs(options) do
+    if opt.value == value then return i end
+  end
+  if type(value) == "number" then
+    local best, gap
+    for i, opt in ipairs(options) do
+      if type(opt.value) == "number" and (not gap or math.abs(opt.value - value) < gap) then
+        best, gap = i, math.abs(opt.value - value)
+      end
+    end
+    if best then return best end
+  end
+  return 1
+end
+
+local function canvasPage(O, o, rows)
+  local page = CreateFrame("Frame", nil, UIParent)
+  page:Hide()
+  O.page, O.rows = page, rows
+  local built, drawn = false, {}
+
+  -- A stepper: an arrow, the word (a click on it lists the others), an arrow.
+  local function stepper(parent, y, d)
+    local s = {}
+    s.left = canvasArrow(parent, "PrevPage")
+    s.left:SetPoint("TOPLEFT", parent, "TOPLEFT", CANVAS_X, -y)
+    s.pick = K.select(parent, 150, "", true)
+    s.pick:SetPoint("TOPLEFT", parent, "TOPLEFT", CANVAS_X + 28, -y)
+    s.right = canvasArrow(parent, "NextPage")
+    s.right:SetPoint("TOPLEFT", parent, "TOPLEFT", CANVAS_X + 182, -y)
+    local function go(delta)
+      local at = canvasIndex(s.options, d.get())
+      local opt = s.options[at + delta]
+      if opt then
+        d.set(opt.value)
+        s.refresh()
+      end
+    end
+    s.left:SetScript("OnClick", function() go(-1) end)
+    s.right:SetScript("OnClick", function() go(1) end)
+    s.pick.onChange = function(v)
+      d.set(v)
+      s.refresh()
+    end
+    function s.refresh()
+      s.options = d.options()
+      s.pick:SetOptions(s.options)
+      local at = canvasIndex(s.options, d.get())
+      if s.options[at] then s.pick:SetValue(s.options[at].value) end
+      s.left:SetEnabled(at > 1)
+      s.right:SetEnabled(at < #s.options)
+    end
+    return s
+  end
+
+  local function build()
+    built = true
+    local back = page:CreateTexture(nil, "BACKGROUND")
+    back:SetAllPoints()
+    back:SetColorTexture(0.05, 0.04, 0.03, 0.9)
+    local title = K.label(page, K.TITLE_FONT, 20, CANVAS_INK.title)
+    title:SetPoint("TOPLEFT", 16, -14)
+    title:SetText(o.title)
+    local area = K.scrollArea(page, CANVAS_W)
+    area:SetPoint("TOPLEFT", 16, -52)
+    area:SetPoint("BOTTOMRIGHT", -28, 12)
+    local y = 0
+    for _, d in ipairs(rows) do
+      local label = K.label(area.child, K.BODY_FONT, 13, CANVAS_INK.label)
+      label:SetPoint("TOPLEFT", 0, -y - 4)
+      label:SetWidth(CANVAS_TEXT)
+      label:SetWordWrap(true)
+      label:SetText(d.text)
+      local tip = K.label(area.child, K.BODY_FONT, 11, CANVAS_INK.tip)
+      tip:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -3)
+      tip:SetWidth(CANVAS_TEXT)
+      tip:SetWordWrap(true)
+      tip:SetText(d.tip or "")
+      local used = math.max(14, textHeight(label)) + (d.tip and 3 + math.max(12, textHeight(tip)) or 0)
+      local height = math.max(34, used + 14)
+      if d.kind == "check" then
+        local cb = CreateFrame("CheckButton", nil, area.child, "UICheckButtonTemplate")
+        cb:SetPoint("TOPLEFT", area.child, "TOPLEFT", CANVAS_X, -y)
+        cb:SetScript("OnClick", function(self) d.set(self:GetChecked() and true or false) end)
+        d.draw = function() cb:SetChecked(d.get() and true or false) end
+      elseif d.kind == "steps" then
+        local s = stepper(area.child, y, d)
+        d.pick = s.pick
+        d.draw = s.refresh
+      elseif d.kind == "button" then
+        local b = K.button(area.child, d.button, 130)
+        b:SetPoint("TOPLEFT", area.child, "TOPLEFT", CANVAS_X, -y)
+        b:SetScript("OnClick", function() d.click() end)
+      elseif d.kind == "copy" then
+        -- (the character is chosen, then Copy takes it: moving the stepper copies nothing)
+        local chosen = ""
+        local own = {
+          get = function() return chosen end,
+          set = function(v) chosen = v end,
+          options = function()
+            local list = { { value = "", text = L["Choose a character"] } }
+            for _, other in ipairs(o.profiles:others()) do
+              table.insert(list, { value = other, text = other })
+            end
+            return list
+          end,
+        }
+        local s = stepper(area.child, y, own)
+        local b = K.button(area.child, L["Copy their choices"], 150)
+        b:SetPoint("TOPLEFT", area.child, "TOPLEFT", CANVAS_X + 28, -y - 30)
+        b:SetScript("OnClick", function()
+          local other = chosen
+          chosen = ""
+          if other ~= "" and o.profiles:copy(other) then
+            print((o.prefix or "") .. L["%s's settings copied."]:format(other))
+          end
+          s.refresh()
+        end)
+        d.draw = s.refresh
+        d.chosen = function() return chosen end
+        height = math.max(height, 66)
+      end
+      drawn[#drawn + 1] = d
+      y = y + height
+    end
+    area.child:SetHeight(y)
+    area:UpdateThumb()
+  end
+  function O:redraw()
+    if not built then return end
+    for _, d in ipairs(drawn) do
+      if d.draw then d.draw() end
+    end
+  end
+  page:SetScript("OnShow", function()
+    if not built then build() end
+    O:redraw()
+  end)
+  return page
+end
+
 -- ── the Options page ─────────────────────────────────────────────────────────
 -- The addon's page in the game's Options (AddOns), where the client has the
 -- Settings panel: boxes, a slider, a choice, the opt-in, another character's
@@ -4268,8 +4454,16 @@ end
 function K.options(o)
   local O = { variables = {} }
   local category
-  local ok = Settings and Settings.RegisterVerticalLayoutCategory and Settings.RegisterProxySetting
-  if ok then
+  -- On Forever (the Gamepad UI is there) the page is a canvas of plain frames,
+  -- no Settings control: see canvasPage. O.category stays nil there (an addon
+  -- that adds its own Settings controls to it skips them: they would be the
+  -- very thing the canvas avoids).
+  local canvas, rows, canvasCategory = false, {}, nil
+  if GamepadMode ~= nil and Settings and Settings.RegisterCanvasLayoutCategory then
+    canvas = true
+    O.canvas = true
+    canvasCategory = Settings.RegisterCanvasLayoutCategory(canvasPage(O, o, rows), o.title)
+  elseif Settings and Settings.RegisterVerticalLayoutCategory and Settings.RegisterProxySetting then
     category = Settings.RegisterVerticalLayoutCategory(o.title)
     O.category = category
   end
@@ -4280,8 +4474,21 @@ function K.options(o)
     return Settings.RegisterProxySetting(category, v, kind, text, default, get, set)
   end
   function O:check(key, text, tip, inverted, after)
-    if not category then return end
     inverted = inverted and true or false
+    if canvas then
+      table.insert(rows, {
+        kind = "check",
+        text = text,
+        tip = tip,
+        get = function() return (o.get(key) and true or false) ~= inverted end,
+        set = function(value)
+          o.set(key, value ~= inverted)
+          if after then after(value) end
+        end,
+      })
+      return
+    end
+    if not category then return end
     local setting = register(
       key,
       Settings.VarType.Boolean,
@@ -4296,6 +4503,23 @@ function K.options(o)
     Settings.CreateCheckbox(category, setting, tip)
   end
   function O:slider(key, text, tip, min, max, step, label)
+    if canvas then
+      table.insert(rows, {
+        kind = "steps",
+        text = text,
+        tip = tip,
+        options = function()
+          local list = {}
+          for v = min, max, step do
+            table.insert(list, { value = v, text = label and label(v) or tostring(v) })
+          end
+          return list
+        end,
+        get = function() return o.get(key) end,
+        set = function(value) o.set(key, value) end,
+      })
+      return
+    end
     if not (category and Settings.CreateSliderOptions) then return end
     local setting = register(
       key,
@@ -4312,6 +4536,26 @@ function K.options(o)
     Settings.CreateSlider(category, setting, options, tip)
   end
   function O:choice(key, text, tip, list, after)
+    if canvas then
+      table.insert(rows, {
+        kind = "steps",
+        text = text,
+        tip = tip,
+        options = function()
+          local out = {}
+          for _, opt in ipairs(list()) do
+            table.insert(out, { value = opt[1], text = opt[2] })
+          end
+          return out
+        end,
+        get = function() return o.get(key) end,
+        set = function(value)
+          o.set(key, value)
+          if after then after(value) end
+        end,
+      })
+      return
+    end
     if not (category and Settings.CreateDropdown and Settings.CreateControlTextContainer) then return end
     local kind = type(o.defaults[key]) == "number" and Settings.VarType.Number or Settings.VarType.String
     local setting = register(key, kind, text, o.defaults[key], function() return o.get(key) end, function(value)
@@ -4388,9 +4632,27 @@ function K.options(o)
     )
   end
   function O:collect(C)
-    if category then K.collectSetting(category, o.key .. "_SHARE", C) end
+    if canvas then
+      local c = K.collectChoice(C)
+      table.insert(rows, { kind = "check", text = c.text, tip = c.hint, get = c.get, set = c.set })
+    elseif category then
+      K.collectSetting(category, o.key .. "_SHARE", C)
+    end
   end
   function O:copy()
+    if canvas then
+      if o.profiles then
+        table.insert(rows, {
+          kind = "copy",
+          text = L["Copy settings from"],
+          tip = L["Another character's choices, for this one (of this game: Classic and Forever keep their own). From elsewhere: %s export there, then %s import CODE here."]:format(
+            o.slash,
+            o.slash
+          ),
+        })
+      end
+      return
+    end
     if not category then return end
     K.copySetting(
       category,
@@ -4408,6 +4670,16 @@ function K.options(o)
   -- and nothing else: no popup of ours (a StaticPopup shown by an addon taints),
   -- and never a reload from code without a click.
   function O:reload()
+    if canvas then
+      table.insert(rows, {
+        kind = "button",
+        text = L["Reload the interface"],
+        tip = L["Reloads the interface. Some choices only take effect after it."],
+        button = L["Reload"],
+        click = function() ReloadUI() end,
+      })
+      return
+    end
     if not (category and CreateSettingsButtonInitializer and Settings.RegisterInitializer) then return end
     pcall(function()
       Settings.RegisterInitializer(
@@ -4424,16 +4696,22 @@ function K.options(o)
   end
   function O:done()
     self:reload()
-    if category then Settings.RegisterAddOnCategory(category) end
+    if canvas then
+      Settings.RegisterAddOnCategory(canvasCategory)
+    elseif category then
+      Settings.RegisterAddOnCategory(category)
+    end
   end
   function O:open()
-    if category then Settings.OpenToCategory(category:GetID()) end
-    return category ~= nil
+    local shown = canvasCategory or category
+    if shown then Settings.OpenToCategory(shown:GetID()) end
+    return shown ~= nil
   end
   -- (a copy or an import changes them under the page: each one redrawn)
   if o.profiles and o.profiles.onTaken then
     o.profiles:onTaken(function()
       if K.padRead then K.padRead() end
+      if canvas then return O:redraw() end
       if not (category and Settings.NotifyUpdate) then return end
       for _, v in ipairs(O.variables) do
         pcall(Settings.NotifyUpdate, v)
