@@ -198,7 +198,7 @@ So this is a diagnosis to settle in the game, with three tools (all work on the 
    callback registry's `executingEvents` entry for Status Text, the Escape list) the name of the addon that wrote any that
    `issecurevariable(table, key)` says is not secure, `Taint: clean` otherwise. Run it before and after the error.
 2. `/<addon> pad off` stops telling the manager (it is told every window of ours is hidden, after the fight in a fight)
-   and stops the stick call, `/<addon> pad on` starts again, for the session (not saved, a reload turns it on): the same
+   and stops the stick call, `/<addon> pad on` starts again, for the session (not saved, a reload follows the Gamepad UI again), `/<addon> pad auto` follows it again at once: the same
    action once each way says whether the registration is the cause. Also: after a reload, change Status Text **without
    ever opening the addon's options page** (the menu and formatter vector), once with the pad on, once off.
 3. Blizzard's own log, if both are not enough: `/console taintLog 1` in the game, `/reload`, repeat the action, log out
@@ -223,18 +223,27 @@ info only if the window already has one (`GetPanelInfo(window, true)` does not c
 that the cursor standing on a row of the list (whose scroll frame the cursor sets by itself) takes the stick
 from the text, as Blizzard's own windows behave.
 
-## Off until chosen (8 November 2026)
+## Follows the Gamepad UI (8 November 2026)
 
-Telling the manager taints it. The user's test of 8 November: `/codex pad` named
-`manager.focusedFrame`, `manager.topSuspendedFrame` and
-`SmartNavigation.activePanels[3].buttonGroups` as written by the addon, and the
-Blizzard options page then failed on a change of the book's size ("blocked from
-an action only available to the Blizzard UI"). So `K.padOn` is false by
-default: the options page has a saved choice, "Controller support" (Forever
-only, off, its tip says it may block the game's own windows until a reload),
-and `/<addon> pad on` does it for a session. The flag is set from the page and
-the manager is told when a window next shows, never from inside the Settings
-callback.
+The manager is told of our windows exactly when the Gamepad UI is the game's interface style
+(`InputUtil.IsGamepadUIEnabled()` under `pcall`, false where it does not exist, so on Classic Era), read at each
+call, never cached, like Blizzard's own windows: that is what gives a window the stick and the D-pad (so the right
+stick no longer turns the camera behind an open book, expected from the registration, not tried in the game). The
+user's decision, after a saved "Controller support" option (off by default, 8 November) was tried and removed:
+"Gamepad UI is enabled or not. That's it." `K.padForce` is only a session override for diagnosis
+(`/<addon> pad on`, `pad off`, `pad auto` to follow the Gamepad UI again, `K.padSet`), and `/<addon> pad` says
+which. The kit's guarantees stay: nothing in combat (the call waits for the fight's end), every call behind
+`pcall`, and `FrameHidden` only for a window that was told it is shown, whatever the style is by then (a window
+shown while the Gamepad UI was off and hidden later while on is never sent a hide, one told shown and hidden after
+a switch off still gets its hide, once). A window already shown when the Gamepad UI switches on is told at its
+next showing.
+
+Honest: telling the manager may taint what the game reads (`manager.focusedFrame`, `manager.topSuspendedFrame`,
+`SmartNavigation.activePanels[n].buttonGroups`). The user's test of 8 November first blamed that registration for
+the "blocked from an action only available to the Blizzard UI" popup on the options page. The cause found later
+is Settings dropdowns (below), which the page no longer builds with the Gamepad UI on, so the registration
+stays on, on the user's decision. If the popup comes back with it on, `/codex pad` names the slots and
+`/codex pad off` is the test.
 
 LB and RB turn to the previous and next tab of a book (`K.tabs`, an
 `OnGamePadButtonDown` on our own window, wrapping round, `PADLSHOULDER` and
@@ -249,7 +258,7 @@ the Gamepad UI is on, and whether the propagation flag governs pad buttons.
 
 `/<addon> pad` (any addon using `K.commands`, not in the usage) prints one line, from `K.padReport()`:
 
-`Controller: Gamepad UI on, manager found, told shown 1, hidden 1, raised 0, blocked 0, waiting 0, stick set 1, registration on`
+`Controller: Gamepad UI on, manager found, told shown 1, hidden 1, raised 0, blocked 0, waiting 0, stick set 1, registration on (follows the Gamepad UI)`
 
 With a refusal, `blocked 2 (SetOverrideBinding(), Show())`: the names of the actions, five at most, each once.
 
@@ -274,7 +283,7 @@ Tests: `test.lua`, the block "The controller".
 
 ## Known Forever beta bug class
 
-The "blocked from an action only available to the Blizzard UI" popup (`SetPreferredGamepadInteractTarget()`) can appear on Forever with Controller support off and the manager untouched: Blizzard's own gamepad code (`UpdateInteractIcons`, reached from a chat clear, SmartNavigation or a panel) calls the protected function while the gamepad state is tainted, any addon can trip it (an empty addon with an empty slash command does), and only `/reload` clears it. Reports: [Questie#7899](https://github.com/Questie/Questie/issues/7899), [Horizon-Suite#489](https://github.com/Tacit-Labs/Horizon-Suite/issues/489) and the Blizzard forum thread "Native gamepad UI: empty addon triggers blocked-action popup loop". The fixes others found: keep your own objects out of Blizzard's gamepad lists, do not hide or reparent Blizzard frames from addon code. Every options page ends with a Reload button (`O:reload`, one `ReloadUI()` per click, never a popup of ours and never a reload from code).
+The "blocked from an action only available to the Blizzard UI" popup (`SetPreferredGamepadInteractTarget()`) can appear on Forever, with the manager untouched or not: Blizzard's own gamepad code (`UpdateInteractIcons`, reached from a chat clear, SmartNavigation or a panel) calls the protected function while the gamepad state is tainted, any addon can trip it (an empty addon with an empty slash command does), and only `/reload` clears it. Reports: [Questie#7899](https://github.com/Questie/Questie/issues/7899), [Horizon-Suite#489](https://github.com/Tacit-Labs/Horizon-Suite/issues/489) and the Blizzard forum thread "Native gamepad UI: empty addon triggers blocked-action popup loop". The fixes others found: keep your own objects out of Blizzard's gamepad lists, do not hide or reparent Blizzard frames from addon code. Every options page ends with a Reload button (`O:reload`, one `ReloadUI()` per click, never a popup of ours and never a reload from code).
 
 **The evidence (8 November 2026).** In the Forever test the popup came with any *select* on an addon's Settings page: Goodwill, which carries the old kit with no controller code at all, did it too (`/codex pad` then showed `manager.focusedFrame`, `manager.topSuspendedFrame` and `SmartNavigation.activePanels[3].buttonGroups` tainted by Goodwill). Checkboxes and the Reload button did not.
 

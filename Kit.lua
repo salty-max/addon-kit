@@ -3574,15 +3574,24 @@ end
 -- it is behind pcall: a window's own showing never depends on it. ("raised" is
 -- a lower bound: securecallfunction may hand an error to the game's handler.)
 K.pad = { shown = 0, hidden = 0, failed = 0, blocked = 0, waiting = 0 }
--- Telling the manager taints it: the game reads focusedFrame, topSuspendedFrame and
--- SmartNavigation.activePanels[n].buttonGroups as written by this addon, and the
--- options page (and anything else of Blizzard's that reads them) is then blocked
--- ("blocked from an action only available to the Blizzard UI", the user's test
--- of 8 November 2026, /codex pad naming the three slots). So it is off until the
--- player chooses it (the options page's "Controller support", a saved choice,
--- or /<addon> pad on for a session). LB and RB switching a book's tabs does not
--- need the manager (K.tabs) and works either way.
-K.padOn = false
+-- The manager is told of our windows exactly when the Gamepad UI is the game's
+-- interface style (InputUtil.IsGamepadUIEnabled, read at each call, never
+-- cached: a player may switch in the game), like Blizzard's own windows: that
+-- is what gives a window the stick and the D-pad (the user's decision, 8
+-- November 2026, over a saved "Controller support" option, now removed).
+-- Honest: telling it may taint what the game reads (focusedFrame,
+-- topSuspendedFrame, SmartNavigation's buttonGroups), and the options page was
+-- once blocked by it (see docs/controller.md for the cause that was then
+-- found: Settings dropdowns, which that page no longer uses with the Gamepad
+-- UI on). /<addon> pad on|off|auto forces it or follows the Gamepad UI again,
+-- for a session, to diagnose. A window is told it is hidden only if it was told
+-- it is shown, whatever the style is by then. LB and RB switching a book's
+-- tabs does not need the manager (K.tabs) and works either way.
+K.padForce = nil -- (nil: follow the Gamepad UI)
+local function padActive()
+  if K.padForce ~= nil then return K.padForce end
+  return K.gamepadUI()
+end
 local padWatch
 local padWatcher
 local padTold, padWait = {}, {} -- (windows the manager was told of; windows to settle after a fight)
@@ -3602,7 +3611,7 @@ local function padSettle()
   for window in pairs(padWait) do
     padWait[window] = nil
     K.pad.waiting = K.pad.waiting - 1
-    local shown = window:IsShown() and K.padOn and true or false
+    local shown = window:IsShown() and padActive() and true or false
     if shown and not padTold[window] then
       padCall("FrameShown", window)
     elseif not shown and padTold[window] then
@@ -3636,7 +3645,7 @@ function padWatcher()
   end)
 end
 function padCall(method, window)
-  if method == "FrameShown" and not K.padOn then return end
+  if method == "FrameShown" and not padActive() then return end
   -- (the manager is told a window is hidden only if it was told it is shown:
   -- a hide it never heard of reaches its own state and the taint report names us)
   if method == "FrameHidden" and not padTold[window] then return end
@@ -3688,7 +3697,7 @@ function K.padReport()
     pad.waiting,
     pad.scrolled or 0,
     pad.nopanel or 0,
-    K.padOn and "on" or "off"
+    (padActive() and "on" or "off") .. (K.padForce ~= nil and " (forced)" or " (follows the Gamepad UI)")
   )
 end
 
@@ -3724,7 +3733,7 @@ local function padFindText(frame, depth)
   return first
 end
 function K.padText(window)
-  if not K.padOn or not padTold[window] then return end
+  if not padActive() or not padTold[window] then return end
   local nav = SmartNavigation
   if type(nav) ~= "table" or type(nav.SetScrollFrameForFrame) ~= "function" then return end
   local scroll = padFindText(window, 0)
@@ -3739,14 +3748,19 @@ function K.padText(window)
   if pcall(run, nav.SetScrollFrameForFrame, nav, window, scroll) then K.pad.scrolled = (K.pad.scrolled or 0) + 1 end
 end
 
--- Turns the registration off or on for the session (not saved): off tells the
--- manager every window of ours is hidden and stops telling it, on tells it
--- about the ones shown. A way to settle, in the game, whether it is what
--- taints Blizzard's own code: the same action, once with it on, once off.
+-- Forces the registration on or off for the session (not saved), or nil to
+-- follow the Gamepad UI again: off tells the manager every window of ours that
+-- it was told of is hidden and stops telling it, on tells it about the ones
+-- shown. A way to settle, in the game, whether it is what taints Blizzard's
+-- own code: the same action, once with it on, once off.
 function K.padSet(on)
-  K.padOn = on and true or false
+  if on == nil then
+    K.padForce = nil
+  else
+    K.padForce = on and true or false
+  end
   for window in pairs(padWindows) do
-    if K.padOn then
+    if padActive() then
       if window:IsShown() and not padTold[window] then padCall("FrameShown", window) end
     elseif padTold[window] then
       padCall("FrameHidden", window)
@@ -4195,9 +4209,15 @@ function K.commands(o)
       )
     elseif msg ~= "help" and o.commands and o.commands[msg] then
       o.commands[msg](raw)
-    elseif msg == "pad" or msg == "pad on" or msg == "pad off" then
+    elseif msg == "pad" or msg == "pad on" or msg == "pad off" or msg == "pad auto" then
       -- (the controller's trace: not in the usage, not a player's word)
-      if msg ~= "pad" then K.padSet(msg == "pad on") end
+      if msg == "pad on" then
+        K.padSet(true)
+      elseif msg == "pad off" then
+        K.padSet(false)
+      elseif msg == "pad auto" then
+        K.padSet(nil)
+      end
       say(K.padReport())
       say(K.taintReport())
     elseif msg == "help" or not (o.match and o.match(msg, raw)) then
@@ -4456,21 +4476,6 @@ function K.options(o)
       function() return { { 1, L["Normal"] }, { 2, L["Large"] }, { 3, L["Larger"] }, { 4, L["Largest"] } } end,
       K.resize
     )
-    -- Forever only (Era has no Gamepad UI). Saved, off by default: telling the
-    -- manager taints it (K.padOn). Only the flag is set from the page, the
-    -- manager is told when a window next shows.
-    if GamepadMode ~= nil then
-      if o.defaults.controller == nil then o.defaults.controller = false end
-      K.padOn = o.get("controller") and true or false
-      self:check(
-        "controller",
-        L["Controller support"],
-        L["Lets the game's controller cursor move through this book. This option can block some of the game's own windows until you reload the interface. Use the Reload button below. It takes effect the next time you open the book."],
-        false,
-        function(value) K.padOn = value and true or false end
-      )
-      K.padRead = function() K.padOn = o.get("controller") and true or false end
-    end
     self:check(
       "paper",
       L["Paper colours"],
@@ -4523,7 +4528,6 @@ function K.options(o)
   -- (a copy or an import changes them under the page: each one redrawn)
   if o.profiles and o.profiles.onTaken then
     o.profiles:onTaken(function()
-      if K.padRead then K.padRead() end
       if not (category and Settings.NotifyUpdate) then return end
       for _, v in ipairs(O.variables) do
         pcall(Settings.NotifyUpdate, v)

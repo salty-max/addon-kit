@@ -1722,6 +1722,10 @@ do
     registered.KIT_BOOKSIZE.kind == "n" and registered.KIT_PAPER.kind == "b",
     "options: a number for the size, a box for the paper"
   )
+  check(
+    registered.KIT_CONTROLLER == nil and defaults.controller == nil,
+    "options: no Controller support option, the Gamepad UI decides"
+  )
   local list = choices[registered.KIT_BOOKSIZE]()
   check(
     #list == 4 and list[1][2] == "Normal" and list[4][2] == "Largest" and list[3][1] == 3,
@@ -1994,7 +1998,7 @@ do
   -- Era: no GamepadMode at all, then one without the manager: nothing is called
   GamepadMode, securecallfunction = nil, nil
   local Ke = load()
-  Ke.padOn = true
+  Ke.padForce = true
   local we = window(Ke, "PadEra")
   fire(we, "OnShow")
   fire(we, "OnHide")
@@ -2015,7 +2019,7 @@ do
     return fn(...)
   end
   local Kf = load()
-  Kf.padOn = true
+  Kf.padForce = true
   local wf = window(Kf, "PadForever")
   local hooks = rawget(wf, "hooks")
   check(hooks and #hooks.OnShow == 1 and #hooks.OnHide == 1, "pad: hooks on show and hide, not scripts")
@@ -2049,7 +2053,7 @@ do
       return f
     end
     local Kg = load()
-    Kg.padOn = true
+    Kg.padForce = true
     window(Kg, "PadWatch")
     CreateFrame = prev
     local watcher
@@ -2072,12 +2076,12 @@ do
     end
     check(#Kg.pad.names == 5 and Kg.pad.blocked == 8, "pad: five names at most, every refusal counted")
 
-    -- off until chosen (telling the manager taints it): a shown window is not told
-    Kg.padOn = false -- (the kit's own default: the other blocks switch it on)
+    -- forced off: a shown window is not told
+    Kg.padForce = false -- (the other blocks force it on)
     local before = #calls
     local wg = window(Kg, "PadOff")
     fire(wg, "OnShow")
-    check(Kg.padOn == false and #calls == before, "pad: the manager is not told until the player chooses it")
+    check(Kg.padForce == false and #calls == before, "pad: forced off, the manager is not told")
     fire(wg, "OnHide")
     check(
       #calls == before and Kg.pad.hidden == 0 and Kg.pad.shown == 0,
@@ -2094,6 +2098,7 @@ do
     )
     fire(wg, "OnHide")
     check(#calls == told + 1, "pad: and not twice")
+
     -- (off, in a fight, a hide of a window never told: nothing waits, nothing is called)
     local wasCombat = InCombatLockdown
     InCombatLockdown = function() return true end
@@ -2104,6 +2109,81 @@ do
     InCombatLockdown = wasCombat
     for i = #calls, before + 1, -1 do
       calls[i] = nil -- (the counts further down are Forever's own)
+    end
+    -- it follows the Gamepad UI, read at each call
+    Kg.padForce = nil
+    local styleWas = InputUtil
+    local style = false
+    InputUtil = { IsGamepadUIEnabled = function() return style end }
+    local base = #calls
+    local hid = Kg.pad.hidden
+    local wa = window(Kg, "PadFollows")
+    wa.shown = true
+    fire(wa, "OnShow")
+    check(#calls == base, "pad follows the UI: with the Gamepad UI off, a shown window is never told")
+    fire(wa, "OnHide")
+    check(#calls == base and Kg.pad.hidden == hid, "pad follows the UI: and its hide is not sent either")
+    style = true
+    fire(wa, "OnShow")
+    check(
+      #calls == base + 1 and calls[#calls][1] == "FrameShown",
+      "pad follows the UI: switched on later, the next show tells the manager"
+    )
+    style = false
+    fire(wa, "OnHide")
+    check(
+      #calls == base + 2 and calls[#calls][1] == "FrameHidden",
+      "pad follows the UI: switched off while shown, the hide is still sent for a told window"
+    )
+    fire(wa, "OnHide")
+    check(#calls == base + 2, "pad follows the UI: and once")
+    style = true
+    local wc = window(Kg, "PadFollowsOn")
+    fire(wc, "OnShow")
+    check(
+      #calls == base + 3 and calls[#calls][1] == "FrameShown",
+      "pad follows the UI: with the Gamepad UI on, a show is told"
+    )
+    check(Kg.padReport():find("follows the Gamepad UI", 1, true) ~= nil, "pad follows the UI: the trace says so")
+    -- shown while off, hidden after it switched on: never told, so no hide
+    style = false
+    local wd = window(Kg, "PadFollowsMixed")
+    local mixed = #calls
+    fire(wd, "OnShow")
+    style = true
+    fire(wd, "OnHide")
+    check(#calls == mixed, "pad follows the UI: shown while off, hidden while on, no hide is sent")
+    -- a fight in which the style changes: a window never told gets nothing at the end
+    local wasCombat = InCombatLockdown
+    style = true
+    InCombatLockdown = function() return true end
+    local we = window(Kg, "PadFollowsFight")
+    we.shown = true
+    fire(we, "OnShow")
+    style = false
+    InCombatLockdown = function() return false end
+    Kg.padSettle()
+    InCombatLockdown = wasCombat
+    check(#calls == mixed, "pad follows the UI: queued in a fight, the style off at its end, nothing is sent")
+    -- forced on, then back to following the UI (off): the told window is hidden once
+    style = false
+    Kg.padSet(true)
+    local wf = window(Kg, "PadFollowsForced")
+    wf.shown = true
+    fire(wf, "OnShow")
+    local forced = #calls
+    Kg.padSet(nil)
+    local hidWf = 0
+    for i = forced + 1, #calls do
+      if calls[i][1] == "FrameHidden" and calls[i][3] == wf then hidWf = hidWf + 1 end
+    end
+    check(
+      Kg.padForce == nil and hidWf == 1,
+      "pad follows the UI: padSet(nil) follows the UI again, and hides what was told, once"
+    )
+    InputUtil = styleWas
+    for i = #calls, before + 1, -1 do
+      calls[i] = nil
     end
 
     -- LB and RB turn the tabs, with no manager at all
@@ -2270,9 +2350,11 @@ do
     SlashCmdList.PADTEST("pad off")
     print = realPrint2
     check(
-      Kf.padOn == false and said2[1] and said2[1]:find("registration off", 1, true),
+      Kf.padForce == false and said2[1] and said2[1]:find("registration off", 1, true),
       "pad: /<addon> pad off switches it off"
     )
+    SlashCmdList.PADTEST("pad auto")
+    check(Kf.padForce == nil, "pad: /<addon> pad auto follows the Gamepad UI again")
     Kf.padSet(true)
   end
 
