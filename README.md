@@ -143,7 +143,7 @@ are created in the addon's defaults and kept per character like its others.
   file-level table (`T.link = K.hex(T.accent)`, a `|cffffd100` link, a hardcoded white or
   grey) is read at load, before the look is known, and stays the dark look's. Read `K.T`
   when a piece is built, and use `K.linkColour()` for a link.
-- Not looked at in the game yet: the search box and any edit box (the game's own art and light font on paper), and the quest paper behind the panels.
+- On paper the search box and the selects get the paper's own light field and ink (the template's dark art hidden, the body font plain), and a bar is a rust fill on a light trough: its 1.9 to 1 against the paper (`K.PAPER_BAR_CONTRAST`) is for a fill on its trough, so a line drawn straight on the paper (Second Wind's plot) inks its own colour when that addon adopts the look. Rendered as a mock-up, not yet seen in the game: the search icon, the select's arrow and the quest paper behind the panels.
 - Rendered before shipping in `.cache/renders/` (HTML drawn with the book's real geometry and
   palette, Chrome headless: `r_<dark|paper>_<1-4>.png`).
 

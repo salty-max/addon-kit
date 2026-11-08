@@ -204,6 +204,33 @@ check(
 s:SetValue(12345)
 check(s:GetValue() == nil and s.box.shownText == "Choose", "menu: a value not offered: none, the placeholder")
 
+-- On paper the select's dark art is hidden and its text stays ink after the
+-- game's own state handler paints it light (every hover, press and show).
+do
+  local made
+  local plain = CreateFrame
+  CreateFrame = function(kind, ...)
+    local f = plain(kind, ...)
+    if kind == "DropdownButton" then
+      f.Background = { Hide = function(self) self.hidden = true end }
+      f.Text = { SetTextColor = function(self, r, g, b) self.col = { r, g, b } end }
+      function f:IsEnabled() return true end
+      function f:OnButtonStateChanged() self.Text:SetTextColor(1, 1, 1) end
+      made = f
+    end
+    return f
+  end
+  local Kp = load()
+  Kp.look(true)
+  Kp.select(UIParent, 170, "Choose")
+  check(made.Background.hidden == true, "paper: the select's dark text holder is hidden")
+  check(made.Text.col and made.Text.col[1] < 0.2, "paper: the select's text is ink")
+  made:OnButtonStateChanged()
+  check(made.Text.col[1] < 0.2, "paper: the select's text is ink again after the game's state handler")
+  Kp.look(false)
+  CreateFrame = plain
+end
+
 -- ── UIDropDownMenu ───────────────────────────────────────────────────────────
 local open = dropDownApi()
 K = load()
@@ -1566,10 +1593,22 @@ do
         check(r >= MIN, ("paper: %s's %s reads on paper (%.2f to 1)"):format(name, key, r))
       end
       check(
-        K.contrast(K.T.bar, g) >= 3 and K.contrast(K.T.ring, g) >= 3,
-        "paper: " .. name .. "'s bar and ring show (3 to 1)"
+        K.contrast(K.T.bar, g) >= K.PAPER_BAR_CONTRAST and K.contrast(K.T.ring, g) >= 3,
+        "paper: " .. name .. "'s bar shows (1.9 to 1) and ring (3 to 1)"
       )
     end
+    K.look(false)
+  end
+  -- (a bar's fill must show on its trough, itself laid on the paper)
+  do
+    K.theme()
+    K.look(true)
+    local tr, g = K.T.trough, K.T.ground
+    local on = {}
+    for i = 1, 3 do
+      on[i] = tr[4] * tr[i] + (1 - tr[4]) * g[i]
+    end
+    check(K.contrast(K.T.bar, on) >= 2, "paper: the bar's fill shows on its trough (2 to 1)")
     K.look(false)
   end
   print("  paper contrast, worst text " .. string.format("%.2f", worst) .. " to 1: " .. table.concat(figures, ", "))

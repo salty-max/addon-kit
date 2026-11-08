@@ -174,7 +174,7 @@ K.PAPER = {
   highlight = { 0.36, 0.16, 0.05 },
   field = { 0.96, 0.92, 0.80, 0.9 },
   menu = { 0.93, 0.87, 0.72, 0.99 },
-  trough = { 0.30, 0.15, 0.05, 0.38 },
+  trough = { 0.96, 0.90, 0.74, 0.55 }, -- (light: the rust fill reads against it, never a black bar)
   wash = { 0.25, 0.12, 0.04, 0.07 },
   picked = { 0.06, 0.04, 0.02 },
 }
@@ -187,6 +187,7 @@ K.PAPER_BASE = { 0.95, 0.87, 0.68 }
 K.PAPER_ART_ALPHA = 0.7
 -- The least contrast ratio a text keeps on the paper (WCAG's AA for text).
 K.PAPER_CONTRAST = 4.5
+K.PAPER_BAR_CONTRAST = 1.9
 
 -- A colour's relative luminance, and the contrast of two colours (1 to 21).
 local function luminance(c)
@@ -234,7 +235,13 @@ function K.theme(theme)
     end
     T.accent = K.ink(accent, grounds)
     T.aside = K.ink((theme and theme.aside) or DEFAULT.aside, grounds)
-    T.bar = K.ink((theme and theme.bar) or DEFAULT.bar, grounds, 3)
+    -- (a bar is a fill on a trough, not text: a warm gold leans to rust, and it
+    -- needs only 1.9 to 1 against the paper, else it is dark brown, near black)
+    local bar = (theme and theme.bar) or DEFAULT.bar
+    if bar[1] > bar[2] and bar[2] >= bar[3] then
+      bar = { bar[1] * 0.5 + 0.62 * 0.5, bar[2] * 0.5 + 0.27 * 0.5, bar[3] * 0.5 + 0.05 * 0.5 }
+    end
+    T.bar = K.ink(bar, grounds, K.PAPER_BAR_CONTRAST)
     T.ring = K.ink((theme and theme.ring) or DEFAULT.ring, grounds, 3)
   end
   T.gold = T.accent
@@ -469,6 +476,20 @@ local function border(f, color)
       t:SetPoint("BOTTOM" .. side)
     end
   end
+end
+
+-- The paper's field (a search box, a select): the template's dark art hidden
+-- (its Left, Middle and Right on an edit box, its Background on a dropdown),
+-- the paper's own light field and edge in its place.
+local function paperField(f, art)
+  for _, key in ipairs(art) do
+    local t = f[key]
+    if type(t) == "table" and t.Hide then t:Hide() end
+  end
+  local back = f:CreateTexture(nil, "BACKGROUND")
+  back:SetAllPoints()
+  back:SetColorTexture(unpack(T.field))
+  border(f, { T.ring[1], T.ring[2], T.ring[3], 0.7 })
 end
 
 -- ── panels ───────────────────────────────────────────────────────────────────
@@ -2758,6 +2779,28 @@ local function menuSelect(parent, width, placeholder)
   box:SetPoint("LEFT")
   box:SetWidth(width)
   s.box = box
+  if K.paper then
+    -- (its dark text holder hidden: the paper's field, and the ink on it)
+    local field = CreateFrame("Frame", nil, s)
+    field:SetPoint("TOPLEFT", box, "TOPLEFT")
+    field:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -22, 0)
+    field:SetFrameLevel(s:GetFrameLevel())
+    paperField(field, {})
+    if type(box.Background) == "table" and box.Background.Hide then box.Background:Hide() end
+    -- (the template's state handler paints the text light on every hover, press
+    -- and show: ours runs after it and puts the ink back)
+    local function ink(self)
+      if type(self.Text) == "table" and self.Text.SetTextColor then
+        self.Text:SetTextColor(unpack(self:IsEnabled() and T.text or T.dim))
+      end
+    end
+    local theirs = box.OnButtonStateChanged
+    box.OnButtonStateChanged = function(self, ...)
+      if theirs then theirs(self, ...) end
+      ink(self)
+    end
+    ink(box)
+  end
   local value -- (the choice: kept here, not on the frame)
   local function setup()
     box:SetupMenu(function(_, root)
@@ -2797,6 +2840,19 @@ local function dropDownSelect(parent, width, placeholder)
   box:SetPoint("LEFT", -16, -2)
   UIDropDownMenu_SetWidth(box, width - 26)
   s.box = box
+  if K.paper then
+    for _, part in ipairs({ "Left", "Middle", "Right" }) do
+      local t = box[part]
+      if type(t) == "table" and t.Hide then t:Hide() end
+    end
+    local field = CreateFrame("Frame", nil, s)
+    field:SetPoint("TOPLEFT", s, "TOPLEFT", 0, -2)
+    field:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -2, 2)
+    field:SetFrameLevel(s:GetFrameLevel())
+    paperField(field, {})
+    local text = box.Text
+    if type(text) == "table" and text.SetTextColor then text:SetTextColor(unpack(T.text)) end
+  end
   local value -- (the choice: kept here, not on the frame)
   UIDropDownMenu_Initialize(box, function(_, level)
     for _, o in ipairs(s.options) do
@@ -3909,15 +3965,22 @@ function K.book(o)
     f.search:SetPoint("TOPLEFT", f.left, "TOPLEFT", 18, -10)
     f.search:SetPoint("TOPRIGHT", f.left, "TOPRIGHT", o.searchRight or -12, -10)
     if K.paper then
-      -- (the template's field is drawn for a dark ground: on paper it gets the
-      -- paper's own field, and its words the ink)
-      local back = f.search:CreateTexture(nil, "BACKGROUND")
-      back:SetAllPoints()
-      back:SetColorTexture(unpack(T.field))
-      border(f.search, { T.ring[1], T.ring[2], T.ring[3], 0.7 })
+      -- (the template's field is drawn for a dark ground: on paper its art is
+      -- hidden, the paper's own field stands in, and its words are the ink)
+      paperField(f.search, { "Left", "Middle", "Right" })
+      -- (the template's fonts are small, outlined and shadowed, drawn for light
+      -- on dark: thin and smudged in ink. The kit's body font, plain, like the labels)
+      f.search:SetFont(K.BODY_FONT, 12, "")
       f.search:SetTextColor(unpack(T.text))
+      f.search:SetShadowOffset(0, 0)
       local hint = f.search.Instructions
-      if hint then pcall(function() hint:SetTextColor(unpack(T.dim)) end) end
+      if hint then
+        pcall(function()
+          hint:SetFont(K.BODY_FONT, 12, "")
+          hint:SetShadowOffset(0, 0)
+          hint:SetTextColor(unpack(T.dim))
+        end)
+      end
     end
     f.search:HookScript("OnTextChanged", function() B:refresh() end)
     f.filter = false -- (every field set: none read before it is)
