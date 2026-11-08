@@ -271,3 +271,7 @@ Tests: `test.lua`, the block "The controller".
   Blizzard's `FrameShown` then sees the rows is still for a person with the Gamepad UI on: open a book for the first
   time after a reload and see whether the ring reaches the rows (the `/<addon> pad` line says the call ran, not
   what it saw). Tests: `test.lua`, "pad: the book's own OnShow runs before FrameShown", and the welcome's order.
+
+## Known Forever beta bug class
+
+The "blocked from an action only available to the Blizzard UI" popup (`SetPreferredGamepadInteractTarget()`) can appear on Forever with Controller support off and the manager untouched: Blizzard's own gamepad code (`UpdateInteractIcons`, reached from a chat clear, SmartNavigation or a panel) calls the protected function while the gamepad state is tainted, any addon can trip it (an empty addon with an empty slash command does), and only `/reload` clears it. We cannot promise to remove it, so every options page ends with a Reload button (`O:reload`, the game's own `CreateSettingsButtonInitializer`, one `ReloadUI()` per click, never a popup of ours and never a reload from code); the fixes others found were keeping their own objects out of Blizzard's gamepad lists and not hiding or reparenting Blizzard frames from addon code. Reports: [Questie#7899](https://github.com/Questie/Questie/issues/7899), [Horizon-Suite#489](https://github.com/Tacit-Labs/Horizon-Suite/issues/489) and the Blizzard forum thread "Native gamepad UI: empty addon triggers blocked-action popup loop".

@@ -1690,6 +1690,33 @@ do
     set = function(k, v) values[k] = v end,
   })
   O:look()
+  -- The page ends with the game's own button that reloads the interface: one
+  -- ReloadUI() per click, none when it is made, nothing else (no popup of ours).
+  local reloads, made = 0, nil
+  ReloadUI = function() reloads = reloads + 1 end
+  CreateSettingsButtonInitializer = function(name, text, click, tip, searchTags)
+    made = { name = name, text = text, click = click, tip = tip, searchTags = searchTags }
+    return made
+  end
+  local registeredInit
+  Settings.RegisterInitializer = function(_, init) registeredInit = init end
+  Settings.RegisterAddOnCategory = function() end
+  O:done()
+  check(
+    registeredInit == made and made.text == "Reload" and made.name == "Reload the interface",
+    "options: a Reload button ends the page"
+  )
+  check(
+    made.searchTags == false and made.tip:find("Reloads the interface", 1, true),
+    "options: the button has a tip, and is kept out of search"
+  )
+  check(reloads == 0, "options: nothing reloads when the page is built")
+  made.click()
+  check(reloads == 1, "options: one click, one ReloadUI")
+  CreateSettingsButtonInitializer, Settings.RegisterInitializer = nil, nil
+  O:done()
+  check(reloads == 1, "options: a client without the button's API still builds the page")
+  ReloadUI = nil
   check(defaults.bookSize == 1 and defaults.paper == false, "options: Normal and dark by default")
   check(
     registered.KIT_BOOKSIZE.kind == "n" and registered.KIT_PAPER.kind == "b",

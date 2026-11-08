@@ -4375,7 +4375,7 @@ function K.options(o)
       self:check(
         "controller",
         L["Controller support"],
-        L["Lets the game's controller cursor move through this book. This option can block some of the game's own windows until you reload the interface (/reload). It takes effect the next time you open the book."],
+        L["Lets the game's controller cursor move through this book. This option can block some of the game's own windows until you reload the interface. Use the Reload button below. It takes effect the next time you open the book."],
         false,
         function(value) K.padOn = value and true or false end
       )
@@ -4384,7 +4384,7 @@ function K.options(o)
     self:check(
       "paper",
       L["Paper colours"],
-      L["Dark ink on tan paper, easier on the eyes than light text on a dark ground. Takes effect when you reload the interface (/reload)."]
+      L["Dark ink on tan paper, easier on the eyes than light text on a dark ground. Takes effect when you reload the interface. Use the Reload button below."]
     )
   end
   function O:collect(C)
@@ -4403,7 +4403,27 @@ function K.options(o)
       function(other) print((o.prefix or "") .. L["%s's settings copied."]:format(other)) end
     )
   end
+  -- A button at the foot of the page that reloads the interface, the game's own
+  -- (CreateSettingsButtonInitializer, in both clients), its click one ReloadUI()
+  -- and nothing else: no popup of ours (a StaticPopup shown by an addon taints),
+  -- and never a reload from code without a click.
+  function O:reload()
+    if not (category and CreateSettingsButtonInitializer and Settings.RegisterInitializer) then return end
+    pcall(function()
+      Settings.RegisterInitializer(
+        category,
+        CreateSettingsButtonInitializer(
+          L["Reload the interface"],
+          L["Reload"],
+          function() ReloadUI() end,
+          L["Reloads the interface. Some choices only take effect after it."],
+          false
+        )
+      )
+    end)
+  end
   function O:done()
+    self:reload()
     if category then Settings.RegisterAddOnCategory(category) end
   end
   function O:open()

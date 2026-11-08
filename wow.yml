@@ -113,6 +113,8 @@ globals:
     any: true
   CreateFromMixins:
     any: true
+  CreateSettingsButtonInitializer:
+    any: true
   CreateUnitHealPredictionCalculator:
     any: true
   CreateVector2D:
@@ -529,6 +531,8 @@ globals:
   QuestFrame:
     any: true
   QuestInfoFrame:
+    any: true
+  ReloadUI:
     any: true
   SaltyMaxCollector:
     property: full-write
