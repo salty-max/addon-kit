@@ -159,21 +159,32 @@ local DEFAULT = {
 -- paper's: set by K.look before anything is built (a colour is read when a
 -- piece is made, so the choice is kept from one login to the next).
 K.PAPER = {
-  ground = { 0.89, 0.81, 0.64 }, -- (the panels: the page and the list)
-  back = { 0.80, 0.71, 0.53 }, -- (the window's body, behind the panels)
-  edge = { 0.42, 0.30, 0.13 },
-  text = { 0.09, 0.06, 0.03 },
-  soft = { 0.27, 0.20, 0.11 },
-  dim = { 0.33, 0.27, 0.19 },
+  -- (the panels: the page and the list. The paper is the game's quest paper
+  -- over a light base: this is the picture's 1st percentile blended with it
+  -- (measured on the 1.13.5 art), the colour every ink is darkened against.
+  -- Only a pixel in a hundred is darker, and the text still reads on the darkest)
+  ground = { 0.67, 0.53, 0.36 },
+  back = { 0.66, 0.56, 0.42 }, -- (the window's body, behind the panels: a duller, darker tan)
+  edge = { 0.29, 0.18, 0.06 },
+  text = { 0.06, 0.04, 0.02 },
+  soft = { 0.14, 0.09, 0.04 },
+  dim = { 0.17, 0.11, 0.05 },
   tint = { 1, 1, 1 },
   shade = { 0.89, 0.81, 0.64, 0.55 },
-  highlight = { 0.42, 0.28, 0.08 },
+  highlight = { 0.36, 0.16, 0.05 },
   field = { 0.96, 0.92, 0.80, 0.9 },
   menu = { 0.93, 0.87, 0.72, 0.99 },
-  trough = { 0.30, 0.20, 0.08, 0.30 },
-  wash = { 0.25, 0.16, 0.05, 0.06 },
-  picked = { 0.09, 0.06, 0.03 },
+  trough = { 0.30, 0.15, 0.05, 0.38 },
+  wash = { 0.25, 0.12, 0.04, 0.07 },
+  picked = { 0.06, 0.04, 0.02 },
 }
+-- The paper's picture: the game's quest paper (Interface\QuestFrame\QuestBG,
+-- in both clients), the part inside its torn edge, laid at PAPER_ART_ALPHA over
+-- the base colour so the ink keeps its contrast.
+K.PAPER_ART = "Interface\\QuestFrame\\QuestBG"
+K.PAPER_CROP = { 12 / 512, 284 / 512, 12 / 512, 316 / 512 }
+K.PAPER_BASE = { 0.95, 0.87, 0.68 }
+K.PAPER_ART_ALPHA = 0.7
 -- The least contrast ratio a text keeps on the paper (WCAG's AA for text).
 K.PAPER_CONTRAST = 4.5
 
@@ -216,7 +227,12 @@ function K.theme(theme)
     for k, v in pairs(P) do
       T[k] = v
     end
-    T.accent = K.ink((theme and theme.accent) or DEFAULT.accent, grounds)
+    -- (a warm accent, the gold, leans to red-brown on paper: a deep, livelier heading)
+    local accent = (theme and theme.accent) or DEFAULT.accent
+    if accent[1] > accent[2] and accent[2] >= accent[3] then
+      accent = { accent[1] * 0.7 + 0.48 * 0.3, accent[2] * 0.7 + 0.12 * 0.3, accent[3] * 0.7 + 0.05 * 0.3 }
+    end
+    T.accent = K.ink(accent, grounds)
     T.aside = K.ink((theme and theme.aside) or DEFAULT.aside, grounds)
     T.bar = K.ink((theme and theme.bar) or DEFAULT.bar, grounds, 3)
     T.ring = K.ink((theme and theme.ring) or DEFAULT.ring, grounds, 3)
@@ -514,12 +530,39 @@ function K.inset(parent, book)
   return f
 end
 
--- The paper look's panel: flat paper in a thin brown edge, on both clients.
+-- The paper look's panel, on both clients: the game's quest paper in a dark
+-- brown edge, shaded a little inside it for depth (the picture missing: the
+-- base colour alone).
 function K.paperPanel(parent)
   local f = CreateFrame("Frame", nil, parent)
-  local back = f:CreateTexture(nil, "BACKGROUND")
-  back:SetAllPoints()
-  back:SetColorTexture(unpack(T.ground))
+  local base = f:CreateTexture(nil, "BACKGROUND")
+  base:SetAllPoints()
+  base:SetColorTexture(unpack(K.PAPER_BASE))
+  local art = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+  art:SetAllPoints()
+  if art:SetTexture(K.PAPER_ART) == false then
+    art:Hide()
+  else
+    art:SetTexCoord(unpack(K.PAPER_CROP))
+    art:SetAlpha(K.PAPER_ART_ALPHA)
+  end
+  local E = K.PAPER.edge
+  for i, alpha in ipairs({ 0.3, 0.14, 0.06 }) do
+    local inset = i -- (1, 2 and 3 pixels in: the edge fading into the paper)
+    for _, side in ipairs({ "TOP", "BOTTOM", "LEFT", "RIGHT" }) do
+      local t = f:CreateTexture(nil, "BORDER")
+      t:SetColorTexture(E[1], E[2], E[3], alpha)
+      if side == "TOP" or side == "BOTTOM" then
+        t:SetHeight(1)
+        t:SetPoint(side .. "LEFT", inset, side == "TOP" and -inset or inset)
+        t:SetPoint(side .. "RIGHT", -inset, side == "TOP" and -inset or inset)
+      else
+        t:SetWidth(1)
+        t:SetPoint("TOP" .. side, side == "LEFT" and inset or -inset, -inset)
+        t:SetPoint("BOTTOM" .. side, side == "LEFT" and inset or -inset, inset)
+      end
+    end
+  end
   border(f, T.edge)
   return f
 end

@@ -1690,6 +1690,27 @@ do
   check(row ~= nil and K.T.picked[1] < 0.2, "paper: a page and a list draw, the picked row's ink dark")
   K.look(false)
 
+  -- The paper's panel: the game's quest paper over a light base, its picture
+  -- cropped inside the torn edge, the base kept light so the ink holds its contrast.
+  local crop = K.PAPER_CROP
+  check(
+    K.PAPER_ART == "Interface\\QuestFrame\\QuestBG"
+      and crop[1] > 0
+      and crop[2] < 300 / 512
+      and crop[3] > 0
+      and crop[4] < 335 / 512,
+    "paper: the quest paper, cropped inside its torn edge (300 by 335 of 512)"
+  )
+  local worstPixel = {}
+  for i = 1, 3 do
+    worstPixel[i] = K.PAPER_ART_ALPHA * ({ 0.42, 0.27, 0.19 })[i] + (1 - K.PAPER_ART_ALPHA) * K.PAPER_BASE[i]
+  end
+  check(
+    K.contrast(K.PAPER.text, worstPixel) >= K.PAPER_CONTRAST
+      and K.contrast(K.PAPER.text, K.PAPER.ground) >= K.PAPER_CONTRAST,
+    "paper: ink reads on the paper's darkest pixel (measured 0.42, 0.27, 0.19 in the crop)"
+  )
+
   K.lookGet = nil
   CreateFrame, Settings, UISpecialFrames = saved.CreateFrame, saved.Settings, saved.UISpecialFrames
   rawset(UIParent, "GetWidth", saved.GetWidth)

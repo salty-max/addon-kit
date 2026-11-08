@@ -133,7 +133,7 @@ are created in the addon's defaults and kept per character like its others.
   holding its place), not the text alone, because a list's row is one line wide, a page
   a set width and a heading a set height: bigger text alone has nowhere to go. A window
   is kept to 95% of the screen (`K.scaleFor`).
-- **Paper colours**: dark ink on tan paper. Every colour is in `K.PAPER`, the accent,
+- **Paper colours**: dark ink on the game's own quest paper (`Interface\QuestFrame\QuestBG`, both clients, cropped inside its torn edge and laid at 70% over a light base, in a dark brown edge shaded 3 pixels inward; `K.paperPanel`, `K.PAPER_ART`). Every colour is in `K.PAPER`, the accent,
   the aside and the progress colours of each addon's theme darkened until they read
   (`K.ink`, never under 4.5 to 1 for text: `test.lua` asserts it for several themes). Colours are
   read when a piece is built, so the choice is read once before the first window
@@ -143,7 +143,7 @@ are created in the addon's defaults and kept per character like its others.
   file-level table (`T.link = K.hex(T.accent)`, a `|cffffd100` link, a hardcoded white or
   grey) is read at load, before the look is known, and stays the dark look's. Read `K.T`
   when a piece is built, and use `K.linkColour()` for a link.
-- Not looked at in the game yet: the search box and any edit box (the game's own art and light font on paper).
+- Not looked at in the game yet: the search box and any edit box (the game's own art and light font on paper), and the quest paper behind the panels.
 - Rendered before shipping in `.cache/renders/` (HTML drawn with the book's real geometry and
   palette, Chrome headless: `r_<dark|paper>_<1-4>.png`).
 
