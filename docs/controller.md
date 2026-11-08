@@ -223,6 +223,28 @@ info only if the window already has one (`GetPanelInfo(window, true)` does not c
 that the cursor standing on a row of the list (whose scroll frame the cursor sets by itself) takes the stick
 from the text, as Blizzard's own windows behave.
 
+## Off until chosen (8 November 2026)
+
+Telling the manager taints it. The user's test of 8 November: `/codex pad` named
+`manager.focusedFrame`, `manager.topSuspendedFrame` and
+`SmartNavigation.activePanels[3].buttonGroups` as written by the addon, and the
+Blizzard options page then failed on a change of the book's size ("blocked from
+an action only available to the Blizzard UI"). So `K.padOn` is false by
+default: the options page has a saved choice, "Controller support" (Forever
+only, off, its tip says it may block the game's own windows until a reload),
+and `/<addon> pad on` does it for a session. The flag is set from the page and
+the manager is told when a window next shows, never from inside the Settings
+callback.
+
+LB and RB turn to the previous and next tab of a book (`K.tabs`, an
+`OnGamePadButtonDown` on our own window, wrapping round, `PADLSHOULDER` and
+`PADRSHOULDER`). It writes nothing of Blizzard's and works with the manager
+off. `EnableGamePadButton(true)` and `SetPropagateKeyboardInput(true)` are set
+together, once, out of combat (in a fight they wait for its end), so the book
+never eats a button the game needs, and LB and RB reach the game too. Not
+verified in the game: whether the game hands those buttons to the window while
+the Gamepad UI is on, and whether the propagation flag governs pad buttons.
+
 ## The trace
 
 `/<addon> pad` (any addon using `K.commands`, not in the usage) prints one line, from `K.padReport()`:

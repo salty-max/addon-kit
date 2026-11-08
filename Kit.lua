@@ -3345,6 +3345,40 @@ function K.tabs(window, titles, clicked)
   local template = hasTemplate("CharacterFrameTabButtonTemplate") and "CharacterFrameTabButtonTemplate"
     or "PanelTabButtonTemplate"
   local prefix = window.kitName .. "Tab"
+  local current = window.selectedTab or 1
+  local function go(n)
+    current = n
+    K.selectTab(window, n)
+    clicked(n)
+    if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB) end
+  end
+  -- LB and RB turn to the previous and next tab, on the controller (the
+  -- Gamepad UI's own windows do the same). Our own handler on our own window:
+  -- nothing of Blizzard's is written, so it works whether the manager is told
+  -- of the window or not. Other buttons pass through.
+  -- (The game refuses EnableGamePadButton and SetPropagateKeyboardInput to
+  -- addon code in a fight, and a window that listens with propagation off eats
+  -- every button: so both are set together, once, out of combat, with
+  -- propagation on. LB and RB then reach the game as well as the book. Not
+  -- verified in the game: whether the flag governs pad buttons at all.)
+  if window.EnableGamePadButton then
+    local function arm()
+      window:EnableGamePadButton(true)
+      if window.SetPropagateKeyboardInput then window:SetPropagateKeyboardInput(true) end
+    end
+    if InCombatLockdown and InCombatLockdown() then
+      K.lateArm = K.lateArm or {}
+      table.insert(K.lateArm, arm)
+    else
+      arm()
+    end
+    window:SetScript("OnGamePadButtonDown", function(_, button)
+      local step = button == "PADRSHOULDER" and 1 or button == "PADLSHOULDER" and -1 or nil
+      if not step then return end
+      local now = window.selectedTab or current
+      go(((now - 1 + step) % #titles) + 1)
+    end)
+  end
   for n, text in ipairs(titles) do
     local tab = CreateFrame("Button", prefix .. n, window, template)
     tab:SetID(n)
@@ -3354,11 +3388,7 @@ function K.tabs(window, titles, clicked)
     else
       tab:SetPoint("LEFT", prefix .. (n - 1), "RIGHT", -14, 0)
     end
-    tab:SetScript("OnClick", function(self)
-      K.selectTab(window, self:GetID())
-      clicked(self:GetID())
-      if PlaySound and SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB then PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB) end
-    end)
+    tab:SetScript("OnClick", function(self) go(self:GetID()) end)
     tab:SetScript("OnShow", function(self)
       if PanelTemplates_TabResize then PanelTemplates_TabResize(self, 0) end
     end)
@@ -3442,7 +3472,15 @@ end
 -- it is behind pcall: a window's own showing never depends on it. ("raised" is
 -- a lower bound: securecallfunction may hand an error to the game's handler.)
 K.pad = { shown = 0, hidden = 0, failed = 0, blocked = 0, waiting = 0 }
-K.padOn = true -- (a switch for a session: /<addon> pad off stops telling the manager, pad on starts again)
+-- Telling the manager taints it: the game reads focusedFrame, topSuspendedFrame and
+-- SmartNavigation.activePanels[n].buttonGroups as written by this addon, and the
+-- options page (and anything else of Blizzard's that reads them) is then blocked
+-- ("blocked from an action only available to the Blizzard UI", the user's test
+-- of 8 November 2026, /codex pad naming the three slots). So it is off until the
+-- player chooses it (the options page's "Controller support", a saved choice,
+-- or /<addon> pad on for a session). LB and RB switching a book's tabs does not
+-- need the manager (K.tabs) and works either way.
+K.padOn = false
 local padWatch
 local padWatcher
 local padTold, padWait = {}, {} -- (windows the manager was told of; windows to settle after a fight)
@@ -3454,6 +3492,11 @@ local function padManager()
 end
 local padCall
 local function padSettle()
+  local late = K.lateArm
+  K.lateArm = nil
+  for _, arm in ipairs(late or {}) do
+    pcall(arm)
+  end
   for window in pairs(padWait) do
     padWait[window] = nil
     K.pad.waiting = K.pad.waiting - 1
@@ -4107,7 +4150,7 @@ end
 --   O = K.options({ title = "Lorekeeper's Codex", key = "LOREKEEPERSCODEX",
 --     get = ns.option, set = ns.setOption, defaults = DEFAULTS,
 --     profiles = P, slash = "/codex", prefix = ns.PREFIX })
---   O:check(key, text, tip, inverted)   (inverted: the box ticked when the setting is false: minimapHidden)
+--   O:check(key, text, tip, inverted, after)   (inverted: the box ticked when the setting is false: minimapHidden; after(value): run when it is set)
 --   O:slider(key, text, tip, min, max, step, label)  (label(value): the value as shown)
 --   O:choice(key, text, tip, options, after)  (options(): { { value, text }, ... }; after(value): once chosen)
 --   O:collect(C), O:copy(), O:done() (the page registered), O:open() (true when it opened), O.category
@@ -4125,7 +4168,7 @@ function K.options(o)
     table.insert(O.variables, v)
     return Settings.RegisterProxySetting(category, v, kind, text, default, get, set)
   end
-  function O:check(key, text, tip, inverted)
+  function O:check(key, text, tip, inverted, after)
     if not category then return end
     inverted = inverted and true or false
     local setting = register(
@@ -4134,7 +4177,10 @@ function K.options(o)
       text,
       (o.defaults[key] and true or false) ~= inverted,
       function() return (o.get(key) and true or false) ~= inverted end,
-      function(value) o.set(key, value ~= inverted) end
+      function(value)
+        o.set(key, value ~= inverted)
+        if after then after(value) end
+      end
     )
     Settings.CreateCheckbox(category, setting, tip)
   end
@@ -4209,6 +4255,21 @@ function K.options(o)
       function() return { { 1, L["Normal"] }, { 2, L["Large"] }, { 3, L["Larger"] }, { 4, L["Largest"] } } end,
       K.resize
     )
+    -- Forever only (Era has no Gamepad UI). Saved, off by default: telling the
+    -- manager taints it (K.padOn). Only the flag is set from the page, the
+    -- manager is told when a window next shows.
+    if GamepadMode ~= nil then
+      if o.defaults.controller == nil then o.defaults.controller = false end
+      K.padOn = o.get("controller") and true or false
+      self:check(
+        "controller",
+        L["Controller support"],
+        L["Lets the game's controller cursor move through this book. This option can block some of the game's own windows until you reload the interface (/reload). It takes effect the next time you open the book."],
+        false,
+        function(value) K.padOn = value and true or false end
+      )
+      K.padRead = function() K.padOn = o.get("controller") and true or false end
+    end
     self:check(
       "paper",
       L["Paper colours"],
@@ -4241,6 +4302,7 @@ function K.options(o)
   -- (a copy or an import changes them under the page: each one redrawn)
   if o.profiles and o.profiles.onTaken then
     o.profiles:onTaken(function()
+      if K.padRead then K.padRead() end
       if not (category and Settings.NotifyUpdate) then return end
       for _, v in ipairs(O.variables) do
         pcall(Settings.NotifyUpdate, v)

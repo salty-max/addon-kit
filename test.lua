@@ -1728,6 +1728,7 @@ do
   -- Era: no GamepadMode at all, then one without the manager: nothing is called
   GamepadMode, securecallfunction = nil, nil
   local Ke = load()
+  Ke.padOn = true
   local we = window(Ke, "PadEra")
   fire(we, "OnShow")
   fire(we, "OnHide")
@@ -1748,6 +1749,7 @@ do
     return fn(...)
   end
   local Kf = load()
+  Kf.padOn = true
   local wf = window(Kf, "PadForever")
   local hooks = rawget(wf, "hooks")
   check(hooks and #hooks.OnShow == 1 and #hooks.OnHide == 1, "pad: hooks on show and hide, not scripts")
@@ -1781,6 +1783,7 @@ do
       return f
     end
     local Kg = load()
+    Kg.padOn = true
     window(Kg, "PadWatch")
     CreateFrame = prev
     local watcher
@@ -1802,6 +1805,43 @@ do
       blame("Test", n)
     end
     check(#Kg.pad.names == 5 and Kg.pad.blocked == 8, "pad: five names at most, every refusal counted")
+
+    -- off until chosen (telling the manager taints it): a shown window is not told
+    Kg.padOn = false -- (the kit's own default: the other blocks switch it on)
+    local before = #calls
+    local wg = window(Kg, "PadOff")
+    fire(wg, "OnShow")
+    check(Kg.padOn == false and #calls == before, "pad: the manager is not told until the player chooses it")
+
+    -- LB and RB turn the tabs, with no manager at all
+    local picked = {}
+    local book = frame()
+    book.kitName = "PadTabs"
+    book.selectedTab = 1
+    Kg.tabs(book, { "One", "Two", "Three" }, function(n)
+      table.insert(picked, n)
+      book.selectedTab = n
+    end)
+    local press = book.scripts.OnGamePadButtonDown
+    check(press ~= nil, "tabs: the window listens to the pad's buttons")
+    press(book, "PADRSHOULDER")
+    press(book, "PADRSHOULDER")
+    press(book, "PADRSHOULDER")
+    press(book, "PADLSHOULDER")
+    press(book, "PADA")
+    check(table.concat(picked, ",") == "2,3,1,3", "tabs: RB goes on, LB goes back, both wrap, other buttons do nothing")
+
+    -- built in a fight: armed when the fight ends, not before
+    local was = InCombatLockdown
+    InCombatLockdown = function() return true end
+    local late = frame()
+    late.kitName = "PadLate"
+    Kg.tabs(late, { "One", "Two" }, function() end)
+    check(Kg.lateArm and #Kg.lateArm == 1, "tabs: built in a fight, the pad is armed later")
+    InCombatLockdown = function() return false end
+    Kg.padSettle()
+    check(Kg.lateArm == nil, "tabs: armed once the fight is over")
+    InCombatLockdown = was
   end
 
   -- (an older client without securecallfunction: the plain call)
