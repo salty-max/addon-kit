@@ -8,7 +8,8 @@ controller support. The research is `ideas/controller-support.md` (family folder
   dialog do it themselves, right after their own `SetScript`, see the end) hooks, through `K.padHook`, OnShow and OnHide and calls `FrameShown(window)` and `FrameHidden(window)` as Blizzard's own
   windows do (`FloatingChatFrame.lua`, `ReportFrameShared.lua`, `Blizzard_SecureTransferUIOutbound.lua`). The
   manager does nothing while the Gamepad UI is off, and on Era there is no `GamepadMode`, so `padCall` returns
-  before any call (nothing is created either). The call goes through `securecallfunction` (as Blizzard's popup code
+  before any call. (The refusal watcher below is built on every client, Era's too, at the first window or the
+  options page: a frame that listens and does nothing else.) The call goes through `securecallfunction` (as Blizzard's popup code
   does), behind `pcall`. That does not make it secure: our hook runs it, so the manager's tables take our taint (not
   verified in the game: `blocked` in the trace counts it).
   Source read: the pinned Forever build 1.60.1.70532 (a few builds behind the client). The manager has no
@@ -228,10 +229,12 @@ from the text, as Blizzard's own windows behave.
 
 `Controller: Gamepad UI on, manager found, told shown 1, hidden 1, raised 0, blocked 0, waiting 0, stick set 1, registration on`
 
+With a refusal, `blocked 2 (SetOverrideBinding(), Show())`: the names of the actions, five at most, each once.
+
 - `Gamepad UI`: `InputUtil.IsGamepadUIEnabled()` (on, off, unknown), `manager`: found or absent (Era: absent).
 - `told shown/hidden`: calls that returned without raising. `raised N (words)`: calls that raised, the last
   one's error. `blocked`: ADDON_ACTION_BLOCKED / ADDON_ACTION_FORBIDDEN events naming this addon (the taint
-  worry: not verified in the game, this counts it). `raised` is a lower bound (`securecallfunction` may hand an
+  worry: not verified in the game, this counts it), from the first window built or the options page, with the actions' names. `raised` is a lower bound (`securecallfunction` may hand an
   error to the game's handler). `waiting`: windows held back by a fight.
 - The line is English, a diagnosis for us.
 

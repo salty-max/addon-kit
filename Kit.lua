@@ -3444,6 +3444,7 @@ end
 K.pad = { shown = 0, hidden = 0, failed = 0, blocked = 0, waiting = 0 }
 K.padOn = true -- (a switch for a session: /<addon> pad off stops telling the manager, pad on starts again)
 local padWatch
+local padWatcher
 local padTold, padWait = {}, {} -- (windows the manager was told of; windows to settle after a fight)
 local padWindows = setmetatable({}, { __mode = "k" }) -- (every window K.padHook hooked)
 local function padManager()
@@ -3465,26 +3466,37 @@ local function padSettle()
   end
 end
 K.padSettle = padSettle -- (the fight's end; the tests call it)
+-- The game's refusals blamed on this addon, counted with the action's name:
+-- watched from the first window built, not only once the manager is told, so a
+-- refusal from the options page is caught too (/<addon> pad prints the names).
+function padWatcher()
+  if padWatch or not CreateFrame then return end
+  local pad = K.pad
+  padWatch = CreateFrame("Frame")
+  for _, event in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "PLAYER_REGEN_ENABLED" }) do
+    if K.knows(event) then padWatch:RegisterEvent(event) end
+  end
+  padWatch:SetScript("OnEvent", function(_, event, who, what)
+    if event == "PLAYER_REGEN_ENABLED" then
+      padSettle()
+    elseif who == addonName then
+      pad.blocked = pad.blocked + 1
+      pad.names = pad.names or {}
+      local name, known = tostring(what), false
+      for _, n in ipairs(pad.names) do
+        known = known or n == name
+      end
+      if not known and #pad.names < 5 then table.insert(pad.names, name) end
+    end
+  end)
+end
 function padCall(method, window)
   if method == "FrameShown" and not K.padOn then return end
   local manager = padManager()
   local fn = manager and manager[method]
   if type(fn) ~= "function" then return end
   local pad = K.pad
-  if not padWatch then
-    -- (the game's refusals blamed on this addon, counted: only here, only on Forever)
-    padWatch = CreateFrame("Frame")
-    for _, event in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN", "PLAYER_REGEN_ENABLED" }) do
-      if K.knows(event) then padWatch:RegisterEvent(event) end
-    end
-    padWatch:SetScript("OnEvent", function(_, event, who)
-      if event == "PLAYER_REGEN_ENABLED" then
-        padSettle()
-      elseif who == addonName then
-        pad.blocked = pad.blocked + 1
-      end
-    end)
-  end
+  padWatcher()
   if InCombatLockdown and InCombatLockdown() then
     if not padWait[window] then pad.waiting = pad.waiting + 1 end
     padWait[window] = true
@@ -3514,7 +3526,7 @@ function K.padReport()
     local ok, on = pcall(InputUtil.IsGamepadUIEnabled)
     if ok then ui = on and "on" or "off" end
   end
-  return ("Controller: Gamepad UI %s, manager %s, told shown %d, hidden %d, raised %d%s, blocked %d, waiting %d, stick set %d, no panel %d, registration %s"):format(
+  return ("Controller: Gamepad UI %s, manager %s, told shown %d, hidden %d, raised %d%s, blocked %d%s, waiting %d, stick set %d, no panel %d, registration %s"):format(
     ui,
     padManager() and "found" or "absent",
     pad.shown,
@@ -3522,6 +3534,7 @@ function K.padReport()
     pad.failed,
     pad.last and (" (" .. pad.last .. ")") or "",
     pad.blocked,
+    pad.names and (" (" .. table.concat(pad.names, ", ") .. ")") or "",
     pad.waiting,
     pad.scrolled or 0,
     pad.nopanel or 0,
@@ -3669,6 +3682,7 @@ end
 function K.padHook(window)
   if rawget(window, "kitPadHooked") then return end
   window.kitPadHooked = true
+  padWatcher()
   padWindows[window] = true
   window:HookScript("OnShow", function(self) padCall("FrameShown", self) end)
   window:HookScript("OnHide", function(self) padCall("FrameHidden", self) end)
@@ -3803,6 +3817,17 @@ function K.book(o)
     f.search:SetHeight(20)
     f.search:SetPoint("TOPLEFT", f.left, "TOPLEFT", 18, -10)
     f.search:SetPoint("TOPRIGHT", f.left, "TOPRIGHT", o.searchRight or -12, -10)
+    if K.paper then
+      -- (the template's field is drawn for a dark ground: on paper it gets the
+      -- paper's own field, and its words the ink)
+      local back = f.search:CreateTexture(nil, "BACKGROUND")
+      back:SetAllPoints()
+      back:SetColorTexture(unpack(T.field))
+      border(f.search, { T.ring[1], T.ring[2], T.ring[3], 0.7 })
+      f.search:SetTextColor(unpack(T.text))
+      local hint = f.search.Instructions
+      if hint then pcall(function() hint:SetTextColor(unpack(T.dim)) end) end
+    end
     f.search:HookScript("OnTextChanged", function() B:refresh() end)
     f.filter = false -- (every field set: none read before it is)
     if o.filter then
@@ -4173,6 +4198,7 @@ function K.options(o)
   -- (the settings bookSize, 1 to 4, and paper). The size is applied at once to
   -- the windows already built, the look from the next reload.
   function O:look()
+    padWatcher()
     if o.defaults.bookSize == nil then o.defaults.bookSize = 1 end
     if o.defaults.paper == nil then o.defaults.paper = false end
     K.lookGet = o.get

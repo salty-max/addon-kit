@@ -1771,6 +1771,39 @@ do
 
   check(Kf.padReport():find("told shown 1, hidden 1, raised 0", 1, true) ~= nil, "pad: the trace reports the counts")
 
+  -- the game's refusals blamed on this addon: counted, named once each (five
+  -- names at most), another addon's never, watched from the first window
+  do
+    local created, prev = {}, CreateFrame
+    CreateFrame = function()
+      local f = frame()
+      table.insert(created, f)
+      return f
+    end
+    local Kg = load()
+    window(Kg, "PadWatch")
+    CreateFrame = prev
+    local watcher
+    for _, f in ipairs(created) do
+      if f.scripts.OnEvent then watcher = f end
+    end
+    check(watcher ~= nil, "pad: a refusal watcher stands once a window is built")
+    local function blame(who, what) watcher.scripts.OnEvent(watcher, "ADDON_ACTION_BLOCKED", who, what) end
+    blame("Other", "Elsewhere()")
+    for _ = 1, 3 do
+      blame("Test", "SetOverrideBinding()")
+    end
+    check(Kg.pad.blocked == 3, "pad: only this addon's refusals are counted")
+    check(
+      Kg.padReport():find("blocked 3 (SetOverrideBinding())", 1, true) ~= nil,
+      "pad: the trace names the action once"
+    )
+    for _, n in ipairs({ "B()", "C()", "D()", "E()", "F()" }) do
+      blame("Test", n)
+    end
+    check(#Kg.pad.names == 5 and Kg.pad.blocked == 8, "pad: five names at most, every refusal counted")
+  end
+
   -- (an older client without securecallfunction: the plain call)
   securecallfunction = nil
   fire(wf, "OnShow")
