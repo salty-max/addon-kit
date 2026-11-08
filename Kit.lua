@@ -2886,10 +2886,9 @@ local function dropDownSelect(parent, width, placeholder)
 end
 
 function K.select(parent, width, placeholder)
-  -- (Forever: no Blizzard menu. Its menu-open chain runs this select's own
-  -- isSelected and setSelected closures, addon functions, just before the Gamepad
-  -- UI's unwrapped SuspendFrame writes: see K.settingsDropdown. The plain list.)
-  if GamepadMode ~= nil then return kitSelect(parent, width, placeholder) end
+  -- (the Gamepad UI on: no Blizzard menu, its opening taints the manager, see
+  -- K.settingsChoice. The kit's own list of plain buttons.)
+  if K.gamepadUI() then return kitSelect(parent, width, placeholder) end
   local templates = C_XMLUtil and C_XMLUtil.GetTemplateInfo
   if MenuUtil and templates and templates("WowStyle1DropdownTemplate") then
     return menuSelect(parent, width, placeholder)
@@ -4258,58 +4257,88 @@ function K.binding(o)
   return { action = o.key .. "_OPEN", global = o.global }
 end
 
--- ── a Settings dropdown without a function of ours in Blizzard's chain ───────
--- THE ATTEMPT (read in the 70862 source, not yet tried in the game): the
--- options of a Blizzard dropdown are built inside securecallfunction, never
--- by a function of ours that Blizzard calls. The Settings system calls our
--- getter and setter through its own wrappers, but the dropdown's options are
--- read later, inside the menu's opening, which runs the Gamepad UI's own
--- unwrapped SuspendFrame right after (docs/controller.md). So the container
--- is made by securecallfunction, each option added by securecallfunction
--- (container.Add), the function the game calls is a closure from
--- securecallfunction(GenerateClosure, ...), and the initializer comes from
--- securecallfunction(Settings.CreateDropdownInitializer) and is registered
--- with Settings.RegisterInitializer (what CreateDropdown does, minus the
--- parts that are our own functions). CAUTION: securecallfunction puts the
--- caller's taint state back when it returns, it does not make what was made
--- inside it secure, and Blizzard's own inbound code says as much (it wraps
--- function arguments to stop "taint-laundering"). So this may not remove the
--- popup: only a test in the game says. If it does not, the way out is no
--- Settings dropdown on Forever. The list is worked out here, once, when the
--- page is registered: a list that can change later (the characters to copy
--- from) is as it was until a reload. A client without those functions takes
--- the old way.
-local function secureCall(f, ...)
-  if securecallfunction then return securecallfunction(f, ...) end
-  return f(...)
+-- ── a choice on the Options page: a dropdown, or a slider with the Gamepad UI ─
+-- THE RULE: with the Gamepad UI on, the options page uses no Blizzard dropdown.
+-- A dropdown's opening runs the Gamepad UI's own unwrapped SuspendFrame
+-- (MenuProxy.OnShow), right after the menu has read the options our code made,
+-- and that taints the manager: the "blocked from an action only available to
+-- the Blizzard UI" popup (docs/controller.md). Nothing built from addon code
+-- can be made secure to prevent it, so a choice becomes the game's own stepped
+-- slider over the list's positions, its label the choice's word. The setting
+-- keeps the option's value (bookSize 1 to 4, a sound id, "frFR"): the slider's
+-- proxy setting is the position, mapped to and from the value (a saved value
+-- not in the list shows as the nearest step, and nothing is written). With the
+-- Gamepad UI off it is Blizzard's dropdown exactly as it always was. The
+-- choice is made once, when the page is built: a player who changes the
+-- Gamepad UI reloads (the page's Reload button).
+
+-- Whether the Gamepad UI is the game's interface style now (Era has none).
+function K.gamepadUI()
+  if InputUtil and InputUtil.IsGamepadUIEnabled then
+    local ok, on = pcall(InputUtil.IsGamepadUIEnabled)
+    return ok and on and true or false
+  end
+  return false
 end
--- options: { { value, text }, ... } (plain, now). Returns the container, or
--- nil when the old way was taken.
-function K.settingsDropdown(category, setting, options, tooltip)
-  if
-    Settings.CreateDropdownInitializer
-    and Settings.RegisterInitializer
-    and Settings.CreateControlTextContainer
-    and GenerateClosure
-  then
-    local container = secureCall(Settings.CreateControlTextContainer)
-    for _, opt in ipairs(options) do
-      secureCall(container.Add, container, opt[1], opt[2])
-    end
-    local getOptions = secureCall(GenerateClosure, container.GetData, container)
-    local initializer = secureCall(Settings.CreateDropdownInitializer, setting, getOptions, tooltip)
-    Settings.RegisterInitializer(category, initializer)
-    return container
+
+-- The position of a value in a list of { value, text }: its own, else (a
+-- number) the nearest, else the first. Only for what is shown.
+local function choiceIndex(options, value)
+  for i, opt in ipairs(options) do
+    if opt[1] == value then return i end
   end
-  if Settings.CreateDropdown and Settings.CreateControlTextContainer then
-    Settings.CreateDropdown(category, setting, function()
-      local c = Settings.CreateControlTextContainer()
-      for _, opt in ipairs(options) do
-        c:Add(opt[1], opt[2])
+  if type(value) == "number" then
+    local best, gap
+    for i, opt in ipairs(options) do
+      if type(opt[1]) == "number" and (not gap or math.abs(opt[1] - value) < gap) then
+        best, gap = i, math.abs(opt[1] - value)
       end
-      return c:GetData()
-    end, tooltip)
+    end
+    if best then return best end
   end
+  return 1
+end
+
+-- Registers one choice on a Settings category and returns its setting.
+-- list(): { { value, text }, ... }. get(), set(value) as for a proxy setting.
+function K.settingsChoice(category, variable, kind, text, default, get, set, list, tooltip)
+  if K.gamepadUI() and Settings.CreateSlider and Settings.CreateSliderOptions then
+    local options = list()
+    -- (one option or none: nothing to step through, and a slider over one position
+    -- divides 0 by 0 for its step. The copy row goes too when nobody can be copied from.)
+    if #options < 2 then return end
+    local setting = Settings.RegisterProxySetting(
+      category,
+      variable,
+      Settings.VarType.Number,
+      text,
+      choiceIndex(options, default),
+      function() return choiceIndex(options, get()) end,
+      function(position)
+        local opt = options[position]
+        if opt then set(opt[1]) end
+      end
+    )
+    local slider = Settings.CreateSliderOptions(1, #options, 1)
+    if MinimalSliderWithSteppersMixin then
+      slider:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(position)
+        local opt = options[math.floor(position + 0.5)]
+        return opt and opt[2] or ""
+      end)
+    end
+    Settings.CreateSlider(category, setting, slider, tooltip)
+    return setting
+  end
+  if not (Settings.CreateDropdown and Settings.CreateControlTextContainer) then return end
+  local setting = Settings.RegisterProxySetting(category, variable, kind, text, default, get, set)
+  Settings.CreateDropdown(category, setting, function()
+    local c = Settings.CreateControlTextContainer()
+    for _, opt in ipairs(list()) do
+      c:Add(opt[1], opt[2])
+    end
+    return c:GetData()
+  end, tooltip)
+  return setting
 end
 
 -- ── the Options page ─────────────────────────────────────────────────────────
@@ -4370,22 +4399,22 @@ function K.options(o)
     Settings.CreateSlider(category, setting, options, tip)
   end
   function O:choice(key, text, tip, list, after)
-    if not (category and Settings.CreateDropdown and Settings.CreateControlTextContainer) then return end
+    if not category then return end
     local kind = type(o.defaults[key]) == "number" and Settings.VarType.Number or Settings.VarType.String
-    local setting = register(key, kind, text, o.defaults[key], function() return o.get(key) end, function(value)
+    local v = variable(key)
+    table.insert(O.variables, v)
+    K.settingsChoice(category, v, kind, text, o.defaults[key], function() return o.get(key) end, function(value)
       o.set(key, value)
       if after then after(value) end
-    end)
-    K.settingsDropdown(category, setting, list(), tip)
+    end, list, tip)
   end
-  -- A dropdown of its own for an addon whose setting is not in its profile (a
-  -- character's own, with its own getter and setter): the same secure
-  -- construction as O:choice. kind: Settings.VarType.String or .Number;
-  -- options: { { value, text }, ... } (now: it is not asked again).
+  -- A choice of its own for an addon whose setting is not in its profile (a
+  -- character's own, with its own getter and setter): a dropdown, or a slider
+  -- with the Gamepad UI, as O:choice. kind: Settings.VarType.String or .Number;
+  -- options: { { value, text }, ... }.
   function O:dropdown(name, kind, text, default, get, set, options, tip)
-    if not (category and Settings.RegisterProxySetting and Settings.CreateControlTextContainer) then return end
-    local setting = Settings.RegisterProxySetting(category, name, kind, text, default, get, set)
-    K.settingsDropdown(category, setting, options, tip)
+    if not category then return end
+    K.settingsChoice(category, name, kind, text, default, get, set, function() return options end, tip)
   end
   -- The family's two shared choices, the same words in every addon: how long
   -- a banner stays (K.BANNER_SECONDS by default), and the sound of an
@@ -4830,22 +4859,54 @@ end
 -- The Options page's "Copy settings from": another character of this game
 -- (the game's own dropdown, where the page is the game's). said(other): after.
 function K.copySetting(category, variable, P, tooltip, said)
-  if not (Settings.CreateDropdown and Settings.CreateControlTextContainer and Settings.VarType.String) then return end
-  local copy = Settings.RegisterProxySetting(
+  if not (Settings.RegisterProxySetting and Settings.VarType) then return end
+  local function options()
+    local list = { { "", L["Choose a character"] } }
+    for _, other in ipairs(P:others()) do
+      table.insert(list, { other, other })
+    end
+    return list
+  end
+  local function copy(other)
+    if other ~= "" and P:copy(other) and said then said(other) end
+  end
+  if K.gamepadUI() and CreateSettingsButtonInitializer and Settings.RegisterInitializer then
+    -- (a slider over the characters, then a button: moving the slider copies nothing)
+    local chosen = ""
+    local setting = K.settingsChoice(
+      category,
+      variable,
+      Settings.VarType.String,
+      L["Copy settings from"],
+      "",
+      function() return chosen end,
+      function(other) chosen = other end,
+      options,
+      tooltip
+    )
+    if not setting then return end
+    pcall(function()
+      Settings.RegisterInitializer(
+        category,
+        CreateSettingsButtonInitializer("", L["Copy their choices"], function()
+          local other = chosen
+          chosen = ""
+          copy(other)
+          if Settings.NotifyUpdate then pcall(Settings.NotifyUpdate, variable) end
+        end, nil, false)
+      )
+    end)
+    return
+  end
+  K.settingsChoice(
     category,
     variable,
     Settings.VarType.String,
     L["Copy settings from"],
     "",
     function() return "" end,
-    function(other)
-      if other ~= "" and P:copy(other) and said then said(other) end
-    end
+    copy,
+    options,
+    tooltip
   )
-  -- (the characters as they are when the page is registered: see K.settingsDropdown)
-  local options = { { "", L["Choose a character"] } }
-  for _, other in ipairs(P:others()) do
-    table.insert(options, { other, other })
-  end
-  K.settingsDropdown(category, copy, options, tooltip)
 end

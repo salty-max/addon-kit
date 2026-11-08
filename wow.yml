@@ -181,8 +181,6 @@ globals:
     any: true
   GameTooltip:
     any: true
-  GenerateClosure:
-    any: true
   GetActiveTitle:
     any: true
   GetAddOnInfo:

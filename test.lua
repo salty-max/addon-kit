@@ -1783,139 +1783,183 @@ do
   rawset(UIParent, "GetHeight", saved.GetHeight)
 end
 
--- ── a Settings dropdown without a function of ours in Blizzard's chain ───────
--- The options of a Blizzard dropdown are made by securecallfunction (the
--- container, each Add, the closure the game calls, the initializer), our list
--- worked out once, at registration; the old CreateDropdown only for a client
--- without those functions.
+-- ── the Gamepad UI splits the options page's choices ─────────────────────────
+-- With the Gamepad UI on, a choice is a native stepped slider over the list's
+-- positions (the stored value stays the option's value), the copy-from row a
+-- slider and a button, the selects the kit's own list, and no Blizzard
+-- dropdown is made. With it off, Blizzard's dropdown as it always was.
 do
-  local saved = {
-    Settings = Settings,
-    securecallfunction = securecallfunction,
-    GenerateClosure = GenerateClosure,
-    GamepadMode = GamepadMode,
-  }
-  local depth, outside = 0, {}
-  securecallfunction = function(f, ...)
-    depth = depth + 1
-    local r = f(...)
-    depth = depth - 1
-    return r
-  end
-  GenerateClosure = function(f, ...)
-    local args = { ... }
-    return function() return f(unpack(args)) end
-  end
-  local function guard(name, fn)
-    return function(...)
-      if depth == 0 then table.insert(outside, name) end
-      return fn(...)
-    end
-  end
-  local settingsMock = {
+  local saved = { Settings = Settings, InputUtil = InputUtil, Minimal = MinimalSliderWithSteppersMixin }
+  local menuWas, xmlWas = MenuUtil, C_XMLUtil
+  local gamepad = true
+  InputUtil = { IsGamepadUIEnabled = function() return gamepad end }
+  MinimalSliderWithSteppersMixin = { Label = { Right = 2 } }
+  local dropdowns, sliders, settings, buttons = 0, {}, {}, {}
+  Settings = {
     VarType = { Boolean = "b", Number = "n", String = "s" },
     RegisterVerticalLayoutCategory = function()
       return { GetID = function() return 1 end }
     end,
-    RegisterProxySetting = function(_, v, kind, _, default, get, set) return { variable = v, get = get, set = set } end,
+    RegisterProxySetting = function(_, v, kind, _, default, get, set)
+      local s = { variable = v, kind = kind, default = default, get = get, set = set }
+      settings[v] = s
+      return s
+    end,
     CreateCheckbox = function() end,
     RegisterAddOnCategory = function() end,
-    CreateDropdown = function() error("the old CreateDropdown was used") end,
-  }
-  local made, registeredInit
-  settingsMock.CreateControlTextContainer = guard("container", function()
-    local c = { data = {} }
-    function c.Add(self, v, label) table.insert(self.data, { value = v, text = label }) end
-    function c.GetData(self) return self.data end
-    c.Add = guard("Add", c.Add)
-    return c
-  end)
-  settingsMock.CreateDropdownInitializer = guard("initializer", function(setting, options, tip)
-    made = { setting = setting, options = options, tip = tip }
-    return made
-  end)
-  settingsMock.RegisterInitializer = function(_, init) registeredInit = init end
-  Settings = settingsMock
-  GamepadMode = {}
-  local K = load()
-  local values = {}
-  local defaults = { bookSize = 1, paper = false }
-  local O = K.options({
-    title = "Kit",
-    key = "KIT",
-    defaults = defaults,
-    slash = "/kit",
-    get = function(k)
-      if values[k] == nil then return defaults[k] end
-      return values[k]
+    CreateSliderOptions = function(min, max, step)
+      return { min = min, max = max, step = step, SetLabelFormatter = function(self, _, fn) self.format = fn end }
     end,
-    set = function(k, v) values[k] = v end,
-  })
-  local listCalls = 0
-  O:choice("bookSize", "Book size", "A tip", function()
-    listCalls = listCalls + 1
-    return { { 1, "Normal" }, { 2, "Large" } }
-  end)
-  check(listCalls == 1, "secure dropdown: our list is worked out once, at registration")
+    CreateSlider = function(_, setting, options) sliders[setting.variable] = options end,
+    CreateDropdown = function(_, setting, gen)
+      dropdowns = dropdowns + 1
+      setting.generator = gen
+    end,
+    CreateControlTextContainer = function()
+      local c = { data = {} }
+      function c:Add(v, label) table.insert(self.data, { value = v, text = label }) end
+      function c:GetData() return self.data end
+      return c
+    end,
+    RegisterInitializer = function(_, init) table.insert(buttons, init) end,
+    NotifyUpdate = function() end,
+  }
+  CreateSettingsButtonInitializer = function(name, text, click) return { name = name, text = text, click = click } end
+  local K = load()
+  local values, afters = {}, {}
+  local defaults = { bookSize = 1, sound = 5 }
+  local copied
+  local profiles = {
+    others = function() return { "Ann - Realm", "Bob - Realm" } end,
+    copy = function(_, other)
+      copied = other
+      return true
+    end,
+    onTaken = function() end,
+  }
+  local function build()
+    local O = K.options({
+      title = "Kit",
+      key = "KIT",
+      defaults = defaults,
+      slash = "/kit",
+      profiles = profiles,
+      get = function(k)
+        if values[k] == nil then return defaults[k] end
+        return values[k]
+      end,
+      set = function(k, v) values[k] = v end,
+    })
+    O:choice(
+      "bookSize",
+      "Book size",
+      "tip",
+      function() return { { 1, "Normal" }, { 2, "Large" }, { 3, "Larger" }, { 4, "Largest" } } end
+    )
+    O:choice(
+      "sound",
+      "Sound",
+      "tip",
+      function() return { { 5, "Soft" }, { 9, "Loud" } } end,
+      function(v) afters[#afters + 1] = v end
+    )
+    O:dropdown("OWN_LANG", Settings.VarType.String, "Language", "enUS", function() return "enUS" end, function() end, {
+      { "enUS", "English" },
+      { "frFR", "French" },
+    }, "tip")
+    O:copy()
+    return O
+  end
+
+  -- Gamepad UI on
+  build()
+  check(dropdowns == 0, "gamepad on: no Blizzard dropdown is made")
+  local size = settings.KIT_BOOKSIZE
   check(
-    #outside == 0,
-    "secure dropdown: the container, its options and the initializer are all made inside securecallfunction (nested: whether that is enough is for the game to say)"
-  )
-  check(registeredInit == made and made.tip == "A tip", "secure dropdown: the initializer is registered, with the tip")
-  check(type(made.options) == "function", "secure dropdown: the options are a function")
-  local data = made.options()
-  check(
-    #data == 2 and data[1].value == 1 and data[1].text == "Normal" and data[2].value == 2,
-    "secure dropdown: and give the list when the game asks"
-  )
-  check(listCalls == 1, "secure dropdown: asking again does not call our list")
-  -- a setting of its own (Hearthtale's language): the same construction
-  made, registeredInit = nil, nil
-  O:dropdown("OWN_LANG", Settings.VarType.String, "Language", "enUS", function() return "enUS" end, function() end, {
-    { "enUS", "English" },
-    { "frFR", "French" },
-  }, "Tip")
-  check(
-    registeredInit == made and #made.options() == 2 and made.setting.variable == "OWN_LANG",
-    "secure dropdown: O:dropdown, the same way"
-  )
-  check(#outside == 0, "secure dropdown: and inside securecallfunction after O:dropdown too")
-  -- the copy-from row: the same construction
-  made, registeredInit = nil, nil
-  K.copySetting(
-    {},
-    "KIT_COPYFROM",
-    { others = function() return { "Ann - Realm" } end, copy = function() return true end },
-    "Tip"
+    size.kind == "n" and sliders.KIT_BOOKSIZE.min == 1 and sliders.KIT_BOOKSIZE.max == 4,
+    "gamepad on: a size is a slider over 4 positions"
   )
   check(
-    registeredInit == made and #made.options() == 2 and made.options()[2].value == "Ann - Realm",
-    "secure dropdown: K.copySetting, the same way"
+    sliders.KIT_BOOKSIZE.format(3) == "Larger" and sliders.KIT_SOUND.format(2) == "Loud",
+    "gamepad on: its label is the choice's word"
   )
-  check(#outside == 0, "secure dropdown: and inside securecallfunction for the copy row too")
-  -- Classic Era's older client without the functions: the old way
-  GenerateClosure = nil
-  local old
-  settingsMock.CreateDropdown = function(_, _, gen) old = gen end
-  local K2 = load()
-  local O2 = K2.options({
-    title = "Kit",
-    key = "KIT",
-    defaults = defaults,
-    slash = "/kit",
-    get = function(k) return defaults[k] end,
-    set = function() end,
-  })
-  O2:choice("bookSize", "Book size", "A tip", function() return { { 1, "Normal" } } end)
-  check(old ~= nil and #old() == 1, "secure dropdown: a client without GenerateClosure takes the old CreateDropdown")
-  -- the selects: the kit's own list on Forever
-  local menuWas, xmlWas = MenuUtil, C_XMLUtil
+  check(size.get() == 1 and size.default == 1, "gamepad on: the saved value shows as its position")
+  size.set(3)
+  check(values.bookSize == 3, "gamepad on: stepping stores the option's own value, not the position")
+  settings.KIT_SOUND.set(2)
+  check(values.sound == 9 and afters[1] == 9, "gamepad on: a sound is stored by its id and played as it is stepped")
+  values.bookSize = 7
+  check(
+    size.get() == 4 and values.bookSize == 7,
+    "gamepad on: a saved value not in the list shows as the nearest step and is not written"
+  )
+  values.bookSize = 1
+  check(settings.OWN_LANG.kind == "n" and settings.OWN_LANG.get() == 1, "gamepad on: O:dropdown is a slider too")
+  settings.OWN_LANG.set(2)
+  local copyRow = settings.KIT_COPYFROM
+  copyRow.set(2)
+  check(copied == nil, "gamepad on: moving the copy slider copies nothing")
+  check(#buttons >= 1 and buttons[#buttons].text == "Copy their choices", "gamepad on: a Copy button follows")
+  buttons[#buttons].click()
+  check(copied == "Ann - Realm", "gamepad on: the button copies from the chosen character")
+  copied = nil
+  buttons[#buttons].click()
+  check(copied == nil, "gamepad on: and nothing again until another is chosen")
   MenuUtil, C_XMLUtil = {}, { GetTemplateInfo = function() return {} end }
   local sel = K.select(UIParent, 170, "Choose")
-  check(sel.list ~= nil and sel.rows ~= nil, "secure dropdown: K.select is the kit's own list on Forever")
+  check(sel.list ~= nil and sel.rows ~= nil, "gamepad on: K.select is the kit's own list")
+
+  -- one option: no slider (its step would be 0 over 0), and no Copy row for a first character
+  do
+    local before = 0
+    for _ in pairs(settings) do
+      before = before + 1
+    end
+    local lonely = K.options({
+      title = "Kit",
+      key = "ONE",
+      defaults = { solo = 1 },
+      slash = "/one",
+      profiles = {
+        others = function() return {} end,
+        copy = function() return true end,
+        onTaken = function() end,
+      },
+      get = function() return 1 end,
+      set = function() end,
+    })
+    lonely:choice("solo", "Solo", "tip", function() return { { 1, "Only" } } end)
+    lonely:copy()
+    check(
+      settings.ONE_SOLO == nil and settings.ONE_COPYFROM == nil,
+      "gamepad on: a list of one gets no slider, and nobody to copy from no row"
+    )
+  end
+
+  -- Gamepad UI off: Blizzard's dropdown as before
+  gamepad = false
+  dropdowns, sliders, settings, buttons, copied = 0, {}, {}, {}, nil
+  build()
+  check(dropdowns >= 4 and next(sliders) == nil, "gamepad off: Blizzard's dropdowns, no slider")
+  check(
+    settings.KIT_BOOKSIZE.kind == "n" and settings.OWN_LANG.kind == "s",
+    "gamepad off: the settings keep their own types"
+  )
+  local data = settings.KIT_BOOKSIZE.generator()
+  check(
+    #data == 4 and data[3].value == 3 and data[3].text == "Larger",
+    "gamepad off: the plain generator gives the list"
+  )
+  settings.KIT_COPYFROM.set("Bob - Realm")
+  check(copied == "Bob - Realm", "gamepad off: a choice in the copy dropdown copies, as it did")
+  local sel2 = K.select(UIParent, 170, "Choose")
+  check(
+    rawget(sel2, "rows") == nil or sel2.list == nil or sel2.box ~= nil,
+    "gamepad off: K.select is the menu's, not the plain list"
+  )
   MenuUtil, C_XMLUtil = menuWas, xmlWas
-  Settings, securecallfunction, GenerateClosure, GamepadMode =
-    saved.Settings, saved.securecallfunction, saved.GenerateClosure, saved.GamepadMode
+  Settings, InputUtil, MinimalSliderWithSteppersMixin = saved.Settings, saved.InputUtil, saved.Minimal
+  CreateSettingsButtonInitializer = nil
 end
 
 -- The controller: Forever's Gamepad UI is told of a window when it shows and
