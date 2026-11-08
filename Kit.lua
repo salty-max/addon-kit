@@ -3578,6 +3578,9 @@ function padWatcher()
 end
 function padCall(method, window)
   if method == "FrameShown" and not K.padOn then return end
+  -- (the manager is told a window is hidden only if it was told it is shown:
+  -- a hide it never heard of reaches its own state and the taint report names us)
+  if method == "FrameHidden" and not padTold[window] then return end
   local manager = padManager()
   local fn = manager and manager[method]
   if type(fn) ~= "function" then return end
@@ -3598,6 +3601,8 @@ function padCall(method, window)
   else
     pad.failed = pad.failed + 1
     pad.last = tostring(err)
+    -- (a show that raised may have half-written the manager's state: its hide is still owed)
+    if method == "FrameShown" then padTold[window] = true end
   end
 end
 
@@ -3683,7 +3688,7 @@ function K.padSet(on)
   K.padOn = on and true or false
   for window in pairs(padWindows) do
     if K.padOn then
-      if window:IsShown() then padCall("FrameShown", window) end
+      if window:IsShown() and not padTold[window] then padCall("FrameShown", window) end
     elseif padTold[window] then
       padCall("FrameHidden", window)
     end

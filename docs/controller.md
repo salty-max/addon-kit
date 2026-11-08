@@ -5,7 +5,7 @@ controller support. The research is `ideas/controller-support.md` (family folder
 
 - **Tells the Gamepad UI the windows exist.** Forever's Gamepad UI walks the D-pad across the buttons of the
   windows its `GamepadMode.FrameControlsManager` knows. `K.movable` (every kit window; the book and the welcome
-  dialog do it themselves, right after their own `SetScript`, see the end) hooks, through `K.padHook`, OnShow and OnHide and calls `FrameShown(window)` and `FrameHidden(window)` as Blizzard's own
+  dialog do it themselves, right after their own `SetScript`, see the end) hooks, through `K.padHook`, OnShow and OnHide and calls `FrameShown(window)` and `FrameHidden(window)` (only for a window it was told shown) as Blizzard's own
   windows do (`FloatingChatFrame.lua`, `ReportFrameShared.lua`, `Blizzard_SecureTransferUIOutbound.lua`). The
   manager does nothing while the Gamepad UI is off, and on Era there is no `GamepadMode`, so `padCall` returns
   before any call. (The refusal watcher below is built on every client, Era's too, at the first window or the

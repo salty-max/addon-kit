@@ -1833,6 +1833,33 @@ do
     local wg = window(Kg, "PadOff")
     fire(wg, "OnShow")
     check(Kg.padOn == false and #calls == before, "pad: the manager is not told until the player chooses it")
+    fire(wg, "OnHide")
+    check(
+      #calls == before and Kg.pad.hidden == 0 and Kg.pad.shown == 0,
+      "pad: with it off, a hide the manager never heard of does not reach it either"
+    )
+    -- (told shown while on, then switched off: the hide is the one that is made)
+    Kg.padSet(true)
+    fire(wg, "OnShow")
+    local told = #calls
+    Kg.padSet(false)
+    check(
+      #calls == told + 1 and Kg.pad.hidden == 1,
+      "pad: a window it was told of is told it is hidden when it goes off"
+    )
+    fire(wg, "OnHide")
+    check(#calls == told + 1, "pad: and not twice")
+    -- (off, in a fight, a hide of a window never told: nothing waits, nothing is called)
+    local wasCombat = InCombatLockdown
+    InCombatLockdown = function() return true end
+    local waiting = Kg.pad.waiting
+    local wn = window(Kg, "PadNever")
+    fire(wn, "OnHide")
+    check(Kg.pad.waiting == waiting and #calls == told + 1, "pad: off, in a fight, a hide never told waits for nothing")
+    InCombatLockdown = wasCombat
+    for i = #calls, before + 1, -1 do
+      calls[i] = nil -- (the counts further down are Forever's own)
+    end
 
     -- LB and RB turn the tabs, with no manager at all
     local picked = {}
