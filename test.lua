@@ -1872,17 +1872,14 @@ do
       "search: the magnifier 6 in, the words and hint from 22"
     )
     check(pts.hid == nil, "search: the template's border art stays on paper, as in the dark look")
-    check(
-      pts.edges == 4 and pts.edgeLeft.anchoredTo() == pts.cap and K.contrast(K.T.ring, K.T.ground) >= 3,
-      "search: on paper the box keeps a visible edge, four ring-coloured lines on the art's own edge (its left cap), 3 to 1 on the paper"
-    )
-    -- the dark look draws no line of its own: the template's edge is its edge
+    check(pts.edges == nil, "search: paper draws no line of its own either, only the template's art")
+    -- the dark look: the same, nothing of our own
     K.look(false)
     pts.edges = nil
     CreateFrame = wrapped
     K.book({ name = "KitDark3", title = "Kit", titles = { "One" }, search = "KitDarkSearch3" }):open(1)
     CreateFrame = plain
-    check(pts.edges == nil, "search: the dark look draws no edge of its own")
+    check(pts.edges == nil, "search: the dark look draws none, the same as paper")
     K.look(true)
   end
   K.look(false)
