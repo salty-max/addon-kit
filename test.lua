@@ -1836,16 +1836,35 @@ do
         SetPoint = function(_, point, _, _, x) pts[name .. point] = x end,
       }
     end
-    CreateFrame = function(kind, ...)
+    local wrapped
+    wrapped = function(kind, ...)
       local f = plain(kind, ...)
       if kind == "EditBox" then
         rawset(f, "searchIcon", fake("icon"))
         rawset(f, "Instructions", fake("hint"))
-        rawset(f, "Left", { Hide = function() pts.hid = true end })
+        local cap = { Hide = function() pts.hid = true end }
+        rawset(f, "Left", cap)
+        pts.cap = cap
+        local make = f.CreateTexture
+        f.CreateTexture = function(self, ...)
+          local tex = make(self, ...)
+          local at
+          tex.SetPoint = function(_, point, rel) at = at or rel end
+          tex.SetColorTexture = function(_, r, g)
+            if r == K.T.ring[1] and g == K.T.ring[2] then
+              pts.edges = (pts.edges or 0) + 1
+              pts.edgeLeft = pts.edgeLeft or tex
+              tex.ringLine = true
+            end
+          end
+          tex.anchoredTo = function() return at end
+          return tex
+        end
         f.SetTextInsets = function(_, l) pts.inset = l end
       end
       return f
     end
+    CreateFrame = wrapped
     K.book({ name = "KitPaper2", title = "Kit", titles = { "One" }, search = "KitPaperSearch2" }):open(1)
     CreateFrame = plain
     check(
@@ -1853,6 +1872,18 @@ do
       "search: the magnifier 6 in, the words and hint from 22"
     )
     check(pts.hid == nil, "search: the template's border art stays on paper, as in the dark look")
+    check(
+      pts.edges == 4 and pts.edgeLeft.anchoredTo() == pts.cap and K.contrast(K.T.ring, K.T.ground) >= 3,
+      "search: on paper the box keeps a visible edge, four ring-coloured lines on the art's own edge (its left cap), 3 to 1 on the paper"
+    )
+    -- the dark look draws no line of its own: the template's edge is its edge
+    K.look(false)
+    pts.edges = nil
+    CreateFrame = wrapped
+    K.book({ name = "KitDark3", title = "Kit", titles = { "One" }, search = "KitDarkSearch3" }):open(1)
+    CreateFrame = plain
+    check(pts.edges == nil, "search: the dark look draws no edge of its own")
+    K.look(true)
   end
   K.look(false)
 
