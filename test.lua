@@ -1355,6 +1355,7 @@ end
 do
   local K = load()
   local saved, said, sounds, alertOn, shown = {}, {}, {}, false, 0
+  K.look(true) -- (the paper look: the chat's line stays the game's yellow, chat is dark whatever the look)
   time = time or os.time
   UnitLevel = function() return 12 end
   PlaySound = function(id)
@@ -1382,6 +1383,7 @@ do
   print = print0
   check(said[1] == "Kit: Achievement earned: |cffffd100[First]|r." and sounds[1] == 12891, "deeds: a line, the fanfare")
   check(shown == 0, "deeds: no alert while its switch is off")
+  K.look(false)
   check(A:count() == 1 and #A:items() == 1, "deeds: counted, the hidden one left out")
 end
 
