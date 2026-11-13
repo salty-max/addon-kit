@@ -207,6 +207,31 @@ return function(K, dir, o)
         col(edge),
         page(o.page or {})
       )
+    if o.select then
+      -- (the kit's own select, open: its face, its list, the picked row washed)
+      local sel, items = o.select, {}
+      for i, text in ipairs(sel.options) do
+        table.insert(
+          items,
+          ('<div style="height:22px;line-height:22px;padding-left:6px;font-size:12px;color:%s;%s">%s</div>'):format(
+            col(T.text),
+            i == sel.picked and ("background:" .. col(T.highlight, 0.28)) or "",
+            esc(text)
+          )
+        )
+      end
+      inner = inner
+        .. ('<div style="position:absolute;left:20px;top:64px;width:220px;height:24px;background:%s;border:1px solid %s;box-sizing:border-box;line-height:22px;padding-left:8px;font-size:12px;color:%s">%s<span style="position:absolute;right:8px;top:0;color:%s">&#9662;</span></div><div style="position:absolute;left:20px;top:90px;width:220px;background:%s;border:1px solid %s;box-sizing:border-box;padding:4px 10px 4px 4px">%s</div>'):format(
+          col(T.field),
+          col(T.ring, 0.7),
+          col(T.text),
+          esc(sel.options[sel.picked] or ""),
+          col(K.paper and T.text or T.accent),
+          col(T.menu),
+          col(T.ring, 0.9),
+          table.concat(items)
+        )
+    end
     return ('<body style="margin:0;background:%s;%s"><div style="width:%dpx;height:%dpx;position:relative;background:%s;border:2px solid %s;box-sizing:border-box;overflow:visible">%s%s</div></body>'):format(
       K.paper and "#2a3a2a" or "#101010",
       font,
