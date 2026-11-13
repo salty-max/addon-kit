@@ -137,7 +137,7 @@ are created in the addon's defaults and kept per character like its others.
   is kept to 95% of the screen (`K.scaleFor`).
 - **Paper colours**: dark ink on the game's own quest paper (`Interface\QuestFrame\QuestBG`, both clients, cropped inside its torn edge and laid at 70% over a light base, in a dark brown edge shaded 3 pixels inward; `K.paperPanel`, `K.PAPER_ART`). Every colour is in `K.PAPER`, the accent,
   the aside and the progress colours of each addon's theme darkened until they read
-  (`K.ink`, never under 4.5 to 1 for text: `test.lua` asserts it for several themes). Colours are
+  (`K.ink`, never under 4.5 to 1 for text: `test.lua` asserts it for several themes). The one exception: a colour that is itself the meaning (a difficulty, a standing, a hit or a heal, an item's quality), darkened in its hue to 3 to 1 or a little more (`K.ink(c, grounds, 3.2)`), because at 4.5 every hue is near black and the meaning is lost; the word or the place beside it says it too. The game's own tooltip is dark whatever the look: its lines use `K.TIP_NEW` and `K.TIP_KNOWN`, never the page's colours. Colours are
   read when a piece is built, so the choice is read once before the first window
   (`K.applyLook`) and a change needs `/reload` (the option's own text says so). The
   dark look is untouched when it is off (the test holds every dark colour).
@@ -146,6 +146,7 @@ are created in the addon's defaults and kept per character like its others.
   grey) is read at load, before the look is known, and stays the dark look's. Read `K.T`
   when a piece is built, and use `K.linkColour()` for a link.
 - On paper the search box and the selects get the paper's own light field and ink (the template's dark art hidden, the body font plain), and a bar is a rust fill on a light trough: its 1.9 to 1 against the paper (`K.PAPER_BAR_CONTRAST`) is for a fill on its trough, so a line drawn straight on the paper (Second Wind's plot) inks its own colour when that addon adopts the look. Rendered as a mock-up, not yet seen in the game: the search icon, the select's arrow and the quest paper behind the panels.
+- `render.lua` draws a book as HTML from the kit's real colours and geometry (`dofile("../addon-kit/render.lua")(K, dir, { rows, page, tabs, ... })`, the file's header says the shape): each addon's `sim.lua` calls it when `RENDER=dir` is set (with `PAPER=1` for the paper look), writing `book_<dark|paper>_<1|4>.html`, and Chrome headless turns each into a picture. Not shipped, not copied by the sync.
 - Rendered before shipping in `.cache/renders/` (HTML drawn with the book's real geometry and
   palette, Chrome headless: `r_<dark|paper>_<1-4>.png`).
 

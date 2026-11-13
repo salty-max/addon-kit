@@ -1845,7 +1845,7 @@ function Page:items(list)
       local function tip(bb)
         GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
         if bb.faded then
-          GameTooltip:AddLine(bb.name or "?", T.soft[1], T.soft[2], T.soft[3])
+          GameTooltip:AddLine(bb.name or "?", K.TIP_KNOWN[1], K.TIP_KNOWN[2], K.TIP_KNOWN[3]) -- (the game's tooltip is dark whatever the look)
           GameTooltip:AddLine(L["Still to find here."], 1, 1, 1)
         else
           if GameTooltip.SetItemByID then GameTooltip:SetItemByID(bb.itemId) end
@@ -1891,7 +1891,7 @@ function Page:chips(list)
       local function tip(bb)
         if not bb.tip then return end
         GameTooltip:SetOwner(bb, "ANCHOR_RIGHT")
-        GameTooltip:AddLine(bb.text:GetText(), T.accent[1], T.accent[2], T.accent[3])
+        GameTooltip:AddLine(bb.text:GetText(), K.TIP_NEW[1], K.TIP_NEW[2], K.TIP_NEW[3]) -- (the game's tooltip is dark whatever the look)
         GameTooltip:AddLine(bb.tip, 1, 1, 1, true)
         GameTooltip:Show()
       end
