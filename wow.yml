@@ -115,6 +115,8 @@ globals:
     any: true
   CreateSettingsButtonInitializer:
     any: true
+  CreateSettingsListSectionHeaderInitializer:
+    any: true
   CreateUnitHealPredictionCalculator:
     any: true
   CreateVector2D:

@@ -1713,9 +1713,56 @@ do
   check(reloads == 0, "options: nothing reloads when the page is built")
   made.click()
   check(reloads == 1, "options: one click, one ReloadUI")
+  -- The hint: a header and the button, static (no shown predicate: nothing of ours
+  -- is run by the Settings panel), the popup's words only with the Gamepad UI on
+  local inits = {}
+  Settings.RegisterInitializer = function(_, init) table.insert(inits, init) end
+  CreateSettingsListSectionHeaderInitializer = function(name, tip) return { header = name, tip = tip } end
+  CreateSettingsButtonInitializer = function(name, text, click, tip, searchTags)
+    return { name = name, text = text, click = click, tip = tip, searchTags = searchTags }
+  end
+  local function page()
+    inits = {}
+    local P = K.options({
+      title = "Kit",
+      key = "HINT",
+      defaults = {},
+      slash = "/kit",
+      get = function() end,
+      set = function() end,
+    })
+    P:check("a", "A", "tip")
+    P:done()
+  end
+  page()
+  check(
+    #inits == 2 and inits[1].header == "Some changes need a reload" and inits[2].text == "Reload",
+    "hint: a header and one Reload button"
+  )
+  check(
+    inits[2].name == "Reload the interface" and not inits[1].tip:find("Gamepad", 1, true),
+    "hint: without the Gamepad UI, no word about the popup"
+  )
+  check(
+    inits[1].AddShownPredicate == nil and inits[2].AddShownPredicate == nil,
+    "hint: no shown predicate, nothing of ours handed to the panel"
+  )
+  InputUtil = { IsGamepadUIEnabled = function() return true end }
+  page()
+  check(
+    inits[2].name == "A blocked-action popup is the game's own bug"
+      and inits[1].tip:find("game's own Gamepad UI", 1, true)
+      and inits[2].tip == inits[1].tip,
+    "hint: with the Gamepad UI on, says the popup is the game's own bug and a reload clears it"
+  )
+  local before = reloads
+  inits[2].click()
+  check(reloads == before + 1, "hint: the button reloads once")
+  InputUtil = nil
+  CreateSettingsListSectionHeaderInitializer = nil
   CreateSettingsButtonInitializer, Settings.RegisterInitializer = nil, nil
   O:done()
-  check(reloads == 1, "options: a client without the button's API still builds the page")
+  check(reloads == before + 1, "options: a client without the button's API still builds the page")
   ReloadUI = nil
   check(defaults.bookSize == 1 and defaults.paper == false, "options: Normal and dark by default")
   check(

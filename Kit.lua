@@ -4375,6 +4375,7 @@ end
 function K.options(o)
   local O = { variables = {} }
   local category
+  local function put(key, value) o.set(key, value) end
   local ok = Settings and Settings.RegisterVerticalLayoutCategory and Settings.RegisterProxySetting
   if ok then
     category = Settings.RegisterVerticalLayoutCategory(o.title)
@@ -4396,7 +4397,7 @@ function K.options(o)
       (o.defaults[key] and true or false) ~= inverted,
       function() return (o.get(key) and true or false) ~= inverted end,
       function(value)
-        o.set(key, value ~= inverted)
+        put(key, value ~= inverted)
         if after then after(value) end
       end
     )
@@ -4410,7 +4411,7 @@ function K.options(o)
       text,
       o.defaults[key],
       function() return o.get(key) end,
-      function(value) o.set(key, value) end
+      function(value) put(key, value) end
     )
     local options = Settings.CreateSliderOptions(min, max, step)
     if label and MinimalSliderWithSteppersMixin then
@@ -4424,7 +4425,7 @@ function K.options(o)
     local v = variable(key)
     table.insert(O.variables, v)
     K.settingsChoice(category, v, kind, text, o.defaults[key], function() return o.get(key) end, function(value)
-      o.set(key, value)
+      put(key, value)
       if after then after(value) end
     end, list, tip)
   end
@@ -4498,22 +4499,32 @@ function K.options(o)
       function(other) print((o.prefix or "") .. L["%s's settings copied."]:format(other)) end
     )
   end
-  -- A button at the foot of the page that reloads the interface, the game's own
-  -- (CreateSettingsButtonInitializer, in both clients), its click one ReloadUI()
+  -- The foot of the page: a hint and a button that reloads the interface, the
+  -- game's own rows (CreateSettingsListSectionHeaderInitializer and
+  -- CreateSettingsButtonInitializer, in both clients), the click one ReloadUI()
   -- and nothing else: no popup of ours (a StaticPopup shown by an addon taints),
-  -- and never a reload from code without a click.
+  -- and never a reload from code without a click. Static on purpose: a shown
+  -- predicate would hand a function of ours to the Settings panel, which runs it
+  -- unwrapped on every display and every search keystroke. With the Gamepad UI
+  -- on (decided once, as the page is built) the row also says that the
+  -- blocked-action popup is the game's own bug, which a reload clears.
   function O:reload()
     if not (category and CreateSettingsButtonInitializer and Settings.RegisterInitializer) then return end
+    local pad = K.gamepadUI()
+    local name = pad and L["A blocked-action popup is the game's own bug"] or L["Reload the interface"]
+    local tip = pad
+        and L["Some choices only take effect after a reload. The blocked-action popup comes from a bug in the game's own Gamepad UI, and a reload clears it."]
+      or L["Reloads the interface. Some choices only take effect after it."]
     pcall(function()
+      if CreateSettingsListSectionHeaderInitializer then
+        Settings.RegisterInitializer(
+          category,
+          CreateSettingsListSectionHeaderInitializer(L["Some changes need a reload"], tip)
+        )
+      end
       Settings.RegisterInitializer(
         category,
-        CreateSettingsButtonInitializer(
-          L["Reload the interface"],
-          L["Reload"],
-          function() ReloadUI() end,
-          L["Reloads the interface. Some choices only take effect after it."],
-          false
-        )
+        CreateSettingsButtonInitializer(name, L["Reload"], function() ReloadUI() end, tip, false)
       )
     end)
   end
