@@ -4410,19 +4410,23 @@ function K.options(o)
   end
   -- The book's size and the paper look, the same two choices in every addon
   -- (the settings bookSize, 1 to 4, and paper). The size is applied at once to
-  -- the windows already built, the look from the next reload.
-  function O:look()
+  -- the windows already built, the look from the next reload. only = "paper":
+  -- the paper alone, for an addon whose window already has size options of its
+  -- own (Palaver's panel size and text size): no third one beside them.
+  function O:look(only)
     padWatcher()
-    if o.defaults.bookSize == nil then o.defaults.bookSize = 1 end
     if o.defaults.paper == nil then o.defaults.paper = false end
     K.lookGet = o.get
-    self:choice(
-      "bookSize",
-      L["Book size"],
-      L["Makes the whole book bigger, its text and pictures together. A book is never made bigger than your screen."],
-      function() return { { 1, L["Normal"] }, { 2, L["Large"] }, { 3, L["Larger"] }, { 4, L["Largest"] } } end,
-      K.resize
-    )
+    if only ~= "paper" then
+      if o.defaults.bookSize == nil then o.defaults.bookSize = 1 end
+      self:choice(
+        "bookSize",
+        L["Book size"],
+        L["Makes the whole book bigger, its text and pictures together. A book is never made bigger than your screen."],
+        function() return { { 1, L["Normal"] }, { 2, L["Large"] }, { 3, L["Larger"] }, { 4, L["Largest"] } } end,
+        K.resize
+      )
+    end
     self:check(
       "paper",
       L["Paper colours"],

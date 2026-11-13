@@ -1690,6 +1690,29 @@ do
     set = function(k, v) values[k] = v end,
   })
   O:look()
+  local lookGet = K.lookGet
+  -- "paper" alone: a window with size options of its own gets no book size
+  local only = {}
+  local O2 = K.options({
+    title = "Kit2",
+    key = "KITPAPER",
+    defaults = only,
+    slash = "/kit2",
+    get = function(k) return only[k] end,
+    set = function(k, v) only[k] = v end,
+  })
+  local before = 0
+  for _ in pairs(choices) do
+    before = before + 1
+  end
+  O2:look("paper")
+  check(only.paper == false and only.bookSize == nil, "options: look('paper') makes the paper, not the book size")
+  local after = 0
+  for _ in pairs(choices) do
+    after = after + 1
+  end
+  check(after == before, "options: … and no Book size dropdown")
+  K.lookGet = lookGet
   -- The page ends with the game's own button that reloads the interface: one
   -- ReloadUI() per click, none when it is made, nothing else (no popup of ours).
   local reloads, made = 0, nil

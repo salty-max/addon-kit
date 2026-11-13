@@ -128,6 +128,8 @@ Two choices on every addon's options page, asked for by Codex players (6 Novembe
 `O:copy()`), and nothing else: the settings `bookSize` (1 to 4) and `paper`
 are created in the addon's defaults and kept per character like its others.
 
+- `O:look("paper")` offers the paper alone, for a window that already has size options of its
+  own (Palaver's panel size and text size: a third would only confuse).
 - **Book size** (Normal, Large, Larger, Largest: 1, 1.15, 1.3, 1.5): the whole
   window is scaled (`K.movable` registers it, `K.resize` applies a change at once,
   holding its place), not the text alone, because a list's row is one line wide, a page
