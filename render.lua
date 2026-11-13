@@ -191,7 +191,7 @@ return function(K, dir, o)
       col(T.soft),
       esc(o.count or ""),
       col(T.field),
-      col(edge),
+      col(DARK.edge), -- (the search box's edge is the dark look's on paper too)
       col(T.text),
       col(T.soft),
       esc(o.search or "")
@@ -209,26 +209,37 @@ return function(K, dir, o)
       )
     if o.select then
       -- (the kit's own select, open: its face, its list, the picked row washed)
+      -- (dark on paper too: the same face, text, arrow and menu as the dark look's)
+      local D = K.paper
+          and {
+            field = { 0.05, 0.04, 0.03, 0.95 },
+            menu = { 0.05, 0.04, 0.03, 0.97 },
+            text = { 0.93, 0.88, 0.76 },
+            ring = { 0.72, 0.56, 0.24 },
+            accent = { 0.85, 0.70, 0.42 },
+            highlight = { 1, 1, 1 },
+          }
+        or T
       local sel, items = o.select, {}
       for i, text in ipairs(sel.options) do
         table.insert(
           items,
           ('<div style="height:22px;line-height:22px;padding-left:6px;font-size:12px;color:%s;%s">%s</div>'):format(
-            col(T.text),
-            i == sel.picked and ("background:" .. col(T.highlight, 0.28)) or "",
+            col(D.text),
+            i == sel.picked and ("background:" .. col(D.highlight, 0.28)) or "",
             esc(text)
           )
         )
       end
       inner = inner
         .. ('<div style="position:absolute;left:20px;top:64px;width:220px;height:24px;background:%s;border:1px solid %s;box-sizing:border-box;line-height:22px;padding-left:8px;font-size:12px;color:%s">%s<span style="position:absolute;right:8px;top:0;color:%s">&#9662;</span></div><div style="position:absolute;left:20px;top:90px;width:220px;background:%s;border:1px solid %s;box-sizing:border-box;padding:4px 10px 4px 4px">%s</div>'):format(
-          col(T.field),
-          col(T.ring, 0.7),
-          col(T.text),
+          col(D.field),
+          col(D.ring, 0.7),
+          col(D.text),
           esc(sel.options[sel.picked] or ""),
-          col(K.paper and T.text or T.accent),
-          col(T.menu),
-          col(T.ring, 0.9),
+          col(D.accent),
+          col(D.menu),
+          col(D.ring, 0.9),
           table.concat(items)
         )
     end

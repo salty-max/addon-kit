@@ -173,7 +173,6 @@ K.PAPER = {
   shade = { 0.89, 0.81, 0.64, 0.55 },
   highlight = { 0.36, 0.16, 0.05 },
   field = { 0.96, 0.92, 0.80, 0.9 },
-  menu = { 0.93, 0.87, 0.72, 0.99 },
   trough = { 0.96, 0.90, 0.74, 0.55 }, -- (light: the rust fill reads against it, never a black bar)
   wash = { 0.25, 0.12, 0.04, 0.07 },
   picked = { 0.06, 0.04, 0.02 },
@@ -476,20 +475,6 @@ local function border(f, color)
       t:SetPoint("BOTTOM" .. side)
     end
   end
-end
-
--- The paper's field (a search box, a select): the template's dark art hidden
--- (its Left, Middle and Right on an edit box, its Background on a dropdown),
--- the paper's own light field and edge in its place.
-local function paperField(f, art)
-  for _, key in ipairs(art) do
-    local t = f[key]
-    if type(t) == "table" and t.Hide then t:Hide() end
-  end
-  local back = f:CreateTexture(nil, "BACKGROUND")
-  back:SetAllPoints()
-  back:SetColorTexture(unpack(T.field))
-  border(f, { T.ring[1], T.ring[2], T.ring[3], 0.7 })
 end
 
 -- ── panels ───────────────────────────────────────────────────────────────────
@@ -2648,15 +2633,54 @@ local function selectLabel(parent, color)
   fs:SetWordWrap(false)
   return fs
 end
+-- The select is drawn in the dark look whatever the book's: on the paper it is
+-- a dark box with its edge in the bronze, so it is seen on the tan (the game's
+-- own dropdown is dark on paper too).
+local function selectLook()
+  if not K.paper then return T end
+  local theme = lastTheme or {}
+  local function of(k) return theme[k] or DEFAULT[k] end
+  -- (each colour as K.theme gives it to the dark look, the face alone made solid:
+  -- the dark look's is a veil over a dark window, here it sits on tan)
+  local field = of("field")
+  return {
+    field = { field[1], field[2], field[3], 0.95 },
+    menu = of("menu"),
+    text = of("text"),
+    soft = of("soft"),
+    ring = of("ring"),
+    accent = of("accent"),
+    highlight = of("highlight"),
+  }
+end
+local function selectHover(button, C, alpha)
+  button:SetHighlightTexture(K.HIGHLIGHT, "ADD")
+  local hover = button:GetHighlightTexture()
+  if hover and hover.SetVertexColor then
+    hover:SetVertexColor(unpack(C.highlight))
+    if alpha then hover:SetAlpha(alpha) end
+  end
+end
+local function selectMark(row, C)
+  selectHover(row, C)
+  local mark = row:CreateTexture(nil, "BACKGROUND")
+  mark:SetAllPoints()
+  mark:SetTexture(K.HIGHLIGHT)
+  mark:SetBlendMode("ADD")
+  mark:SetAlpha(0.7)
+  mark:SetVertexColor(unpack(C.highlight))
+  return mark
+end
 local function kitSelect(parent, width, placeholder)
+  local C = selectLook()
   local s = CreateFrame("Button", nil, parent)
   s:SetSize(width, 24)
   s.placeholder = placeholder
   local back = s:CreateTexture(nil, "BACKGROUND")
   back:SetAllPoints()
-  back:SetColorTexture(unpack(T.field))
-  border(s, { T.ring[1], T.ring[2], T.ring[3], 0.7 })
-  s.text = selectLabel(s, T.soft)
+  back:SetColorTexture(unpack(C.field))
+  border(s, { C.ring[1], C.ring[2], C.ring[3], 0.7 })
+  s.text = selectLabel(s, C.soft)
   s.text:SetPoint("LEFT", 8, 0)
   s.text:SetPoint("RIGHT", -24, 0)
   s.text:SetText(placeholder or "")
@@ -2664,8 +2688,8 @@ local function kitSelect(parent, width, placeholder)
   arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
   arrow:SetSize(14, 14)
   arrow:SetPoint("RIGHT", -6, -3)
-  arrow:SetVertexColor(unpack(K.paper and T.text or T.accent))
-  K.hover(s, 0.5)
+  arrow:SetVertexColor(unpack(C.accent))
+  selectHover(s, C, 0.5)
 
   local value -- (the choice: kept here, not on the frame)
   local list = CreateFrame("Frame", nil, s)
@@ -2675,9 +2699,10 @@ local function kitSelect(parent, width, placeholder)
   list:EnableMouse(true)
   local shade = list:CreateTexture(nil, "BACKGROUND")
   shade:SetAllPoints()
-  shade:SetColorTexture(unpack(T.menu))
-  border(list, { T.ring[1], T.ring[2], T.ring[3], 0.9 })
+  shade:SetColorTexture(unpack(C.menu))
+  border(list, { C.ring[1], C.ring[2], C.ring[3], 0.9 })
   local area = K.scrollArea(list, width - 14)
+  area.thumb:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 0.45)
   area:SetPoint("TOPLEFT", 4, -4)
   area:SetPoint("BOTTOMRIGHT", -10, 4)
   list:Hide()
@@ -2717,10 +2742,10 @@ local function kitSelect(parent, width, placeholder)
     r = CreateFrame("Button", nil, area.child)
     r:SetSize(width - 14, SELECT_ROW)
     r:SetPoint("TOPLEFT", 0, -(i - 1) * SELECT_ROW)
-    r.text = selectLabel(r, T.text)
+    r.text = selectLabel(r, C.text)
     r.text:SetPoint("LEFT", 6, 0)
     r.text:SetPoint("RIGHT", -6, 0)
-    r.mark = K.highlight(r)
+    r.mark = selectMark(r, C)
     r:SetScript("OnClick", function(self)
       s:SetValue(self.value)
       close()
@@ -2736,7 +2761,7 @@ local function kitSelect(parent, width, placeholder)
     end
     value = text and v or nil
     self.text:SetText(text or self.placeholder or "")
-    self.text:SetTextColor(unpack(text and T.text or T.soft))
+    self.text:SetTextColor(unpack(text and C.text or C.soft))
     for _, r in ipairs(self.rows) do
       r.mark:SetShown(r:IsShown() and r.value == value)
     end
@@ -2859,9 +2884,7 @@ end
 function K.select(parent, width, placeholder)
   -- (the Gamepad UI on: no Blizzard menu, its opening taints the manager, see
   -- K.settingsChoice. The kit's own list of plain buttons.)
-  -- (on paper too: the game's menu is drawn dark and cannot be re-inked without
-  -- touching its secure code, so the paper's select is the kit's own list)
-  if K.gamepadUI() or K.paper then return kitSelect(parent, width, placeholder) end
+  if K.gamepadUI() then return kitSelect(parent, width, placeholder) end
   local templates = C_XMLUtil and C_XMLUtil.GetTemplateInfo
   if MenuUtil and templates and templates("WowStyle1DropdownTemplate") then
     return menuSelect(parent, width, placeholder)
@@ -3955,9 +3978,12 @@ function K.book(o)
     f.search:SetPoint("TOPLEFT", f.left, "TOPLEFT", 12, -10)
     f.search:SetPoint("TOPRIGHT", f.left, "TOPRIGHT", o.searchRight or -12, -10)
     if K.paper then
-      -- (the template's field is drawn for a dark ground: on paper its art is
-      -- hidden, the paper's own field stands in, and its words are the ink)
-      paperField(f.search, { "Left", "Middle", "Right" })
+      -- (the same box as the dark look's, its border and shape the template's:
+      -- only the fill under its art is the paper's light, and the words are the ink)
+      local fill = f.search:CreateTexture(nil, "BACKGROUND", nil, -8)
+      fill:SetPoint("TOPLEFT", 2, -2)
+      fill:SetPoint("BOTTOMRIGHT", -2, 2)
+      fill:SetColorTexture(T.field[1], T.field[2], T.field[3], 1)
       -- (the template's fonts are small, outlined and shadowed, drawn for light
       -- on dark: thin and smudged in ink. The kit's body font, plain, like the labels)
       f.search:SetFont(K.BODY_FONT, 12, "")
