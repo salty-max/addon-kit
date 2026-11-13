@@ -183,7 +183,7 @@ return function(K, dir, o)
     for _, r in ipairs(o.rows or {}) do
       table.insert(rows, row(r))
     end
-    local inner = ('<div style="position:absolute;left:0;right:0;top:0;height:28px;background:%s"></div><div style="position:absolute;left:10px;top:6px;font:16px %s;color:%s">%s</div><div style="position:absolute;left:262px;top:36px;font-size:11px;color:%s">%s</div><div style="position:absolute;left:8px;top:30px;width:244px;height:22px;background:%s;border:1px solid %s;box-sizing:border-box;font-size:12px;line-height:20px;padding-left:22px;color:%s">%s</div>'):format(
+    local inner = ('<div style="position:absolute;left:0;right:0;top:0;height:28px;background:%s"></div><div style="position:absolute;left:10px;top:6px;font:16px %s;color:%s">%s</div><div style="position:absolute;left:262px;top:36px;font-size:11px;color:%s">%s</div><div style="position:absolute;left:8px;top:30px;width:244px;height:22px;background:%s;border:1px solid %s;box-sizing:border-box;font-size:12px;line-height:20px;padding-left:22px;color:%s"><div style="position:absolute;left:6px;top:5px;width:6px;height:6px;border:1.5px solid %s;border-radius:50%%"></div>%s</div>'):format(
       col(K.paper and edge or { 0.12, 0.10, 0.08 }),
       serif,
       K.paper and "#f3e6c0" or "#e8d9a8",
@@ -193,6 +193,7 @@ return function(K, dir, o)
       col(T.field),
       col(edge),
       col(T.text),
+      col(T.soft),
       esc(o.search or "")
     )
     inner = inner

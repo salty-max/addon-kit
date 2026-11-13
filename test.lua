@@ -204,29 +204,27 @@ check(
 s:SetValue(12345)
 check(s:GetValue() == nil and s.box.shownText == "Choose", "menu: a value not offered: none, the placeholder")
 
--- On paper the select's dark art is hidden and its text stays ink after the
--- game's own state handler paints it light (every hover, press and show).
+-- On paper the select is the kit's own list (the game's menu is drawn dark and
+-- is secure code): no DropdownButton, the text and the arrow in ink.
 do
-  local made
+  local made = false
   local plain = CreateFrame
   CreateFrame = function(kind, ...)
-    local f = plain(kind, ...)
-    if kind == "DropdownButton" then
-      f.Background = { Hide = function(self) self.hidden = true end }
-      f.Text = { SetTextColor = function(self, r, g, b) self.col = { r, g, b } end }
-      function f:IsEnabled() return true end
-      function f:OnButtonStateChanged() self.Text:SetTextColor(1, 1, 1) end
-      made = f
-    end
-    return f
+    if kind == "DropdownButton" then made = true end
+    return plain(kind, ...)
   end
   local Kp = load()
   Kp.look(true)
-  Kp.select(UIParent, 170, "Choose")
-  check(made.Background.hidden == true, "paper: the select's dark text holder is hidden")
-  check(made.Text.col and made.Text.col[1] < 0.2, "paper: the select's text is ink")
-  made:OnButtonStateChanged()
-  check(made.Text.col[1] < 0.2, "paper: the select's text is ink again after the game's state handler")
+  local sel = Kp.select(UIParent, 170, "Choose")
+  check(
+    made == false and rawget(sel, "list") ~= nil and rawget(sel, "box") == nil,
+    "paper: the select is the kit's own list, no game menu"
+  )
+  sel:SetOptions({ { value = 1, text = "One" }, { value = 2, text = "Two" } })
+  local ink
+  sel.text.SetTextColor = function(_, r) ink = r end
+  sel:SetValue(1)
+  check(ink and ink < 0.2, "paper: the select's text is ink")
   Kp.look(false)
   CreateFrame = plain
 end
@@ -1830,6 +1828,39 @@ do
   local row = list2:add("entry", "A row", 3, "under")
   list2:pick(row)
   check(row ~= nil and K.T.picked[1] < 0.2, "paper: a page and a list draw, the picked row's ink dark")
+  -- The list's rows are as wide as its area: a highlight spans the list
+  local sized = list2.scripts.OnSizeChanged
+  local got
+  list2.child.SetWidth = function(_, w) got = w end
+  sized(list2, 220)
+  sized(list2, 0)
+  check(got == 220 and K.ROW_WIDTH == 220, "list: the rows' parent follows the area's width")
+  -- The search box's magnifier has its own inset, the hint starts after it
+  do
+    local plain = CreateFrame
+    local pts = {}
+    local function fake(name)
+      return {
+        ClearAllPoints = function() end,
+        SetPoint = function(_, point, _, _, x) pts[name .. point] = x end,
+      }
+    end
+    CreateFrame = function(kind, ...)
+      local f = plain(kind, ...)
+      if kind == "EditBox" then
+        rawset(f, "searchIcon", fake("icon"))
+        rawset(f, "Instructions", fake("hint"))
+        f.SetTextInsets = function(_, l) pts.inset = l end
+      end
+      return f
+    end
+    K.book({ name = "KitPaper2", title = "Kit", titles = { "One" }, search = "KitPaperSearch2" }):open(1)
+    CreateFrame = plain
+    check(
+      pts.iconLEFT == 6 and pts.hintTOPLEFT == 22 and pts.hintBOTTOMRIGHT == -20 and pts.inset == 22,
+      "search: the magnifier 6 in, the words and hint from 22"
+    )
+  end
   K.look(false)
 
   -- The paper's panel: the game's quest paper over a light base, its picture

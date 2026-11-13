@@ -1185,7 +1185,7 @@ end
 --   second line), l:grow(row, by), l:gap(by),
 --   l:pick(row) (the one the page shows), l:finish(scroll) (scroll false:
 --   the picked row left where it is, out of view or not: a fold clicked)
-K.ROW_WIDTH = 204
+K.ROW_WIDTH = 220 -- (a book's list area: its panel 244 less 12 each side)
 local List = {}
 
 -- The kinds every book's list shares: "section" (a heading in the display
@@ -1235,7 +1235,12 @@ function K.list(parent, style, rows, filtered, name)
   local l = extend(K.scrollArea(parent, K.ROW_WIDTH, name), List)
   l.rows, l.style = rows or {}, style or K.listStyle
   l:SetPoint("TOPLEFT", parent, "TOPLEFT", 12, filtered and -70 or -40)
-  l:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -18, 12)
+  l:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -12, 12)
+  -- (the rows are as wide as the area, so a highlight and a pick span the whole
+  -- list, the same space left and right: the scroll thumb stands in the right one)
+  l:SetScript("OnSizeChanged", function(self, w)
+    if type(w) == "number" and w > 0 then self.child:SetWidth(w) end
+  end)
   return l
 end
 
@@ -1243,7 +1248,7 @@ function List:row(i)
   local r = self.rows[i]
   if r then return r end
   r = CreateFrame("Button", nil, self.child)
-  r:SetSize(K.ROW_WIDTH, 18)
+  r:SetHeight(18)
   r:SetHitRectInsets(-K.HIT_X, -K.HIT_X, 0, 0)
   r.text = K.label(r, K.BODY_FONT, 12, T.text)
   r.text:SetWordWrap(false)
@@ -1272,6 +1277,7 @@ function List:add(kind, text, count, under)
   local r = self:row(self.n)
   r:ClearAllPoints()
   r:SetPoint("TOPLEFT", 0, -self.y)
+  r:SetPoint("TOPRIGHT", self.child, "TOPRIGHT", 0, -self.y)
   r.kind, r.key, r.id, r.zone, r.place = kind, false, false, false, false
   r.text:ClearAllPoints()
   r.text:SetText(text)
@@ -2658,7 +2664,7 @@ local function kitSelect(parent, width, placeholder)
   arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
   arrow:SetSize(14, 14)
   arrow:SetPoint("RIGHT", -6, -3)
-  arrow:SetVertexColor(unpack(T.accent))
+  arrow:SetVertexColor(unpack(K.paper and T.text or T.accent))
   K.hover(s, 0.5)
 
   local value -- (the choice: kept here, not on the frame)
@@ -2779,28 +2785,6 @@ local function menuSelect(parent, width, placeholder)
   box:SetPoint("LEFT")
   box:SetWidth(width)
   s.box = box
-  if K.paper then
-    -- (its dark text holder hidden: the paper's field, and the ink on it)
-    local field = CreateFrame("Frame", nil, s)
-    field:SetPoint("TOPLEFT", box, "TOPLEFT")
-    field:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -22, 0)
-    field:SetFrameLevel(s:GetFrameLevel())
-    paperField(field, {})
-    if type(box.Background) == "table" and box.Background.Hide then box.Background:Hide() end
-    -- (the template's state handler paints the text light on every hover, press
-    -- and show: ours runs after it and puts the ink back)
-    local function ink(self)
-      if type(self.Text) == "table" and self.Text.SetTextColor then
-        self.Text:SetTextColor(unpack(self:IsEnabled() and T.text or T.dim))
-      end
-    end
-    local theirs = box.OnButtonStateChanged
-    box.OnButtonStateChanged = function(self, ...)
-      if theirs then theirs(self, ...) end
-      ink(self)
-    end
-    ink(box)
-  end
   local value -- (the choice: kept here, not on the frame)
   local function setup()
     box:SetupMenu(function(_, root)
@@ -2840,19 +2824,6 @@ local function dropDownSelect(parent, width, placeholder)
   box:SetPoint("LEFT", -16, -2)
   UIDropDownMenu_SetWidth(box, width - 26)
   s.box = box
-  if K.paper then
-    for _, part in ipairs({ "Left", "Middle", "Right" }) do
-      local t = box[part]
-      if type(t) == "table" and t.Hide then t:Hide() end
-    end
-    local field = CreateFrame("Frame", nil, s)
-    field:SetPoint("TOPLEFT", s, "TOPLEFT", 0, -2)
-    field:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -2, 2)
-    field:SetFrameLevel(s:GetFrameLevel())
-    paperField(field, {})
-    local text = box.Text
-    if type(text) == "table" and text.SetTextColor then text:SetTextColor(unpack(T.text)) end
-  end
   local value -- (the choice: kept here, not on the frame)
   UIDropDownMenu_Initialize(box, function(_, level)
     for _, o in ipairs(s.options) do
@@ -2888,7 +2859,9 @@ end
 function K.select(parent, width, placeholder)
   -- (the Gamepad UI on: no Blizzard menu, its opening taints the manager, see
   -- K.settingsChoice. The kit's own list of plain buttons.)
-  if K.gamepadUI() then return kitSelect(parent, width, placeholder) end
+  -- (on paper too: the game's menu is drawn dark and cannot be re-inked without
+  -- touching its secure code, so the paper's select is the kit's own list)
+  if K.gamepadUI() or K.paper then return kitSelect(parent, width, placeholder) end
   local templates = C_XMLUtil and C_XMLUtil.GetTemplateInfo
   if MenuUtil and templates and templates("WowStyle1DropdownTemplate") then
     return menuSelect(parent, width, placeholder)
@@ -3979,7 +3952,7 @@ function K.book(o)
     f.sheet:SetPoint("BOTTOMRIGHT", -edge, edge)
     f.search = CreateFrame("EditBox", o.search, f, "SearchBoxTemplate")
     f.search:SetHeight(20)
-    f.search:SetPoint("TOPLEFT", f.left, "TOPLEFT", 18, -10)
+    f.search:SetPoint("TOPLEFT", f.left, "TOPLEFT", 12, -10)
     f.search:SetPoint("TOPRIGHT", f.left, "TOPRIGHT", o.searchRight or -12, -10)
     if K.paper then
       -- (the template's field is drawn for a dark ground: on paper its art is
@@ -3998,6 +3971,19 @@ function K.book(o)
           hint:SetTextColor(unpack(T.dim))
         end)
       end
+    end
+    -- (the magnifier its own place inside the border, the words and the hint
+    -- after it: the template sets the icon on the edge and the words 16 in)
+    local icon, hint = rawget(f.search, "searchIcon"), rawget(f.search, "Instructions")
+    if type(icon) == "table" then
+      icon:ClearAllPoints()
+      icon:SetPoint("LEFT", f.search, "LEFT", 6, 0)
+    end
+    f.search:SetTextInsets(22, 20, 0, 0)
+    if type(hint) == "table" then
+      hint:ClearAllPoints()
+      hint:SetPoint("TOPLEFT", f.search, "TOPLEFT", 22, 0)
+      hint:SetPoint("BOTTOMRIGHT", f.search, "BOTTOMRIGHT", -20, 0)
     end
     f.search:HookScript("OnTextChanged", function() B:refresh() end)
     f.filter = false -- (every field set: none read before it is)
