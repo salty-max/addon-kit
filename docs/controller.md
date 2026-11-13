@@ -170,7 +170,7 @@ What the pinned source (1.60.1.70532) says of our entries into it:
   (`Blizzard_ImplementationReadme.lua`). So the proxy settings are the least likely cause: it would take a slot
   they wrote, not their running.
 - **Where Blizzard does run our code without that isolation** (all unproven as causes): (1) the slider's label formatter
-  (`SetLabelFormatter`, our `O:bannerSeconds` and the book size choice use it) is called bare by `MinimalSlider.lua`,
+  (`SetLabelFormatter`, our `O:bannerSeconds` uses it) is called bare by `MinimalSlider.lua`,
   on our page only; (2) a dropdown's options function is isolated on the menu path (`Blizzard_Settings.lua:526` runs
   inside `securecallfunction(PopulateDescription…)`, `Blizzard_Menu/DropdownButton.lua:262`), but is bare in the hover
   tooltip (`Blizzard_Settings.lua:424`), and once `optionsFunc()` returns, the rest of the inserter runs tainted, so the
@@ -241,7 +241,7 @@ next showing.
 Honest: telling the manager may taint what the game reads (`manager.focusedFrame`, `manager.topSuspendedFrame`,
 `SmartNavigation.activePanels[n].buttonGroups`). The user's test of 8 November first blamed that registration for
 the "blocked from an action only available to the Blizzard UI" popup on the options page. The cause found later
-is Settings dropdowns (below), which the page no longer builds with the Gamepad UI on, so the registration
+is Settings dropdowns (below), which the page builds again (the user's call, 13 November 2026), so if the popup returns `/codex pad off` is the test that separates the two causes, and the registration
 stays on, on the user's decision. If the popup comes back with it on, `/codex pad` names the slots and
 `/codex pad off` is the test.
 
@@ -291,14 +291,9 @@ The "blocked from an action only available to the Blizzard UI" popup (`SetPrefer
 
 **What was tried, and why neither helps (8 November 2026).** First a canvas options page of plain frames with steppers (kit commit 23d577a): it avoided every Blizzard control but the user found it ugly and half done, and it gave up the game's own look. Then the dropdown's options built inside `securecallfunction` (3904b31): the user's test showed the popup still came. `securecallfunction` (and `securecall`) keep a *secure* caller secure after they return ([API:Securecall](https://warcraft.wiki.gg/wiki/API:Securecall)). Called from tainted addon code the function runs tainted and what it builds is tainted, so a dropdown cannot be built secure from an addon, and Blizzard's own inbound code wraps function arguments for the same reason (`Blizzard_SettingsInbound.lua` lines 33 to 57, "taint-laundering"). The unwrapped `SuspendFrame` in `MenuProxy.OnShow` stays the hole. Both attempts were removed so the code is plain again; they are in the local history only. The user also saw the popup "only when the Gamepad UI is enabled", which matches the source: the manager's `MenuProxy.OnShow` callback returns at once when `InputUtil.IsGamepadUIEnabled()` is false.
 
-**The rule (the dispatcher's decision, 8 November 2026): split on the Gamepad UI.** `K.gamepadUI()` (`InputUtil.IsGamepadUIEnabled()` under `pcall`, false where it does not exist, Classic Era) is read once, when the options page or a select is built.
-- **Gamepad UI on:** the options page uses no Blizzard dropdown. A choice (`O:choice`, the sounds, the book size, `O:dropdown`) is the game's own stepped slider (`Settings.CreateSlider`, `Settings.CreateSliderOptions(1, #list, 1)`, the label formatter showing the choice's word) over the list's positions. The setting stays the option's own value (`bookSize` 1 to 4, a sound id, `"frFR"`): the slider's proxy setting is the position, mapped to and from the value, a saved value not in the list is shown as the nearest step and never written, a list of one option gets no slider (its step would be 0 over 0), so the copy row is absent until there is another character, and a sound still plays as it is stepped. "Copy settings from" is a slider over the characters (the first step is "Choose a character") and a "Copy their choices" button (`CreateSettingsButtonInitializer`, as Reload): moving the slider copies nothing. `K.select` (the book's filter, the welcome's selects) is the kit's own list of plain buttons, because a menu's generator and `isSelected` closures are our functions inside the menu chain.
-- **Gamepad UI off** (mouse and keyboard, and Classic Era): Blizzard's dropdowns exactly as they were, the plain `list()` generator, `K.select` the game's menu.
-- A player who changes the Gamepad UI setting reloads: the page ends with the Reload button.
-- An addon with a choice of its own calls `O:dropdown(name, kind, text, default, get, set, options, tip)`, never `Settings.CreateDropdown` (Hearthtale's journal language still calls it itself, `Settings.lua` lines 150 to 170, until its sync pass).
-- Source-derived, not tried in the game: that a slider keeps the popup away (the user's evidence is that checkboxes and the Reload button do), and that the D-pad steps a native slider.
+**The rule (the user's call, 13 November 2026): one look, Blizzard's dropdown.** The 8 November split (stepped sliders with the Gamepad UI on, a3083b9) is gone: every addon's options page has Blizzard's Settings dropdown for every choice (`O:choice`, the sounds, the book size, `O:dropdown`, "Copy settings from"), the Gamepad UI on or off, because the user said Mealbook's dropdown never showed the popup for them and the addons' pages must look alike. The source reading above still says a dropdown can taint the manager under the Gamepad UI (and the Goodwill test of 8 November saw the popup), so the Reload button and its hint are the answer if it comes back. `K.gamepadUI()` is still read when a select is built: `K.select` (the book's filter, the welcome's selects) is the kit's own list of plain buttons with the Gamepad UI on, the game's menu otherwise. An addon with a choice of its own calls `O:dropdown(name, kind, text, default, get, set, options, tip)`.
 
 **Every call Blizzard makes into addon code on the page.**
 - A setting's getter and setter, and a check box's `after`: `SettingsInbound.CreateProxySetting` wraps them (`SecureWrapFunctionArgs`) and `ProxySettingMixin` calls them through `securecallfunction` (`Blizzard_Setting.lua`).
-- A slider's label formatter (our function, called when Blizzard draws the slider) and a dropdown's options (Gamepad UI off only): not made secure. A slider opens no menu, so no `SuspendFrame` follows it.
-- The Reload and Copy buttons' clicks: script handlers on Blizzard's button (`SetScript("OnClick", data.buttonClick)`), which the game insulates.
+- A slider's label formatter (our function, called when Blizzard draws the slider) and a dropdown's options: not made secure (a dropdown's opening is what can taint the manager, see the rule above).
+- The Reload button's click: script handlers on Blizzard's button (`SetScript("OnClick", data.buttonClick)`), which the game insulates.

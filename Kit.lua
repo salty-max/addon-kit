@@ -3582,8 +3582,8 @@ K.pad = { shown = 0, hidden = 0, failed = 0, blocked = 0, waiting = 0 }
 -- Honest: telling it may taint what the game reads (focusedFrame,
 -- topSuspendedFrame, SmartNavigation's buttonGroups), and the options page was
 -- once blocked by it (see docs/controller.md for the cause that was then
--- found: Settings dropdowns, which that page no longer uses with the Gamepad
--- UI on). /<addon> pad on|off|auto forces it or follows the Gamepad UI again,
+-- found: Settings dropdowns, which the page uses again since 13 November
+-- 2026, the Reload hint being the answer). /<addon> pad on|off|auto forces it or follows the Gamepad UI again,
 -- for a session, to diagnose. A window is told it is hidden only if it was told
 -- it is shown, whatever the style is by then. LB and RB switching a book's
 -- tabs does not need the manager (K.tabs) and works either way.
@@ -4277,20 +4277,12 @@ function K.binding(o)
   return { action = o.key .. "_OPEN", global = o.global }
 end
 
--- ── a choice on the Options page: a dropdown, or a slider with the Gamepad UI ─
--- THE RULE: with the Gamepad UI on, the options page uses no Blizzard dropdown.
--- A dropdown's opening runs the Gamepad UI's own unwrapped SuspendFrame
--- (MenuProxy.OnShow), right after the menu has read the options our code made,
--- and that taints the manager: the "blocked from an action only available to
--- the Blizzard UI" popup (docs/controller.md). Nothing built from addon code
--- can be made secure to prevent it, so a choice becomes the game's own stepped
--- slider over the list's positions, its label the choice's word. The setting
--- keeps the option's value (bookSize 1 to 4, a sound id, "frFR"): the slider's
--- proxy setting is the position, mapped to and from the value (a saved value
--- not in the list shows as the nearest step, and nothing is written). With the
--- Gamepad UI off it is Blizzard's dropdown exactly as it always was. The
--- choice is made once, when the page is built: a player who changes the
--- Gamepad UI reloads (the page's Reload button).
+-- ── a choice on the Options page: Blizzard's dropdown ───────────────────────
+-- Every choice on the options page is the game's own Settings dropdown, in
+-- every addon, the Gamepad UI on or off (the user's call of 13 November 2026:
+-- Mealbook's dropdown, which never showed the blocked-action popup for them).
+-- A stepped-slider split for the Gamepad UI (a3083b9) was removed: the page's
+-- Reload button and hint (O:reload, docs/controller.md) answer the popup.
 
 -- Whether the Gamepad UI is the game's interface style now (Era has none).
 function K.gamepadUI()
@@ -4301,54 +4293,9 @@ function K.gamepadUI()
   return false
 end
 
--- The position of a value in a list of { value, text }: its own, else (a
--- number) the nearest, else the first. Only for what is shown.
-local function choiceIndex(options, value)
-  for i, opt in ipairs(options) do
-    if opt[1] == value then return i end
-  end
-  if type(value) == "number" then
-    local best, gap
-    for i, opt in ipairs(options) do
-      if type(opt[1]) == "number" and (not gap or math.abs(opt[1] - value) < gap) then
-        best, gap = i, math.abs(opt[1] - value)
-      end
-    end
-    if best then return best end
-  end
-  return 1
-end
-
--- Registers one choice on a Settings category and returns its setting.
+-- Registers one dropdown on a Settings category and returns its setting.
 -- list(): { { value, text }, ... }. get(), set(value) as for a proxy setting.
 function K.settingsChoice(category, variable, kind, text, default, get, set, list, tooltip)
-  if K.gamepadUI() and Settings.CreateSlider and Settings.CreateSliderOptions then
-    local options = list()
-    -- (one option or none: nothing to step through, and a slider over one position
-    -- divides 0 by 0 for its step. The copy row goes too when nobody can be copied from.)
-    if #options < 2 then return end
-    local setting = Settings.RegisterProxySetting(
-      category,
-      variable,
-      Settings.VarType.Number,
-      text,
-      choiceIndex(options, default),
-      function() return choiceIndex(options, get()) end,
-      function(position)
-        local opt = options[position]
-        if opt then set(opt[1]) end
-      end
-    )
-    local slider = Settings.CreateSliderOptions(1, #options, 1)
-    if MinimalSliderWithSteppersMixin then
-      slider:SetLabelFormatter(MinimalSliderWithSteppersMixin.Label.Right, function(position)
-        local opt = options[math.floor(position + 0.5)]
-        return opt and opt[2] or ""
-      end)
-    end
-    Settings.CreateSlider(category, setting, slider, tooltip)
-    return setting
-  end
   if not (Settings.CreateDropdown and Settings.CreateControlTextContainer) then return end
   local setting = Settings.RegisterProxySetting(category, variable, kind, text, default, get, set)
   Settings.CreateDropdown(category, setting, function()
@@ -4430,8 +4377,7 @@ function K.options(o)
     end, list, tip)
   end
   -- A choice of its own for an addon whose setting is not in its profile (a
-  -- character's own, with its own getter and setter): a dropdown, or a slider
-  -- with the Gamepad UI, as O:choice. kind: Settings.VarType.String or .Number;
+  -- character's own, with its own getter and setter): a dropdown, as O:choice. kind: Settings.VarType.String or .Number;
   -- options: { { value, text }, ... }.
   function O:dropdown(name, kind, text, default, get, set, options, tip)
     if not category then return end
@@ -4884,34 +4830,6 @@ function K.copySetting(category, variable, P, tooltip, said)
   end
   local function copy(other)
     if other ~= "" and P:copy(other) and said then said(other) end
-  end
-  if K.gamepadUI() and CreateSettingsButtonInitializer and Settings.RegisterInitializer then
-    -- (a slider over the characters, then a button: moving the slider copies nothing)
-    local chosen = ""
-    local setting = K.settingsChoice(
-      category,
-      variable,
-      Settings.VarType.String,
-      L["Copy settings from"],
-      "",
-      function() return chosen end,
-      function(other) chosen = other end,
-      options,
-      tooltip
-    )
-    if not setting then return end
-    pcall(function()
-      Settings.RegisterInitializer(
-        category,
-        CreateSettingsButtonInitializer("", L["Copy their choices"], function()
-          local other = chosen
-          chosen = ""
-          copy(other)
-          if Settings.NotifyUpdate then pcall(Settings.NotifyUpdate, variable) end
-        end, nil, false)
-      )
-    end)
-    return
   end
   K.settingsChoice(
     category,

@@ -1834,11 +1834,9 @@ do
   rawset(UIParent, "GetHeight", saved.GetHeight)
 end
 
--- ── the Gamepad UI splits the options page's choices ─────────────────────────
--- With the Gamepad UI on, a choice is a native stepped slider over the list's
--- positions (the stored value stays the option's value), the copy-from row a
--- slider and a button, the selects the kit's own list, and no Blizzard
--- dropdown is made. With it off, Blizzard's dropdown as it always was.
+-- ── the options page's choices are Blizzard's dropdown, the Gamepad UI on or off ──
+-- (13 November 2026: one look in every addon, Mealbook's. The book's selects
+-- stay the kit's own list with the Gamepad UI on.)
 do
   local saved = { Settings = Settings, InputUtil = InputUtil, Minimal = MinimalSliderWithSteppersMixin }
   local menuWas, xmlWas = MenuUtil, C_XMLUtil
@@ -1922,87 +1920,33 @@ do
     return O
   end
 
-  -- Gamepad UI on
-  build()
-  check(dropdowns == 0, "gamepad on: no Blizzard dropdown is made")
-  local size = settings.KIT_BOOKSIZE
-  check(
-    size.kind == "n" and sliders.KIT_BOOKSIZE.min == 1 and sliders.KIT_BOOKSIZE.max == 4,
-    "gamepad on: a size is a slider over 4 positions"
-  )
-  check(
-    sliders.KIT_BOOKSIZE.format(3) == "Larger" and sliders.KIT_SOUND.format(2) == "Loud",
-    "gamepad on: its label is the choice's word"
-  )
-  check(size.get() == 1 and size.default == 1, "gamepad on: the saved value shows as its position")
-  size.set(3)
-  check(values.bookSize == 3, "gamepad on: stepping stores the option's own value, not the position")
-  settings.KIT_SOUND.set(2)
-  check(values.sound == 9 and afters[1] == 9, "gamepad on: a sound is stored by its id and played as it is stepped")
-  values.bookSize = 7
-  check(
-    size.get() == 4 and values.bookSize == 7,
-    "gamepad on: a saved value not in the list shows as the nearest step and is not written"
-  )
-  values.bookSize = 1
-  check(settings.OWN_LANG.kind == "n" and settings.OWN_LANG.get() == 1, "gamepad on: O:dropdown is a slider too")
-  settings.OWN_LANG.set(2)
-  local copyRow = settings.KIT_COPYFROM
-  copyRow.set(2)
-  check(copied == nil, "gamepad on: moving the copy slider copies nothing")
-  check(#buttons >= 1 and buttons[#buttons].text == "Copy their choices", "gamepad on: a Copy button follows")
-  buttons[#buttons].click()
-  check(copied == "Ann - Realm", "gamepad on: the button copies from the chosen character")
-  copied = nil
-  buttons[#buttons].click()
-  check(copied == nil, "gamepad on: and nothing again until another is chosen")
+  for _, on in ipairs({ true, false }) do
+    gamepad = on
+    local name = on and "gamepad on: " or "gamepad off: "
+    dropdowns, sliders, settings, buttons, copied = 0, {}, {}, {}, nil
+    build()
+    check(dropdowns == 4 and next(sliders) == nil, name .. "every choice is Blizzard's dropdown, no slider")
+    check(#buttons == 0, name .. "no Copy button, the dropdown copies")
+    check(
+      settings.KIT_BOOKSIZE.kind == "n" and settings.OWN_LANG.kind == "s",
+      name .. "the settings keep their own types"
+    )
+    local data = settings.KIT_BOOKSIZE.generator()
+    check(#data == 4 and data[3].value == 3 and data[3].text == "Larger", name .. "the plain generator gives the list")
+    settings.KIT_BOOKSIZE.set(3)
+    settings.KIT_SOUND.set(9)
+    check(
+      values.bookSize == 3 and values.sound == 9 and afters[#afters] == 9,
+      name .. "the stored value is the option's own"
+    )
+    settings.KIT_COPYFROM.set("Bob - Realm")
+    check(copied == "Bob - Realm", name .. "a choice in the copy dropdown copies")
+  end
+  gamepad = true
   MenuUtil, C_XMLUtil = {}, { GetTemplateInfo = function() return {} end }
   local sel = K.select(UIParent, 170, "Choose")
   check(sel.list ~= nil and sel.rows ~= nil, "gamepad on: K.select is the kit's own list")
-
-  -- one option: no slider (its step would be 0 over 0), and no Copy row for a first character
-  do
-    local before = 0
-    for _ in pairs(settings) do
-      before = before + 1
-    end
-    local lonely = K.options({
-      title = "Kit",
-      key = "ONE",
-      defaults = { solo = 1 },
-      slash = "/one",
-      profiles = {
-        others = function() return {} end,
-        copy = function() return true end,
-        onTaken = function() end,
-      },
-      get = function() return 1 end,
-      set = function() end,
-    })
-    lonely:choice("solo", "Solo", "tip", function() return { { 1, "Only" } } end)
-    lonely:copy()
-    check(
-      settings.ONE_SOLO == nil and settings.ONE_COPYFROM == nil,
-      "gamepad on: a list of one gets no slider, and nobody to copy from no row"
-    )
-  end
-
-  -- Gamepad UI off: Blizzard's dropdown as before
   gamepad = false
-  dropdowns, sliders, settings, buttons, copied = 0, {}, {}, {}, nil
-  build()
-  check(dropdowns >= 4 and next(sliders) == nil, "gamepad off: Blizzard's dropdowns, no slider")
-  check(
-    settings.KIT_BOOKSIZE.kind == "n" and settings.OWN_LANG.kind == "s",
-    "gamepad off: the settings keep their own types"
-  )
-  local data = settings.KIT_BOOKSIZE.generator()
-  check(
-    #data == 4 and data[3].value == 3 and data[3].text == "Larger",
-    "gamepad off: the plain generator gives the list"
-  )
-  settings.KIT_COPYFROM.set("Bob - Realm")
-  check(copied == "Bob - Realm", "gamepad off: a choice in the copy dropdown copies, as it did")
   local sel2 = K.select(UIParent, 170, "Choose")
   check(
     rawget(sel2, "rows") == nil or sel2.list == nil or sel2.box ~= nil,
