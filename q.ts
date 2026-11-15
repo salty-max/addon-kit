@@ -1,4 +1,4 @@
-// harness 01fce5f9e: a copy; edit it in the harness repository instead
+// harness 96c23f780: a copy; edit it in the harness repository instead
 /**
  * The quiet runner: a command's whole output kept in a log, one verdict line
  * printed, and on a failure the lines that matter (20 at most). The exit

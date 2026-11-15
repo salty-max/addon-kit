@@ -1,4 +1,4 @@
-// harness 01fce5f9e: a copy; edit it in the harness repository instead
+// harness 96c23f780: a copy; edit it in the harness repository instead
 /**
  * A review's verdict, kept beside the check stamps: once the reviewer
  * helper has reported, the main session records what it said, and the

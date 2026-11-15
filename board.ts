@@ -1,4 +1,4 @@
-// harness 01fce5f9e: a copy; edit it in the harness repository instead
+// harness 96c23f780: a copy; edit it in the harness repository instead
 /**
  * The task board: one Markdown card per task in <the board folder>/,
  * written and listed here so no session hand-edits its front matter (repo,
