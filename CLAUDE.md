@@ -48,7 +48,7 @@ code|prose -- "<task>"`, `bun addon-kit/events.ts [n]`, `bun addon-kit/store.ts
 
 ## Hard rules
 
-- The harness files (`config board events q hooks review packet each status usage session`.ts and `githooks/`) are copies stamped `// harness <sha>`: a hand edit fails `bun run check`. Change them in `../harness/`, commit there, sync here.
+- The harness files (`config board events q queue hooks review packet each status usage session`.ts and `githooks/`) are copies stamped `// harness <sha>`: a hand edit fails `bun run check`. Change them in `../harness/`, commit there, sync here.
 - Edit the kit here, never an addon's copy (`Kit.lua`, `Media/`,
   `scripts/root.ts`, `scripts/root.py` in each addon). Commit, then `bun run
   kit:sync` and its checks in each addon that carries it (`bun

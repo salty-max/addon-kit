@@ -601,6 +601,39 @@ Sessions box shows it with its card (by its id, once the card is written).
 Its row's last cell said "terminal", like every background session's: it
 says "bg" now (`claude attach` joins it by its name).
 
+**Worktree-aware tools and an optional lock** (15 November 2026, found by
+hundo, the first project outside the family to give every child session a
+worktree, `[hooks] lock = false`, and so the first to meet five places where
+the tools assumed a shared checkout). The family keeps its own way (the
+board is the lock, one shared checkout per repository, `use_worktree:
+false`, the 3 November decision above): every change defaults to it, and the
+family's generated Harness section is byte for byte what it was. What
+changed, all in the harness repository and synced here: the rules template
+and `board.ts`/`session.ts`'s messages follow `hooks.lock` (`init.ts` renders
+the section from the config, `doctor.ts` names a stale one); `config.ts`
+gained `workDir` (the worktree the working directory is in, for `packet.ts`
+and `review.ts`) and `[session] worktrees` (the prompt, `--worktree <name>`
+on the CLI path, the child skill's `use_worktree`); `session.ts check|close`
+read a child in its own worktree, found by the `worktree:` its card names,
+else its live session's `cwd`; `packet.ts`'s default range on a fresh branch
+with nothing unpushed is the uncommitted files alone; a switch that is not
+`true` or `false` is an error, and a config the git hooks can't read is said
+on stderr with every gate staying on; `hooks.ts install` refuses in a linked
+worktree. Left alone, on purpose: `status.ts` and the pane see the main
+checkout only, and the pane's Repositories box still draws `held` with the
+lock off.
+
+**The check queue** (the same day, asked for by hundo, whose parallel
+worktrees ran their `pnpm check` together at a load of 86 to 140): `queue.ts`,
+one `check` at a time on the machine under `[checks] queue = true`, off by
+default and off in the family's own config. The family's `events.log` since 3
+November has 632 checks, 66 of them overlapping another (at most 7 at once),
+median 23 s, longest 542 s: a queue would seldom wait there, but a waiting
+check can outlive a Bash tool call's timeout and lose its place, so turning
+it on for the family is the user's call (`[checks] queue = true` in
+`harness.family.toml`, then `bun harness/harness-sync.ts .`). Design and
+limits in `../harness/docs/design.md`.
+
 ## Working rules for the build sessions
 
 - Model: `opusplan`.

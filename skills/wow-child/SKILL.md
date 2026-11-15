@@ -28,7 +28,9 @@ the child, seeing it through, the dispatch). The family differs here.
 - **Pushes in waves** across several repositories (order, CI between):
   `wow-releasing`.
 - **The folder stays the family's**: a child is opened with
-  `use_worktree: false` in `~/code/wow-addons`; never a bare `cd` in Bash
+  `use_worktree: false` in `~/code/wow-addons` (the family's config leaves
+  `[session] worktrees` false: shared checkouts and the lock, the board's
+  choice of 3 November 2026); never a bare `cd` in Bash
   (the root settings pin the working directory).
 - The harness itself is edited in `harness/`, then synced into `addon-kit/`
   (`wow-harness-init`): a change to `session.ts`'s prompt is made there.
