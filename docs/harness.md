@@ -619,9 +619,24 @@ else its live session's `cwd`; `packet.ts`'s default range on a fresh branch
 with nothing unpushed is the uncommitted files alone; a switch that is not
 `true` or `false` is an error, and a config the git hooks can't read is said
 on stderr with every gate staying on; `hooks.ts install` refuses in a linked
-worktree. Left alone, on purpose: `status.ts` and the pane see the main
-checkout only, and the pane's Repositories box still draws `held` with the
-lock off.
+worktree. Left alone then, done the same day (below): `status.ts` and the
+pane saw the main checkout only, and the pane's Repositories box still drew
+`held` with the lock off.
+
+**The worktree and rebase-merge leftovers** (15 November 2026, found while
+hundo ran on it): `harness-sync.ts`, `init.ts` and `doctor.ts` given a
+worktree write and judge that worktree's own files (`config.ts`'s
+`projectTree`, `toolsPath`, `treeConfig`), where `harness-sync.ts <worktree>`
+had written the main checkout's tools folder; `session.ts check|close` count
+the unpushed commits of a child by content (`trees.ts`: a rebase-merged branch
+reads pushed, where by id it never did), the family's shared checkouts getting
+the same answers; `status.ts` and the pane show each repository's linked
+worktrees with what they carry (none in the family, which keeps no worktree);
+the pane says `running`, not `held`, where the lock is off, and says a check
+waits in the queue; `[session] decisions = "opener"` for a project whose user
+decides in the dispatch session (the family keeps `"child"`, the default). The
+family's generated Harness section is byte for byte what it was. Design and
+limits in `../harness/docs/design.md`.
 
 **The check queue** (the same day, asked for by hundo, whose parallel
 worktrees ran their `pnpm check` together at a load of 86 to 140): `queue.ts`,
