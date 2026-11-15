@@ -1,4 +1,4 @@
-// harness 96c23f780: a copy; edit it in the harness repository instead
+// harness 0058e12b6: a copy; edit it in the harness repository instead
 /**
  * Every repository beside the kit (the project root) at a glance: where it
  * stands against GitHub, what's left uncommitted, each workflow's last run on

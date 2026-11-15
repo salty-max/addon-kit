@@ -1,4 +1,4 @@
-// harness 96c23f780: a copy; edit it in the harness repository instead
+// harness 0058e12b6: a copy; edit it in the harness repository instead
 /**
  * What a repository's trees hold: the commits no remote has, and the linked
  * worktrees beside the main checkout with what each carries. session.ts
