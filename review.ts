@@ -1,4 +1,4 @@
-// harness 58e79108a: a copy; edit it in the harness repository instead
+// harness 01fce5f9e: a copy; edit it in the harness repository instead
 /**
  * A review's verdict, kept beside the check stamps: once the reviewer
  * helper has reported, the main session records what it said, and the
@@ -16,6 +16,9 @@
  *
  *   bun review.ts yonder "clean"
  *   bun review.ts yonder "2 findings, fixed before the commit"
+ *
+ * A repository's name, from inside a worktree of that repository, reads and
+ * records on that worktree (a path always on the path), and says so.
  *
  * The file: <git common dir>/harness/review-tree-<tree>, its first line
  * "verdict: <verdict>", then the head it was recorded on, the tree, when,
@@ -36,7 +39,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import { logEvent, repoOf } from "./events";
 import { packetRange, packetTree } from "./packet";
 import { stampDir, workTree } from "./q";
-import { loadConfig, repoDir, repoName } from "./config";
+import { linkedWorktree, loadConfig, repoName, workDir } from "./config";
 
 function git(cwd: string, ...args: string[]): string | undefined {
   const p = Bun.spawnSync(["git", ...args], { cwd, stderr: "ignore" });
@@ -196,7 +199,9 @@ if (import.meta.main) {
     console.error('usage: bun review.ts <repo> [--again] ["<verdict>"]');
     process.exit(2);
   }
-  const dir = isAbsolute(repo) || repo.startsWith(".") ? resolve(repo) : repoDir(repo);
+  const dir = isAbsolute(repo) || repo.startsWith(".") ? resolve(repo) : workDir(repo);
+  const top = git(dir, "rev-parse", "--show-toplevel") ?? dir;
+  if (linkedWorktree(top)) console.error(`note: the worktree ${top}`);
   if (!words.length) {
     const r = reviewOf(dir);
     console.log(r ? `${r.verdict} (${r.at ?? "?"})` : "no verdict for HEAD");
