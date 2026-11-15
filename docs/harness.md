@@ -145,7 +145,8 @@ CLAUDE.md names the tool in two lines.
 - **Permissions**: the root `.claude/settings.json` asks before `git push`,
   `scripts/release.sh`, `gh release`, `gh workflow run`, `vercel deploy`,
   and `store.ts --apply`. Check how "ask" rules behave under the user's
-  permission modes and write down what holds.
+  permission modes and write down what holds. (The list has grown since:
+  what it holds today is under "What the ask rules hold" below.)
 - **`addon-kit/board.ts add|set|list`**: the task board's cards, in the
   format under D. `status.ts` shows the cards and each repository's check
   stamp.
@@ -222,6 +223,61 @@ diff while A is unpushed).
   and `--repo` forms; listing them doesn't ask), anything naming
   `core.hooksPath` (`git -c core.hooksPath=/dev/null commit` would skip
   both gates) and `hooks.ts uninstall`.
+- Widened 15 November 2026, the user's go (holes a reviewer found in
+  hundo's copy of the template, ours the same; the list went from 50 rules
+  to 133, the root's and `~/.claude/settings.json` identical):
+  - A deploy by any path or runner. Deploy is Vercel's default command, so
+    `vercel apps/web --yes`, `vercel .`, `vercel ~/x`, `vercel "$DIR"`, a
+    bare `vercel 2>&1`, `pnpm vercel` and `bun x vercel` all deploy. The
+    rules: the path shapes, `apps` (a monorepo's folder), the family's
+    Vercel folders by name (hearthtale, ravenpost, wow-locker, wow-data,
+    inbox, site), anything with `--prod` or `--target production`, a
+    versioned runner (`npx vercel@latest`), and the `vc` alias.
+  - A production or project change on Vercel: redeploy, promote, rollback,
+    a rolling release, alias and ln, domains, DNS, certificates, the
+    firewall, redirects, routes, a deployment removed. Also `env
+    add|rm|update`, a project created, removed, renamed, updated, paused
+    or its protection changed, and `link` (it writes production tokens into
+    `.env.local`, and Hearthtale's scripts then reach Neon's production).
+    Then `git connect|disconnect`, `crons run`, a blob written or deleted,
+    the cache, tokens, integrations, a purchase.
+  - A raw API write. `gh api` and `vercel api` send a POST once they carry
+    a body, so either asks on `-X` (`-XPOST` too), `--method`, `-f`, `-F`,
+    `--field`, `--raw-field` or `--input`. A read with none of those
+    doesn't ask (hundo asks on every `vercel api` call, its own choice).
+  - `gh run rerun` (a release run rerun publishes again), `gh repo
+    create|edit|delete|rename|archive`, and `gh auth token` (a token
+    handed to curl gets past every `gh` rule).
+  - `*core.hooksPath*` anywhere in a command, the template's form (was
+    `git *core.hooksPath*`): a heredoc or a grep naming it asks too.
+
+  The template (`harness/templates/settings-asks.json`) is this list
+  without the family's own entries (release.sh, store.ts, secret.ts, the
+  folder names but `apps`). `harness/asks.test.ts` runs it against the commands that
+  must ask and the reads that must not, with a matcher that approximates
+  Claude Code's (split, wrappers stripped, `*` over any text). `bun
+  harness/doctor.ts .` names any template ask the root lacks.
+
+  Tried against 1,708 gh and vercel commands from the family's past
+  sessions: 68 newly ask, nearly all real writes. Nothing the old list
+  asked stops asking, and no read the family relies on asks (status.ts,
+  each.ts, `gh pr list|view|checks`, `gh run list|view|watch`, `gh api`
+  GETs with `--jq`/`-H`/`--paginate`, `vercel ls|inspect|logs|env ls|env
+  pull|blob list`). Reads that now ask: a GraphQL query (`gh api graphql -f
+  query=…`, none in the family), `vercel ls --prod` (`--environment
+  production` doesn't ask), any vercel command with a flag before its
+  subcommand (`vercel --scope team ls`, `vercel --version`, as before),
+  the `ls` of alias, domains, dns, certs, tokens and integration, any
+  versioned runner (`npx vercel@latest ls`), `which vercel`, and a grep or
+  commit message naming one of these commands. None of them is a read the
+  family's docs or scripts use.
+
+  Still slips: combined short flags (`gh api -iXPOST`), a preview deploy
+  of a folder the list doesn't name (`vercel docs`), and Vercel's long tail
+  (teams, switch, storage, webhooks, flags, sandbox). Not verified: whether
+  Claude Code keeps a redirect such as `2>&1` in the text it matches. Both
+  forms are listed. The probe is an ask rule `Bash(true)` and a run of
+  `true 2>&1`.
 - The lock in git (24 October 2026): the pre-commit hook asks `board.ts
   may <repo>` of every commit a Claude session makes (its
   `CLAUDE_CODE_SESSION_ID` set): a running card of that session must name

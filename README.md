@@ -512,12 +512,15 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   (and the harness's: `for s in ~/code/wow-addons/harness/skills/*; do ln -sfn "$s" ~/.claude/skills/; done`)
 
 The root `.claude/settings.json` asks before a push, a release
-(`scripts/release.sh`, `gh release`), `gh workflow run`, a Vercel deploy and
-`store.ts --apply` and a pull request's merge, in every permission mode, for a
-session opened at `~/code/wow-addons`; the same list in
+(`scripts/release.sh`, `gh release`, a run rerun), `gh workflow run`, a pull
+request's merge, a Vercel deploy (any path, any runner) or production change,
+a write through `gh api` or `vercel api`, a repository created, edited or
+deleted, a secret or a variable set, and `store.ts --apply`, in every
+permission mode, for a session opened at `~/code/wow-addons`; the same list in
 `~/.claude/settings.json` covers every other session (a repository's, a
 worktree's). What holds and what doesn't is in `docs/harness.md`. Tests:
-`../harness/harness.test.ts`.
+`../harness/harness.test.ts` (the hooks), `../harness/asks.test.ts` (the
+template's asks).
 
 ## English and French as the base
 
