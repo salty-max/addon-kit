@@ -1,4 +1,4 @@
-// harness 0058e12b6: a copy; edit it in the harness repository instead
+// harness 92b2af131: a copy; edit it in the harness repository instead
 /**
  * The family's git hooks (githooks/: commit-msg refuses an AI co-author or a
  * "generated with" line, pre-push a tree with no passing check), put in a

@@ -1,4 +1,4 @@
-// harness 0058e12b6: a copy; edit it in the harness repository instead
+// harness 92b2af131: a copy; edit it in the harness repository instead
 /**
  * What a card costs: the tokens a task's session and its helpers spent, per
  * finished card and per commit (a session that carried several cards, one
