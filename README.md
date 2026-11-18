@@ -311,9 +311,10 @@ The family's way of working (`docs/harness.md`): quiet output, gates git
 keeps, a packet for each review, a board of tasks. From a repository:
 
 ```bash
-bun ../addon-kit/q.ts check -- bun run check   # "check: ok (41s) · stamped 3f2a1b9", or FAILED and
-                                               # the lines that matter (20 at most); exit code kept,
-                                               # whole output in .cache/logs/check.log
+bun ../addon-kit/q.ts check -- bun run check   # "check: ok (41s) · stamped 3f2a1b9 · .cache/logs/check-<time>-<pid>.log",
+                                               # or FAILED and the lines that matter (20 at most); exit code kept,
+                                               # whole output in that log, a file of its own for each run, its
+                                               # path always the line's end (check.log links to the latest)
 bun ../addon-kit/q.ts test -- bun test         # any name: the same, no stamp
 ```
 

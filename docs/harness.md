@@ -122,9 +122,10 @@ CLAUDE.md names the tool in two lines.
 ### B. Quiet runner, gates and the review packet (addon-kit, root .claude) — wave 1
 
 - **`addon-kit/q.ts`**: `bun ../addon-kit/q.ts <name> -- <command...>` runs
-  a command, keeps its whole output in `<repo>/.cache/logs/<name>.log`
-  (gitignored), prints one verdict line ("check: ok", "check: FAILED (exit
-  1)") and, on a failure, the lines that matter (20 at most). The exit code
+  a command, keeps its whole output in `<repo>/.cache/logs/<name>-<time>-<pid>.log`
+  (gitignored; one file for each run, its path ending the verdict line,
+  `<name>.log` a link to the latest), prints one verdict line ("check: ok",
+  "check: FAILED (exit 1)") and, on a failure, the lines that matter (20 at most). The exit code
   passes through. A passing `check` stamps the tree it ran on
   (`.git/harness/check-<tree hash>`).
 - **Git hooks** in `addon-kit/githooks/`: `commit-msg` refuses AI
