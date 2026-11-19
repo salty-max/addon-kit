@@ -647,8 +647,14 @@ November has 632 checks, 66 of them overlapping another (at most 7 at once),
 median 23 s, longest 542 s: a queue would seldom wait there, but a waiting
 check can outlive a Bash tool call's timeout and lose its place, so turning
 it on for the family is the user's call (`[checks] queue = true` in
-`harness.family.toml`, then `bun harness/harness-sync.ts .`). Design and
-limits in `../harness/docs/design.md`.
+`harness.family.toml`, then `bun harness/harness-sync.ts .`). Since 19
+November a run that holds a place is stopped after 30 minutes (`[checks]
+queue_limit`, `q.ts --limit <minutes>`: the process tree, SIGTERM then SIGKILL,
+exit 124, the verdict says it timed out), because a hung one held the place for
+everyone behind it; a waiting run's line names the holder and `q.ts
+--queue-status` prints the queue. The family doesn't queue, so none of this
+runs here unless a run asks with `--queue` or `--limit`. Design and limits in
+`../harness/docs/design.md`.
 
 ## Working rules for the build sessions
 
