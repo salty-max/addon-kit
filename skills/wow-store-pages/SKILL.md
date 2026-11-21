@@ -8,7 +8,10 @@ description: Write or change an addon's store page (addon/CURSEFORGE.md) and put
 The text of every store lives in the addon's `addon/CURSEFORGE.md`; the
 TOCs' `## Notes` are the summary (also at the top of the file, in a
 comment). Store-page text may be pushed to the repository without asking;
-putting it up on the stores publishes, so that waits for the user's go.
+putting it up on the stores publishes, so that waits for the user's go,
+asked in the opener (the session the user is in: `decisions = "opener"`),
+which runs `--apply` itself. A child on a store page hands over the dry run
+and the question and stops.
 
 ## The page
 
@@ -53,8 +56,8 @@ bun addon-kit/store.ts --ui            # the same in a page on this computer, th
 ```
 
 - A dry run first, always; show the user what would change and ask before
-  `--apply` (the ask rules prompt too, in every session: a guard, not the
-  go).
+  `--apply`, in the opener, which runs it (the ask rules prompt too, in every
+  session: a guard, not the go). A push go never covers a store upload.
 - Both summaries go up with `--apply` (the file's `Summary` note, which the
   TOCs' Notes repeat): Wago's with its page, CurseForge's through the General
   page's own save, every other field sent as read and the project read back.

@@ -7,11 +7,19 @@ description: Release an addon (or Ravenpost, or WoWLocker) or push its main: pre
 
 Every push of code, release and deploy waits for the user's go, asked each
 time (documentation and store-page text may be pushed without asking). The
-ask rules (the root's `.claude/settings.json`, the same list in
-`~/.claude/settings.json` for every other session) prompt before `git push`,
-`release.sh`, `gh release`, `gh workflow run`, a merge and a deploy. They are
-a guard, not the go: ask the user in words first, every time. The pre-push
-hook checks the stamp, not the user's go.
+go is asked in the opener, the session the user is in, with the question
+tool, and the opener runs the command (`decisions = "opener"`, 21 November
+2026): a child asks the user nothing, it hands over what to run and stops, so
+the permission prompt fires where the user already is. The ask rules (the
+root's `.claude/settings.json`, the same list in `~/.claude/settings.json`
+for every other session) prompt before `git push`, `release.sh`, `gh
+release`, `gh workflow run`, a merge and a deploy. They are a guard, not the
+go: the question comes first, every time (a push in the opener asks twice,
+the question and then the prompt). The pre-push hook checks the stamp, not
+the user's go. A release commits and tags in the addon, so an opener with
+no card of its own takes one first (`board.ts add <repo> … --repos <repo>`,
+or `set --repos` once the child's card no longer runs there), or the
+pre-commit lock refuses the commit.
 
 ## Before asking for the go
 
@@ -154,9 +162,11 @@ repositories when the ask names them all.
 5. **The cards**: this session's own cards whose commits went out, set
    done (`board.ts set <id> --status done`). A child's card: SendMessage
    the child to set its card done, then close it once it has (the `child`
-   skill). A child's push go is asked by the child in its
-   own session and quoted in its report (words and scope: repository,
-   sha range, push only): the opener checks the quote, then pushes the
-   child's commits itself, and relays "child X waits for your go" in place
-   of asking. No quote, no push. A push go never covers a deploy or a
-   release: each is asked again (the family CLAUDE.md).
+   skill). A child never pushes and never asks for a go:
+   it reports the push as ready (repository, sha range, push only) and
+   stops. The opener asks the user itself, with the question tool (their
+   answer there is the go: no quote to check), then pushes the child's
+   commits and tells the child what was decided. No go from the user, in
+   the opener, no push. A push go never covers a deploy, a release or a
+   store upload: each is asked again, in the opener (the family
+   CLAUDE.md).

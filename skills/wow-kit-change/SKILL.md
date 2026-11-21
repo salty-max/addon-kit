@@ -39,7 +39,9 @@ builder's brief.
 4. Commit (`feat(kit): …`, `fix(kit): …`). The sync refuses uncommitted kit
    code: `kit:sync --dirty` makes a trial copy (stamp `<sha>+`) for a test
    in one addon, which its check and preflight refuse, so never commit it.
-5. Push the kit (it asks the user's go) before syncing any addon: `kit:sync`
+5. Push the kit (it asks the user's go) before syncing any addon (a child
+   reports the kit's push as ready and stops: the opener asks, pushes, and
+   the child carries on with the syncs): `kit:sync`
    refuses a kit whose HEAD isn't on origin/main, and `kit:check` measures
    staleness against origin/main, so a commit that stays local breaks no
    addon's check and no addon points at it.
@@ -87,5 +89,6 @@ Then read every addon's `git diff` before committing it.
 The packet and the reviewer, before the commit, for addon-kit and for each
 addon whose own code changed (the syncs of the kit's copies need none:
 pre-push waives them). A test in the game for a visual change (the `wow-game-test`
-skill). Then the pushes, each on the user's go, addon-kit first: the
+skill). Then the pushes, each on the user's go, asked in the opener, which
+pushes (a child hands them over and stops), addon-kit first: the
 `wow-releasing` skill's "Push waves".

@@ -22,7 +22,10 @@ its own.
 
 - **One session per task.** A task that waits on the user (a test in the
   game, a review) leaves a card on the task board and stops. A new task
-  starts a new session. The user answers a waiting task in its own session.
+  starts a new session. The user answers a waiting task in its own session
+  (until 21 November 2026: since then every question and every go is asked in
+  the session that opened the task, the opener, and a child asks the user
+  nothing, see "Every decision in the opener" after "A go is reported").
   Two sessions never write the same repository at once.
 - **Every task on the board, the board the lock** (the same evening, after
   asking how worktrees fit: "I want everything to be visible in the
@@ -565,10 +568,13 @@ that does is a note). The reviewer's first pass found the first cut
 taking `@{u}..HEAD` (no upstream was a note) and letting any open card
 excuse unpushed work, and a registry's automatic name (`nameSource:
 derived`, "83-1e") taken for the opener's: skipped now. A child waiting
-on the user stays open: the user answers there. A repository with no
+on the user stays open: the user answers there (until 21 November 2026, see
+"Every decision in the opener" below: a test or a review is still the user's,
+a question or a go goes to the opener). A repository with no
 remote is a note: its unpushed commits can't be told.
 
-**A go is reported** (29 October 2026, the user: a go given in a child's
+**A go is reported** (29 October 2026, replaced on 21 November 2026 by "Every
+decision in the opener" below; the user: a go given in a child's
 session never reached the opener, which could not verify it, and the two
 asked the user twice). The go belongs to the session that asks it: the
 child asks its own push go in its own session (question tool), and its
@@ -578,6 +584,42 @@ pushes on a summary, and relays "child X waits for your go" in place of
 asking itself. A push go never covers a deploy or a release. The rule is
 in the family CLAUDE.md, the `child` and `wow-child` skills, session.ts's child prompt and
 the push waves of `wow-releasing`.
+
+**Every decision in the opener** (21 November 2026, the user: after giving
+harness 7c45c8b's push go inside a family child, "Again I should not have to
+go to another session to approve something"; asked by the dispatch whether
+to switch the family to `decisions = "opener"`, so its children never ask
+the user directly: "Yes, switch it"). The switch itself had been in the
+harness since 15 November 2026 (96c23f7, for a project whose user takes
+every decision in the dispatch session); the family had kept the default,
+`child`, and its go-in-the-child rule above. Now `harness.family.toml` says
+`decisions = "opener"`: the Harness block of the family CLAUDE.md is the
+template's opener branch, session.ts's child prompt is `reportToOpener`
+(the child asks the user nothing, sends each question with the options and
+its recommendation to its opener, and stops), and the generic `child` skill
+reads the key. What the family adds: a push go never covers a deploy, a
+release or a store upload, each asked again in the opener; a test in the
+game or a review is still the user's to do, the child's report of it going
+to the opener, which relays it in one line (the user's screenshots come
+back to the session they are in, which sends the findings to the card's
+session); and, because a permission prompt fires in the session that runs
+the command, the opener runs every command the ask rules prompt for (push,
+`release.sh`, `gh release`, `gh workflow run`, a merge, `store.ts --apply`,
+`gh repo create`, a secret or a variable set, a deploy), a child handing it
+what to run. A release commits and tags in the addon, so the opener first
+holds a card naming it (the pre-commit lock). A push in the opener asks
+twice, the question and the permission prompt. Left open for the user:
+a plan's approval, which leaving plan mode asks in the child's own session
+and nothing routes to the opener (whether a plan child should send its plan
+to the opener instead). A user working in a family session directly makes
+that session the opener of the children it opens. Edited by hand for it:
+the family CLAUDE.md (the block re-rendered by `init.ts --section-only`, then
+the family's own paragraph), `wow-child`, `wow-releasing`, `wow-game-test`,
+`wow-data-prs`, `wow-new-addon`, `wow-kit-change`, `wow-store-pages`. The
+harness repository still says in its own `CLAUDE.md` (the defaults) and
+`docs/design.md` that the family's default is the decision in the child, and
+`config.ts`'s comment on `Decisions` calls it "the family": the harness
+session's to correct, and a vendored copy's comment follows from there.
 
 **Desktop children** (the same night, the user: children "do not appear
 in the desktop app sidebar"). The desktop app lists only its own sessions

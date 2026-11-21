@@ -14,7 +14,9 @@ card waiting on the game, so the user launches it once.
 1. **The cards**: `bun addon-kit/board.ts list`, every card whose work is
    committed and needs the game. Set each `waiting-test` now (`board.ts
    set <id> --status waiting-test`), and a child session tells its opener
-   (SendMessage). Each card's `--try` says what to do in the game.
+   (SendMessage), which relays the test to the user in one line: a test is
+   the user's to do, and a child asks the user nothing. Each card's `--try`
+   says what to do in the game.
 2. **The builds**, for each repository on those cards, from its HEAD: the
    `wow-releasing` skill's "Test builds" (`bun run package`, the zip alone
    into `~/Library/Mobile Documents/com~apple~CloudDocs/WoW addons test/`,
@@ -60,7 +62,10 @@ notes" button): read them first, then the screenshots they name.
    game, the language), never a guess at the cause written as fact.
 3. The fixes in the card's own session (a new session if that one is
    closed): its card set `running` first, a test reproducing the bug where
-   the simulation can (`addon/test/`), the fix, the check. A finding in
+   the simulation can (`addon/test/`), the fix, the check. The user brings
+   the screenshots to the session they are in, normally the opener, which
+   reads them and sends each finding to the card's session by SendMessage:
+   the user never has to go to the child. A finding in
    another card's repository goes to that card's session, or to a new one
    (the family's rule), never left in a report.
 4. Each card moved: `ready-to-push` when its lines passed, `running` while

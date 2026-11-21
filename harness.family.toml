@@ -38,3 +38,10 @@ status = "addon-kit/status-extras.ts"
 [session]
 rules = "CLAUDE.md"
 models = { code = "opusplan", prose = "opus" }
+# Every question and every go is asked of the user in the session that opened the child,
+# never in the child (21 November 2026, the user, after approving a push inside a family
+# child: "Again I should not have to go to another session to approve something"; then,
+# asked whether to switch: "Yes, switch it"). The child sends each question to its opener
+# with the options and its recommendation and stops. Until then the family ran the default,
+# "child" (29 October 2026: the go asked in the child's own session).
+decisions = "opener"

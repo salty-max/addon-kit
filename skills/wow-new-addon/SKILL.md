@@ -79,6 +79,10 @@ From `~/code/wow-addons/<repo>`, after `git init`:
 
 ## GitHub and the stores
 
+Each go below is asked in the opener (the session the user is in, with the
+question tool: `decisions = "opener"`, 21 November 2026), which runs the
+command: a child building the addon hands over what to run and stops.
+
 - The GitHub repository only on the user's go: `gh repo create
   salty-max/<repo> --public --source <repo>` (no push by it), then the push
   of main on its own go (`wow-releasing`). Its description and topics come
