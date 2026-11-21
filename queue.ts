@@ -1,4 +1,4 @@
-// harness 5c02d0b84: a copy; edit it in the harness repository instead
+// harness f4aa3382b: a copy; edit it in the harness repository instead
 /**
  * The check queue: one `check` at a time on this machine, the others wait
  * their turn. Several sessions (a worktree each, or the family's shared
