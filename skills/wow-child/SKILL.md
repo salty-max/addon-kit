@@ -46,10 +46,26 @@ the child, seeing it through, the dispatch). The family differs here.
   line. The user brings the findings to the session they are in, which sends
   each to the card's own session by SendMessage (a new session when that one
   is closed).
-- **A plan's approval** is still asked in the child (leaving plan mode
-  always asks the user where it plans, nothing routes it to the opener):
-  open on 21 November 2026, whether a plan child should send its plan to
-  the opener instead is the user's to decide.
+- **A plan's approval comes to the opener** ("Plan comes here", the user,
+  21 November 2026). Never `--plan`: leaving plan mode always asks the user
+  in the session that plans, and nothing routes it to the opener. A task that
+  needs a design settled first (the opener's call, never a question for the
+  user) is opened as an Opus child, `--kind prose` without `--plan` (a
+  desktop child starts on Sonnet, so `set_session_model` moves it to Opus
+  before it plans). Its brief says: take your card first (the board's usual
+  first write), write the plan, set the card `waiting-review`, send the plan
+  to the opener by SendMessage and stop, and build only after the opener
+  relays the user's answer quoted, setting the card running again first
+  (mind a `held:`: a waiting card holds nothing). The opener asks the user
+  through the question tool (the plan whole, or its file in the shared notes
+  folder, and the child's open choices word for word). On an approval of a
+  code task it moves the child to Sonnet with `set_session_model` FIRST and
+  relays the answer after, because the relay wakes the child and it builds
+  on whatever model it is on (a prose task stays on Opus, and an amended
+  plan stays on Opus too). A CLI child can't be moved by that tool (not
+  verified that a `claude --bg` session can change model mid-run): for a
+  code task the opener opens the build as a new `--kind code` child, handed
+  the approved plan, and closes the plan child.
 - When the user works in a family session directly, that session is the
   opener of the children it opens.
 - **Pushes in waves** across several repositories (order, CI between):

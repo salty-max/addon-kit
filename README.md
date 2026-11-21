@@ -447,7 +447,10 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   is the opener's call, never the user's: plan mode for a task that needs
   a design settled first (Opus plans, then one stop for the user's
   approval, which leaving plan mode always asks; no card shows that wait,
-  so the output says it, for the opener to tell the user). `--dry-run` prints the
+  so the output says it, for the opener to tell the user). The family has not
+  used it since 21 November 2026 (`decisions = "opener"`: that stop is in the
+  child), a plan-first task being an Opus child that sends its plan to the
+  opener (`docs/harness.md`). `--dry-run` prints the
   command and the prompt and starts nothing. The prompt gives the child
   its opener's address (the socket in Claude Code's session registry,
   else its name): it reports by SendMessage each time its card stops

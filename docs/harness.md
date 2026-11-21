@@ -532,7 +532,10 @@ folder and prints the new session's id and how to attach. What it holds:
   is the opener's call, never a question for the user (the user, 25
   October 2026: "you should add --plan yourself when needed I should not
   have to intervene"): for a task that needs a design settled first, left
-  off for work already specified.
+  off for work already specified. (The family stopped using it on 21 November
+  2026, `decisions = "opener"`: the stop is in the child, so a plan-first task
+  is an Opus child that sends its plan to the opener, see "Every decision in
+  the opener".)
 - **Notes** on stderr: a repository another session's running card holds
   (the new session will block on it), a name that is no family folder yet.
   The opening goes in the event log (`session`).
@@ -608,10 +611,17 @@ the command, the opener runs every command the ask rules prompt for (push,
 `gh repo create`, a secret or a variable set, a deploy), a child handing it
 what to run. A release commits and tags in the addon, so the opener first
 holds a card naming it (the pre-commit lock). A push in the opener asks
-twice, the question and the permission prompt. Left open for the user:
-a plan's approval, which leaving plan mode asks in the child's own session
-and nothing routes to the opener (whether a plan child should send its plan
-to the opener instead). A user working in a family session directly makes
+twice, the question and the permission prompt. A plan's approval comes to
+the opener too (the user's answer, the same day: "Plan comes here"): leaving
+plan mode always asks the user in the session that plans and nothing routes
+it to the opener, so no child uses `--plan`. A task that needs a design
+settled first gets an Opus child (`--kind prose`, no `--plan`) that takes its
+card, writes its plan, sets the card `waiting-review` (so the board shows the
+wait, which `--plan` never did), sends the plan to the opener and stops; the
+opener asks the user and, on an approval of a code task, moves the child to
+Sonnet (`set_session_model`) first and only then relays the answer quoted (the
+relay wakes the child, which builds on the model it is on; a CLI child can't be
+moved, so the build is a new `--kind code` child on the approved plan). A user working in a family session directly makes
 that session the opener of the children it opens. Edited by hand for it:
 the family CLAUDE.md (the block re-rendered by `init.ts --section-only`, then
 the family's own paragraph), `wow-child`, `wow-releasing`, `wow-game-test`,
@@ -635,7 +645,8 @@ the desktop id through `hostSessionId`; `list_sessions` with `linked`
 names whose child it is). The model: code a Sonnet id, prose inherits the
 opener's (a Sonnet opener opens a prose child with session.ts), plan
 inherits it in plan mode and the opener moves it to Sonnet once the plan
-is approved (`set_session_model`). A CLI opener keeps `claude --bg`. The
+is approved (`set_session_model`; the family has no plan-mode children since
+21 November 2026, see "Every decision in the opener"). A CLI opener keeps `claude --bg`. The
 `child` skill carries both (moved on 1 November 2026 to `harness/skills/child`, generic: it reads the tools folder from `config.ts show`, so warcraft-puzzles uses it too; the family's part is `wow-child`).
 
 **The panel**: a session opened this way is in Claude Code's registry like
