@@ -1,4 +1,4 @@
 #!/bin/sh
-# harness 19d5f5747: a copy; edit it in the harness repository instead
+# harness 9f4749846: a copy; edit it in the harness repository instead
 # Nothing of the harness's here: the repository's own post-merge, if any.
 exec "$(dirname "$0")/_chain" post-merge "$@"

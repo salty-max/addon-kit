@@ -1,4 +1,4 @@
-// harness 19d5f5747: a copy; edit it in the harness repository instead
+// harness 9f4749846: a copy; edit it in the harness repository instead
 /**
  * The shell-words splitter the harness hooks share: a command line cut into its simple commands (each a list of words,
  * quotes taken off, with what ran before and after it), the bodies of $(…) and backticks kept on the word that holds

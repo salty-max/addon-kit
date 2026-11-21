@@ -532,10 +532,10 @@ folder and prints the new session's id and how to attach. What it holds:
   is the opener's call, never a question for the user (the user, 25
   October 2026: "you should add --plan yourself when needed I should not
   have to intervene"): for a task that needs a design settled first, left
-  off for work already specified. (The family stopped using it on 21 November
-  2026, `decisions = "opener"`: the stop is in the child, so a plan-first task
-  is an Opus child that sends its plan to the opener, see "Every decision in
-  the opener".)
+  off for work already specified. (Refused in the family since 21 November
+  2026: with `decisions = "opener"` the stop would be in the child, so
+  `session.ts --plan` exits 2 and a plan-first task is a `--kind prose` child
+  that sends its plan to the opener, see "Every decision in the opener".)
 - **Notes** on stderr: a repository another session's running card holds
   (the new session will block on it), a name that is no family folder yet.
   The opening goes in the event log (`session`).

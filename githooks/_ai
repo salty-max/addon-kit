@@ -1,5 +1,5 @@
 #!/bin/sh
-# harness 19d5f5747: a copy; edit it in the harness repository instead
+# harness 9f4749846: a copy; edit it in the harness repository instead
 # The project's rule on a commit message, read on stdin: prints each line that
 # names an AI as a co-author (any "<something>-by:" or "-with:" trailer:
 # Co-Authored-By, Signed-off-by, Reviewed-by, Helped-by, Made-with...) or

@@ -335,7 +335,7 @@ bun addon-kit/board.ts list [--all]            # what waits on the user first
 bun addon-kit/board.ts held [yonder]           # who holds what; exit 1 when another session holds one named
 bun addon-kit/board.ts may yonder              # exit 1 unless this session's running card may write it (pre-commit asks)
 bun addon-kit/session.ts "Eight riddles" --repos yonder,wow-data --kind code -- "<the task>"
-                                               # a new task in a session of its own (--dry-run, --plan)
+                                               # a new task in a session of its own (--dry-run; --plan is refused in the family)
 bun addon-kit/session.ts children [--all]      # the sessions this one opened, and what keeps each open
 bun addon-kit/session.ts close <id> [--force]  # a finished child closed (claude stop), once checked
 bun addon-kit/session.ts check <local_id>      # a desktop child's verdict, before its opener archives it
@@ -447,9 +447,10 @@ bun addon-kit/events.ts [n]                    # the harness's last n events, as
   is the opener's call, never the user's: plan mode for a task that needs
   a design settled first (Opus plans, then one stop for the user's
   approval, which leaving plan mode always asks; no card shows that wait,
-  so the output says it, for the opener to tell the user). The family has not
-  used it since 21 November 2026 (`decisions = "opener"`: that stop is in the
-  child), a plan-first task being an Opus child that sends its plan to the
+  so the output says it, for the opener to tell the user). The family can't
+  use it since 21 November 2026: with `decisions = "opener"` that stop would be
+  in the child, so `session.ts` refuses `--plan` there (exit 2, nothing started)
+  and a plan-first task is a `--kind prose` child that sends its plan to the
   opener (`docs/harness.md`). `--dry-run` prints the
   command and the prompt and starts nothing. The prompt gives the child
   its opener's address (the socket in Claude Code's session registry,
