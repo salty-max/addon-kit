@@ -1,4 +1,4 @@
 #!/bin/sh
-# harness f4aa3382b: a copy; edit it in the harness repository instead
+# harness 19d5f5747: a copy; edit it in the harness repository instead
 # Nothing of the harness's here: the repository's own prepare-commit-msg, if any.
 exec "$(dirname "$0")/_chain" prepare-commit-msg "$@"

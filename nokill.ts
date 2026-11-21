@@ -1,4 +1,4 @@
-// harness f4aa3382b: a copy; edit it in the harness repository instead
+// harness 19d5f5747: a copy; edit it in the harness repository instead
 /**
  * The gate behind the helpers' no-kill rule: a Claude Code PreToolUse hook (matcher Bash) that sits in the frontmatter
  * of .claude/agents/reviewer.md and architect.md and refuses any command that kills or signals a process, so a helper
